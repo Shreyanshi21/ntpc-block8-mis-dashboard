@@ -2566,7 +2566,10 @@ function pageSummary(){
   let h=`<div class="grid">`;
   // top row rebalanced: the Cost card carries only Budget (BAC) now, so it takes
   // span2 and the freed width goes to the gauge and the EPC bifurcation
-  h+=gaugeCard(rows,"span5")+epcCard("span5")+costCard();
+  // KP 07-Sep: Cost card hidden for now (costCard() is kept intact - put it back on
+  // this line to restore it). Overall progress and EPC split the full row instead of
+  // leaving the 2 columns the Cost card used to occupy.
+  h+=gaugeCard(rows,"span6")+epcCard("span6");
   h+=kpiCards(rows,true);
   // Reasons for Variance sits directly beside the KPI cards (next to Days to COD),
   // filling what used to be an empty second row
