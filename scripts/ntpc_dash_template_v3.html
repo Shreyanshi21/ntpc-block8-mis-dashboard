@@ -586,6 +586,9 @@ const CFG=Object.assign({
   // KP 07-Sep: step-count summaries (D&E Final Acceptance documents, PO placement).
   // countSummaries:false in a project config hides both cards there.
   countSummaries:true, acceptRe:"final\\s*acceptance",
+  // the wording of that card, so a project whose documents are named
+  // differently reads its own vocabulary (SJVN: "Approval (MDL)")
+  acceptLabel:"Final Acceptance",
   // KP 07-Sep: on Procurement - Supply / Services the Key Procurement Dates matrix is
   // replaced by the pipeline table. Set true to keep the matrix as well.
   procDatesCard:false,
@@ -2622,9 +2625,9 @@ function stepSummaryCards(rows,spec){
 }
 const SPEC_FA=()=>({key:"fa",re:CFG.acceptRe,unit:"documents",groupLabel:"Design package",
   eyebrow:"Design & Engineering · documents",
-  title:"Drawing Final Acceptance — document count",
-  hint:`activities named “Final Acceptance” in this view · completed vs what the baseline says should be finished by ${wdate(SW,1)}`,
-  byTitle:"Final Acceptance by design package",
+  title:`Drawing ${CFG.acceptLabel} — document count`,
+  hint:`activities named “${CFG.acceptLabel}” in this view · completed vs what the baseline says should be finished by ${wdate(SW,1)}`,
+  byTitle:`${CFG.acceptLabel} by design package`,
   byHint:"the same four counts per package · largest shortfall first"});
 const SPEC_PO=()=>({key:"po",steps:CFG.poStep,unit:"packages",groupLabel:"Package",
   eyebrow:"Procurement · PO placement",

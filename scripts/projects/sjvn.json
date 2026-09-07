@@ -340,9 +340,10 @@
       ]
     ]
   ],
-  "procDatesCard": true,
-  "_procDatesCard_comment": "KP asked (07-Sep) for the NTPC procurement pages to show the pipeline table instead of the Key Procurement Dates matrix. SJVN configures its own procDateCols, so it keeps the matrix - set false here to follow NTPC.",  "countSummaries": false,
-  "_countSummaries_comment": "KP 07-Sep: the Design & Engineering 'Final Acceptance' document-count cards and the PO Placement count cards are an NTPC request only. Set true here once SJVN wants them - the PO cards work as-is (poStep below); the acceptance cards need acceptRe to match this project's naming.",
+  "procDatesCard": false,
+  "_procDatesCard_comment": "false = follow NTPC (07-Sep): the procurement pages show the pipeline table instead of the Key Procurement Dates matrix. procDateCols below is kept - set this true to get the matrix back above the pipeline.",
+  "countSummaries": true,
+  "_countSummaries_comment": "KP 07-Sep asked for the same cards SJVN's sibling project got: the design-document count and the PO Placement count. The PO cards read poStep below; the document cards read acceptRe / acceptLabel, matched to this project's naming.",
   "poStep": [
     "purchaseorderwithadvpayment"
   ],
@@ -597,5 +598,8 @@
     ]
   },
   "actionsRunsApi": "https://api.github.com/repos/Vikas-visilean/ntpc-block8-mis-dashboard/actions/workflows/refresh-sjvn.yml/runs?per_page=1&status=in_progress",
-  "_actionsRunsApi_comment": "best-effort, public API: lets the Refresh button say whether this project's sync worker is running. Purely informational - the click always reloads."
+  "_actionsRunsApi_comment": "best-effort, public API: lets the Refresh button say whether this project's sync worker is running. Purely informational - the click always reloads.",
+  "acceptRe": "^approval\\b",
+  "_acceptRe_comment": "this project's design documents are named 'Submission (MDL)' / 'Approval (MDL)', so the accepted-document step is 'Approval ...' - not NTPC's 'Final Acceptance ...'. 48 of the 100 engineering activities match (checked 07-Sep-2026).",
+  "acceptLabel": "Approval"
 }
