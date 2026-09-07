@@ -446,6 +446,32 @@ html{zoom:1.3}
 #h-new{margin-left:6px;border:1px solid var(--blue);background:var(--blue-wash);color:var(--blue);font-weight:700;font-size:9.5px;border-radius:5px;padding:1px 6px;cursor:pointer}
 #btn-refresh{border:1px solid var(--line2);background:var(--surface);color:var(--blue);font-weight:700;font-size:10.5px;border-radius:6px;padding:3px 9px;cursor:pointer;white-space:nowrap}
 #btn-refresh:hover{background:var(--blue-wash)}
+#btn-pdf{border:1px solid var(--line2);background:var(--surface);color:var(--blue);font-weight:700;font-size:10.5px;border-radius:6px;padding:3px 9px;cursor:pointer;white-space:nowrap}
+#btn-pdf:hover{background:var(--blue-wash)}
+#btn-pdf:disabled{opacity:.6;cursor:default}
+/* one banner per page when the whole dashboard is printed */
+.prhd{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+ font-size:13px;font-weight:800;color:var(--ink);padding-bottom:5px;margin-bottom:9px;
+ border-bottom:2px solid var(--ink)}
+.prhd span{font-size:10px;font-weight:600;color:var(--mut)}
+@media print{
+  /* A3 landscape is the format this project's PDF snapshots have always used */
+  @page{size:A3 landscape;margin:9mm}
+  html{zoom:1!important}
+  body{background:#fff}
+  .sidebar,.fbar,.thm,#btn-refresh,#btn-pdf,#h-new,#tip,#copyfall,#rsnmodal,#vport{display:none!important}
+  .layout{display:block}
+  .main{padding:0;min-width:0}
+  .topbar{margin-bottom:8px}
+  .card{box-shadow:none;break-inside:avoid}
+  .grid{gap:9px}
+  /* every table prints in full instead of inside its scroll box */
+  .twrap,.stepby .twrap,.detpin .detscroll,.mswrap,.bgrid{max-height:none!important;overflow:visible!important}
+  table thead th,table tr:first-child th,
+  .twrap table.frz td:first-child,.twrap table.frz th:first-child,
+  .stickycol th:first-child,.stickycol td:first-child{position:static!important;box-shadow:none!important}
+  .prsec+.prsec{break-before:page}
+}
 </style>
 </head>
 <body>
@@ -471,6 +497,7 @@ html{zoom:1.3}
         <div class="m"><div class="k">Data as of</div><div class="v" id="h-date"></div></div>
         <div class="m"><div class="k">Days to COD</div><div class="v" id="h-cod"></div></div>
         <div class="m"><button id="btn-refresh" title="Fetch the latest VisiLean data build">⟳ Refresh</button></div>
+        <div class="m"><button id="btn-pdf" title="Print or save every page of the dashboard as one PDF (A3 landscape, current filters applied)">⤓ PDF</button></div>
         <div class="m thm" id="thm">
           <button data-t="auto">Auto</button><button data-t="light">Light</button><button data-t="dark">Dark</button>
         </div>
@@ -2869,15 +2896,69 @@ function bindKpi(rows,deptKey){
     el.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();go()}});
   });
 }
+// One place that turns a page key into its HTML, used by render() and by the PDF
+// export - so a printed page is exactly the page on screen, current filters included.
+function pageHtml(key){
+  if(key==="summary")return pageSummary();
+  if(key==="layout")return pageLayout();
+  if(key==="pipeline")return pagePipeline();
+  if(key==="mom")return pageMom();
+  if(key&&key.startsWith("d:"))return pageDept(key.slice(2));
+  return "";
+}
+const PRINT_ORDER=()=>[["summary","Project Summary"],["layout","Plant Layout"],
+  ["pipeline","Package Pipeline"],["mom","MOM & Actions"]]
+  .concat(DEPTS.map(d=>["d:"+d.key,d.name]));
+// ---------- PDF export ----------
+// The dashboard renders one page at a time, so "download the whole dashboard" means
+// building every page into the document, letting the browser paginate it (A3
+// landscape via @page) and handing it to the print dialog, where "Save as PDF" is the
+// destination. Wide matrices are zoomed down to the paper width so no column is cut.
+const PRINT_W=1500;                       // usable A3-landscape width in CSS px
+let _printBusy=false;
+function printPdf(){
+  if(_printBusy)return;_printBusy=true;
+  const btn=document.getElementById("btn-pdf");
+  if(btn){btn.textContent="⤓ preparing…";btn.disabled=true}
+  const keep={page:state.page,y:window.scrollY};
+  const pg=document.getElementById("page");
+  const done=()=>{
+    if(!_printBusy)return;
+    document.documentElement.style.zoom="";
+    applyTheme(lsGet("kp-thm")||"auto");
+    state.page=keep.page;lastPage=null;render();window.scrollTo(0,keep.y);
+    if(btn){btn.textContent="⤓ PDF";btn.disabled=false}
+    _printBusy=false;
+  };
+  // let the button repaint before the heavy build
+  setTimeout(()=>{
+    try{
+      applyTheme("light");                  // ink-friendly, whatever the reader uses
+      document.documentElement.style.zoom="1";   // match the paper canvas before measuring
+      let h="";
+      PRINT_ORDER().forEach(([k,name])=>{
+        h+=`<section class="prsec"><div class="prhd">${esc(name)}`
+          +`<span>${esc(CFG.name)} · data as of ${esc(M.statusDate)} · printed ${wdate(SW,1)}</span></div>`
+          +pageHtml(k)+`</section>`;
+      });
+      pg.innerHTML=h;
+      // a matrix wider than the sheet is scaled down rather than clipped
+      pg.querySelectorAll(".twrap").forEach(w=>{
+        const tb=w.querySelector("table");if(!tb)return;
+        const sw=tb.scrollWidth;
+        if(sw>PRINT_W)w.style.zoom=(PRINT_W/sw).toFixed(3);
+      });
+      addEventListener("afterprint",done,{once:true});
+      setTimeout(done,120000);              // safety net if afterprint never fires
+      setTimeout(()=>{try{window.print()}catch(e){done()}},350);
+    }catch(e){done()}
+  },30);
+}
 function render(){
   const _keep=lastPage===state.page;const _sy=window.scrollY;
   navHtml();syncFilterUI();
   const pg=document.getElementById("page");
-  if(state.page==="summary")pg.innerHTML=pageSummary();
-  else if(state.page==="layout")pg.innerHTML=pageLayout();
-  else if(state.page==="pipeline")pg.innerHTML=pagePipeline();
-  else if(state.page==="mom")pg.innerHTML=pageMom();
-  else if(state.page.startsWith("d:"))pg.innerHTML=pageDept(state.page.slice(2));
+  pg.innerHTML=pageHtml(state.page);
   const rows=filtered();
   const cht=document.getElementById("sc-chart"),tbl=document.getElementById("sc-table");
   if(cht){
@@ -2926,6 +3007,7 @@ matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>applyTh
 // — the sync publishes only when data actually CHANGES, so "old" usually means
 // "nothing changed" — and still reloads, so the click always lands on the newest
 // published build. Your page, filters and scroll position are restored via saveUI().
+{const b=document.getElementById("btn-pdf");if(b)b.addEventListener("click",printPdf);}
 const _rbtn=document.getElementById("btn-refresh");
 if(_rbtn)_rbtn.addEventListener("click",async()=>{
   _rbtn.textContent="⟳ checking…";_rbtn.disabled=true;
