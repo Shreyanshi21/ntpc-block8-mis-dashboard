@@ -553,6 +553,9 @@ const CFG=Object.assign({
   // KP 07-Sep: step-count summaries (D&E Final Acceptance documents, PO placement).
   // countSummaries:false in a project config hides both cards there.
   countSummaries:true, acceptRe:"final\\s*acceptance",
+  // KP 07-Sep: on Procurement - Supply / Services the Key Procurement Dates matrix is
+  // replaced by the pipeline table. Set true to keep the matrix as well.
+  procDatesCard:false,
   statSteps:{cea:["ceaapplicationapprovalsolar","firsttimecharging"],cod:["selfcoddeclaration","noarregistrationapproval"],sldc:["qcaandscheduling"]},
 },DATA.cfg||{});
 const AREA_RE=new RegExp(CFG.areaRe,"i");
@@ -2752,14 +2755,20 @@ function pageDept(key){
     h+=stepSummaryCards(rows,SPEC_FA());
     h+=card("span12","Engineering package pipeline","document stages per package · click a row for activities",pipeTable(rows,"pe",true));
   }else if(key==="supply"||key==="services"){
-    h+=card("span12","Key Procurement Dates — Exec View","forecast dates per package · green ✓ complete · purple ▶ started · red = overdue vs baseline · rest Not Committed until VisiLean status feed",procDateMatrix(rows));
+    // KP 07-Sep: the Key Procurement Dates matrix is replaced here by the pipeline
+    // table, which carries the same per-package step dates plus the stage cards,
+    // filters and row expansion. procDateMatrix() is untouched - a project that still
+    // wants the matrix sets procDatesCard:true (SJVN does, it configures its own
+    // procDateCols), and then gets both, matrix first.
+    if(CFG.procDatesCard)
+      h+=card("span12","Key Procurement Dates — Exec View","forecast dates per package · green ✓ complete · purple ▶ started · red = overdue vs baseline · rest Not Committed until VisiLean status feed",procDateMatrix(rows));
+    // same pipeline template as the Package Pipeline page: identical card, and the
+    // quantity table under it (skipped where the department has no measured scope)
+    h+=card("span12","Procurement Pipeline — schedule stages","per package · red date = overdue vs baseline · click a row for activities",pipeTable(rows,"pd",false));
     h+=stepSummaryCards(rows,SPEC_PO());
     h+=card("span8","PO Tracker — expected vs actual","per ED format: value-wise baseline vs forecast PO with delay",poTracker(rows));
     h+=committedCard(rows);
     h+=card("span12","Delay Analysis — procurement heads","per ED format: a–e heads, packages currently behind baseline",delayHeads(rows));
-    // same pipeline template as the Package Pipeline page: identical card, and the
-    // quantity table under it (skipped where the department has no measured scope)
-    h+=card("span12","Procurement Pipeline — schedule stages","per package · red date = overdue vs baseline · click a row for activities",pipeTable(rows,"pd",false));
     {const sod=scopeOrderDeliver(rows,true);
      if(sod)h+=card("span12","Scope vs Order vs Deliver","supply quantities",sod);}
   }else if(key==="regulatory"||key==="liaisoning"){

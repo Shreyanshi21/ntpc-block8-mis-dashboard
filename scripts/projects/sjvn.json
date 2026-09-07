@@ -340,7 +340,8 @@
       ]
     ]
   ],
-  "countSummaries": false,
+  "procDatesCard": true,
+  "_procDatesCard_comment": "KP asked (07-Sep) for the NTPC procurement pages to show the pipeline table instead of the Key Procurement Dates matrix. SJVN configures its own procDateCols, so it keeps the matrix - set false here to follow NTPC.",  "countSummaries": false,
   "_countSummaries_comment": "KP 07-Sep: the Design & Engineering 'Final Acceptance' document-count cards and the PO Placement count cards are an NTPC request only. Set true here once SJVN wants them - the PO cards work as-is (poStep below); the acceptance cards need acceptRe to match this project's naming.",
   "poStep": [
     "purchaseorderwithadvpayment"
