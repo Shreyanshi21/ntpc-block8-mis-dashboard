@@ -340,6 +340,8 @@
       ]
     ]
   ],
+  "countSummaries": false,
+  "_countSummaries_comment": "KP 07-Sep: the Design & Engineering 'Final Acceptance' document-count cards and the PO Placement count cards are an NTPC request only. Set true here once SJVN wants them - the PO cards work as-is (poStep below); the acceptance cards need acceptRe to match this project's naming.",
   "poStep": [
     "purchaseorderwithadvpayment"
   ],
