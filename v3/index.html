@@ -536,6 +536,9 @@ const CFG=Object.assign({
    "ministryofdefence","airportauthority","assessmentofpsslocation","pollutioncategory","nationalhighway",
    "getcotranscocrossings","ptccapproval","ceachargingapplicationapprovalehvline","ceachargingapplicationapprovalpss",
    "ceaapplicationapprovalsolar","ceaapplicationapprovalwind","ftcfeesandcharges","firsttimecharging","trialrun","noar"],
+  // KP 07-Sep: step-count summaries (D&E Final Acceptance documents, PO placement).
+  // countSummaries:false in a project config hides both cards there.
+  countSummaries:true, acceptRe:"final\\s*acceptance",
   statSteps:{cea:["ceaapplicationapprovalsolar","firsttimecharging"],cod:["selfcoddeclaration","noarregistrationapproval"],sldc:["qcaandscheduling"]},
 },DATA.cfg||{});
 const AREA_RE=new RegExp(CFG.areaRe,"i");
@@ -2420,6 +2423,97 @@ function msL2Table(){
     h+=`<tr><td>${i+1}</td><td><b>${esc(m.name)}</b></td><td>${wdate(m.b,1)}</td><td>${wdate(m.f,1)}</td><td class="num">${sl}</td><td>${chip(CH[m.status][0],CH[m.status][1])}</td></tr>`});
   return h+"</table></div>";
 }
+// ---------- step-count summaries (KP 07-Sep) ----------
+// "Of the documents / packages that carry this step, how many should be finished by
+// today, and how many actually are?" Counts, not weightage - KP asked for document
+// numbers. Total = every matching activity in the page's scope · Baseline till date =
+// baseline finish on or before the status date · Planned till date = the current
+// planned finish on or before it · Actual = complete.
+// A project that sets countSummaries:false in its config never renders these cards.
+function stepRows(rows,spec){
+  if(spec.re){const re=new RegExp(spec.re,"i");return rows.filter(r=>re.test(String(r[C.name])))}
+  const keys=spec.steps||[];
+  if(!keys.length)return [];
+  // the step itself first - one per package. NTPC also carries "KP to EPC PO Placement",
+  // and a name-contains match would count that as a second PO for every package.
+  const exact=rows.filter(r=>keys.some(k=>nrm(r[C.name])===k));
+  return exact.length?exact:rows.filter(r=>keys.some(k=>nrm(r[C.name]).includes(k)));
+}
+function stepCounts(rows,spec){
+  const sel=stepRows(rows,spec);
+  return {sel,total:sel.length,
+    base:sel.filter(r=>r[C.bEF]<=SW).length,
+    plan:sel.filter(r=>r[C.fEF]<=SW).length,
+    act:sel.filter(isDone).length};
+}
+function stepDrill(rows,spec){
+  const c=stepCounts(rows,spec),short=c.base-c.act;
+  const by={};c.sel.forEach(r=>{const k=String(r[C.pkg]||"—");by[k]=(by[k]||0)+1});
+  drillOpen({
+    eyebrow:spec.eyebrow,title:spec.title,
+    status:pill(short>0?"crit":"good",c.act+" of "+c.total),
+    formula:`<b>${c.total}</b> ${spec.unit} carry this step · the baseline says <b>${c.base}</b> should be finished by ${wdate(SW,1)} · current plan <b>${c.plan}</b> · actually finished <b>${c.act}</b>`,
+    reconcile:short>0?`<span class="pill crit">▲ ${short} behind the baseline count</span>`
+                     :`<span class="pill good">✓ on or ahead of the baseline count</span>`,
+    breakdownBy:String(spec.groupLabel).toLowerCase(),
+    breakdown:Object.entries(by).map(([label,n])=>({label,n})).sort((a,b)=>b.n-a.n),
+    breakdownFilter:label=>r=>String(r[C.pkg]||"—")===label,
+    rows:c.sel,cols:stdCols(),rowId:r=>String(r[C.tid]),
+    subsets:[{k:"all",label:"All"},
+             {k:"done",label:"Completed",f:isDone},
+             {k:"late",label:"Due by today, not done",f:r=>!isDone(r)&&r[C.bEF]<=SW},
+             {k:"future",label:"Not due yet",f:r=>!isDone(r)&&r[C.bEF]>SW}],
+  });
+}
+// the summary card, and the same four numbers package by package, as one pair
+function stepSummaryCards(rows,spec){
+  if(!CFG.countSummaries)return "";
+  const c=stepCounts(rows,spec);
+  if(!c.total)return "";
+  const short=c.base-c.act, pctDone=100*c.act/c.total;
+  const stat=(lbl,n,sub,col)=>`<div style="flex:1;min-width:100px">
+    <div class="eyebrow">${lbl}</div>
+    <div style="font-size:21px;font-weight:800;line-height:1.15;font-variant-numeric:tabular-nums;color:${col||"var(--ink)"}">${n}</div>
+    <div class="small dim">${sub||""}</div></div>`;
+  const a=`<div style="display:flex;gap:13px;flex-wrap:wrap;align-items:flex-start">
+    ${stat("Total",c.total,spec.unit)}
+    ${stat("Baseline till date",c.base,"due by "+wdate(SW,1))}
+    ${stat("Planned till date",c.plan,"on the current plan")}
+    ${stat("Actual",c.act,fmt1(pctDone)+"% of total",short>0?"var(--crit-text)":"var(--good-text)")}
+   </div>
+   <div class="legend" style="margin-top:10px"><span><span class="sw" style="background:var(--s-act)"></span>Actual</span><span><span class="sw" style="background:var(--s-plan)"></span>Baseline till date (tick)</span></div>
+   <div class="pbar" style="height:12px"><div class="fill" style="width:${Math.min(100,pctDone)}%"></div><div class="tick" style="left:${Math.min(100,100*c.base/c.total)}%"></div></div>
+   <div style="margin-top:9px">${short>0?chip("vlnr",short+" behind baseline"):chip("vlc","on or ahead of baseline")} ${chip("mut",(c.total-c.act)+" still open")}</div>`;
+  const g={};c.sel.forEach(r=>{const k=String(r[C.pkg]||"—");(g[k]=g[k]||[]).push(r)});
+  const items=Object.entries(g).map(([p,rr])=>({p,total:rr.length,
+    base:rr.filter(r=>r[C.bEF]<=SW).length,plan:rr.filter(r=>r[C.fEF]<=SW).length,
+    act:rr.filter(isDone).length}));
+  items.forEach(x=>x.short=x.base-x.act);
+  items.sort((x,y)=>y.short-x.short||y.total-x.total||String(x.p).localeCompare(String(y.p)));
+  let b=`<div class="twrap"><table><tr><th>${esc(spec.groupLabel)}</th><th class="num">Total</th><th class="num">Baseline till date</th><th class="num">Planned till date</th><th class="num">Actual</th><th>Status</th></tr>`;
+  items.forEach(x=>{
+    b+=`<tr><td title="${esc(x.p)}">${esc(x.p)}</td><td class="num">${x.total}</td><td class="num">${x.base}</td><td class="num">${x.plan}</td>
+      <td class="num"><b>${x.act}</b></td>
+      <td>${x.act>=x.total?chip("vlc","Complete"):(x.short>0?chip("vlnr",x.short+" behind"):(x.base?chip("vlc","on baseline"):chip("mut","not due yet")))}</td></tr>`});
+  b+="</table></div>";
+  setTimeout(()=>{const el=document.getElementById("step-"+spec.key);
+    if(el)el.addEventListener("click",()=>stepDrill(rows,spec))},0);
+  return card(spec.span||"span5",spec.title,spec.hint,a,
+      `<button id="step-${spec.key}" class="rsndrill" title="Drill down to the activities">&#9783; ${c.act} of ${c.total}</button>`)
+    +card(spec.span2||"span7",spec.byTitle,spec.byHint,b);
+}
+const SPEC_FA=()=>({key:"fa",re:CFG.acceptRe,unit:"documents",groupLabel:"Design package",
+  eyebrow:"Design & Engineering · documents",
+  title:"Drawing Final Acceptance — document count",
+  hint:`activities named “Final Acceptance” in this view · completed vs what the baseline says should be finished by ${wdate(SW,1)}`,
+  byTitle:"Final Acceptance by design package",
+  byHint:"the same four counts per package · largest shortfall first"});
+const SPEC_PO=()=>({key:"po",steps:CFG.poStep,unit:"packages",groupLabel:"Package",
+  eyebrow:"Procurement · PO placement",
+  title:"PO Placement — package count",
+  hint:`the “PO Placement” step, one per package · placed vs what the baseline says should be placed by ${wdate(SW,1)}`,
+  byTitle:"PO Placement by package",
+  byHint:"the same four counts per package · largest shortfall first"});
 // ---------- pages ----------
 function card(cls,title,hint,body,extraHdr){return `<div class="card ${cls}"><div class="hdrrow"><div><h2>${title}</h2><div class="hint">${hint}</div></div>${extraHdr||""}</div>${body}</div>`}
 const unitToggle=()=>`<div class="toggle2"><button id="u-pct" class="${state.unit==="%"?"on":""}">%</button><button id="u-mw" class="${state.unit==="MW"?"on":""}">MW</button></div>`;
@@ -2473,6 +2567,7 @@ function pageLayout(){
 function pagePipeline(){
   const rows=filtered().filter(r=>r[C.dept]==="supply"||r[C.dept]==="services");
   let h=`<div class="grid">`;
+  h+=stepSummaryCards(rows,SPEC_PO());
   h+=card("span12","Procurement Pipeline — schedule stages","per package · red date = overdue vs baseline",pipeTable(rows,"pp",false));
   h+=card("span12","Scope vs Order vs Deliver","supply quantities",scopeOrderDeliver(filtered()));
   h+="</div>";
@@ -2598,9 +2693,11 @@ function pageDept(key){
   h+=reasonsCard(key,"span10");
   if(key==="engineering"){
     h+=engOverview(rows);
+    h+=stepSummaryCards(rows,SPEC_FA());
     h+=card("span12","Engineering package pipeline","document stages per package · click a row for activities",pipeTable(rows,"pe",true));
   }else if(key==="supply"||key==="services"){
     h+=card("span12","Key Procurement Dates — Exec View","forecast dates per package · green ✓ complete · purple ▶ started · red = overdue vs baseline · rest Not Committed until VisiLean status feed",procDateMatrix(rows));
+    h+=stepSummaryCards(rows,SPEC_PO());
     h+=card("span8","PO Tracker — expected vs actual","per ED format: value-wise baseline vs forecast PO with delay",poTracker(rows));
     h+=committedCard(rows);
     h+=card("span12","Delay Analysis — procurement heads","per ED format: a–e heads, packages currently behind baseline",delayHeads(rows));
