@@ -54,6 +54,13 @@ BASE = "https://app.visilean.net/pb/PowerBiAPI/resource/powerBi/getData/visilean
 PROJECT = "7A2842F6-7E5F-DB7C-3E7F-0EE7EF60698F"
 IST = timezone(timedelta(hours=5, minutes=30))
 
+# Accounts to leave out of the adoption picture. Shreyanshi Jaiswal is the VisiLean
+# administrator for this project: she imports the MPP schedule (6,459 of the 8,301
+# events were one bulk import sweep) and then reassigns owners and dates. Counting that
+# as "adoption" drowned out the site teams' own updating, so KP asked (07-Sep) for it to
+# come out. Clear this set to put an account back in.
+EXCLUDE_ACTORS = {"shreyanshi jaiswal"}
+
 FEEDS = {
     "task": ("VL_TOKEN_ADOPT_TASK", ""),
     "hist": ("VL_TOKEN_ADOPT_HIST",
@@ -137,7 +144,7 @@ roster = list(owners.values())
 for k, (n, c) in cand.items():
     if k not in owners and c >= 3:          # credited at least three times = a real actor
         roster.append(n)
-roster = sorted(set(roster))
+roster = sorted(set(roster))   # parsing vocabulary - keeps excluded names so their events are still recognised (and then dropped)
 ROSTER_RE = re.compile("(" + "|".join(re.escape(n) for n in sorted(roster, key=len, reverse=True)) + ")")
 print("roster (%d): %s" % (len(roster), ", ".join(roster)))
 
@@ -219,10 +226,13 @@ for feed in ("hist", "notes"):
             except ValueError:
                 ts = ""
 
+        who = canon(actor(txt))
+        if who.lower() in EXCLUDE_ACTORS:
+            continue
         cf = r.get("customField") or {}
         events.append([
             ts,
-            canon(actor(txt)),
+            who,
             action(txt),
             str(r.get("taskId") or ""),
             str(r.get("taskName") or ""),
@@ -246,7 +256,7 @@ meta = {
     "events": len(events),
     "tasks": len({e[3] for e in events}),
     "actors": len(actors),
-    "rosterSize": len(roster),
+    "rosterSize": len([n for n in roster if n.lower() not in EXCLUDE_ACTORS]),
     "tasksInProject": len(FEED["task"]),
     "locFilled": sum(1 for e in events if e[7]),
     "firstEvent": lo.strftime("%Y-%m-%d") if lo else "",
@@ -254,6 +264,7 @@ meta = {
     "source": ("VisiLean PowerBI API · type=task with IncludeStatusChange / IncludeReschedule / "
                "IncludeTaskCreation / IncludeQuantities / IncludeConstraintNotes / IncludeOther"),
     "noAttachments": True,
+    "excluded": sorted(EXCLUDE_ACTORS),
 }
 out = {"meta": meta, "cols": ["ts", "actor", "action", "tid", "task", "dept", "atype",
                               "loc", "pkg", "owner", "ownship", "detail"], "events": events}

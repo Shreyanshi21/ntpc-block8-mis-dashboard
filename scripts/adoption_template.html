@@ -16,6 +16,7 @@
   --crit:#ff4343; --crit-text:#c42121; --crit-wash:#ffecec;
   --shadow-card:0 1px 0 rgba(0,45,98,.02),0 6px 24px -18px rgba(0,45,98,.15);
   --shadow-lift:0 10px 30px -12px rgba(0,45,98,.28);
+  --shadow-pop:0 18px 45px -12px rgba(0,45,98,.35),0 0 0 1px rgba(0,45,98,.06);
   --r-card:14px; --r-tile:12px;
   --s1:#00a3e0; --s2:#9d4f8c; --s3:#00a455; --s4:#f59e00; --s5:#7262fd; --s6:#f08bb4;
 }
@@ -27,6 +28,7 @@
   --warn-text:#f5c069; --warn-wash:rgba(245,158,0,.2);
   --crit-text:#ff9b9b; --crit-wash:rgba(255,67,67,.18);
   --shadow-card:0 1px 0 rgba(0,0,0,.2),0 6px 24px -18px rgba(0,0,0,.7);
+  --shadow-pop:0 18px 45px -12px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.07);
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{font:12px/1.5 Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--page);color:var(--ink);
@@ -49,6 +51,7 @@ h1{font-size:17px;font-weight:800;letter-spacing:-.01em;display:flex;align-items
 .btn{border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:6px;
  border:1px solid var(--line2);background:var(--surface);color:var(--ink2);white-space:nowrap}
 .btn:hover{background:var(--blue-wash);color:var(--blue);border-color:var(--blue)}
+.btn:disabled{opacity:.45;cursor:default}
 .btn.dark{background:var(--navy);color:#fff;border-color:var(--navy)}
 .btn.dark:hover{background:#013f85;color:#fff}
 .btn.pri{background:var(--blue);color:#fff;border-color:var(--blue)}
@@ -67,9 +70,6 @@ h1{font-size:17px;font-weight:800;letter-spacing:-.01em;display:flex;align-items
 .fbar{position:sticky;top:0;z-index:30;background:var(--surface);border:1px solid var(--line);border-radius:10px;
  padding:8px 10px;margin:14px 0;display:flex;gap:6px;align-items:center;flex-wrap:wrap;box-shadow:var(--shadow-card)}
 .fbar label{font-size:10px;color:var(--mut);font-weight:600;display:flex;gap:4px;align-items:center}
-.tgl{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;color:var(--ink2);border:1px solid var(--line2);
- border-radius:7px;padding:4px 9px;cursor:pointer;user-select:none}
-.tgl.on{background:var(--blue-wash);color:var(--blue);border-color:var(--blue);font-weight:700}
 .reset{color:var(--blue);font-weight:700;font-size:10.5px}
 .fnote{font-size:10.5px;color:var(--mut)}
 
@@ -85,7 +85,7 @@ h1{font-size:17px;font-weight:800;letter-spacing:-.01em;display:flex;align-items
 .card .hint{color:var(--mut);font-size:10.5px;line-height:1.45;margin-top:2px}
 .hdrrow{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;margin-bottom:10px}
 
-/* ---------- KPI strip (reference: icon + label + big value + status) ---------- */
+/* ---------- KPI strip ---------- */
 .kstrip{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px;margin-bottom:14px}
 .ktile{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-card);padding:13px 15px;
  display:flex;align-items:center;gap:12px;box-shadow:var(--shadow-card)}
@@ -97,7 +97,7 @@ h1{font-size:17px;font-weight:800;letter-spacing:-.01em;display:flex;align-items
 .ktile .kv{font-size:21px;font-weight:800;letter-spacing:-.02em;white-space:nowrap}
 .ktile .kv small{font-size:11px;font-weight:700;color:var(--mut)}
 
-/* ---------- metric card (reference: code, big number, benchmark, info, insight) ---------- */
+/* ---------- metric card ---------- */
 .mbig{font-size:34px;font-weight:800;letter-spacing:-.02em;line-height:1.05;margin:6px 0 2px}
 .mbig small{font-size:14px;font-weight:700;color:var(--mut);margin-left:2px}
 .bench{font-size:10.5px;color:var(--mut);font-weight:600}
@@ -108,7 +108,7 @@ h1{font-size:17px;font-weight:800;letter-spacing:-.01em;display:flex;align-items
  line-height:1.45;color:var(--ink2);display:flex;gap:7px;align-items:flex-start}
 .nbox b{color:var(--ink)}
 
-/* ---------- chips / pills ---------- */
+/* ---------- chips ---------- */
 .chip{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:700;border-radius:14px;padding:2px 8px;white-space:nowrap}
 .chip.good{background:var(--good-wash);color:var(--good-text)}
 .chip.warn{background:var(--warn-wash);color:var(--warn-text)}
@@ -120,6 +120,7 @@ h1{font-size:17px;font-weight:800;letter-spacing:-.01em;display:flex;align-items
 .pill.good{background:var(--good-wash);color:var(--good-text)}
 .pill.warn{background:var(--warn-wash);color:var(--warn-text)}
 .pill.crit{background:var(--crit-wash);color:var(--crit-text)}
+.pill.info{background:var(--blue-wash);color:var(--blue)}
 
 /* ---------- tables ---------- */
 .twrap{overflow:auto;position:relative;max-height:520px;border-radius:9px}
@@ -127,27 +128,53 @@ table{width:100%;border-collapse:collapse;font-size:11.5px}
 th{position:sticky;top:0;z-index:2;background:var(--surface);font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;
  color:var(--mut);font-weight:700;text-align:left;padding:8px 9px;border-bottom:1px solid var(--line2);white-space:nowrap}
 th.num,td.num{text-align:right}
-th.sortable{cursor:pointer;user-select:none}
-th.sortable:hover{color:var(--blue)}
 td{padding:8px 9px;border-bottom:1px solid var(--line);vertical-align:top}
 tr:hover td{background:var(--blue-wash)}
 .dim{color:var(--mut)}
 .who{font-weight:700}
 .mono{font-variant-numeric:tabular-nums}
-.clickable{cursor:pointer}
-.numlink{color:var(--blue);font-weight:700;cursor:pointer;padding:0 2px;border-radius:4px}
-.numlink:hover{background:var(--blue);color:#fff}
+
+/* ---------- every number is a drill-through ---------- */
+.numlink{color:var(--blue);font-weight:700;font-variant-numeric:tabular-nums;cursor:pointer;padding:0 3px;
+ border-radius:5px;border-bottom:1px dotted var(--blue)}
+.numlink:hover{background:var(--blue);color:#fff;border-bottom-color:transparent}
+.numlink:focus-visible{outline:2px solid var(--blue);outline-offset:1px}
+.kv .numlink,.mbig .numlink{border-bottom:0;color:inherit;padding:0}
+.kv .numlink:hover,.mbig .numlink:hover{background:none;color:var(--blue)}
 
 /* ---------- bars ---------- */
 .bar{position:relative;height:9px;background:var(--grid);border-radius:3px;overflow:hidden;min-width:60px}
 .bar i{position:absolute;left:0;top:0;bottom:0;background:var(--blue);border-radius:3px}
-.brow{display:grid;grid-template-columns:minmax(120px,1.4fr) 62px minmax(70px,1fr);gap:9px;align-items:center;padding:3.5px 0}
+.brow{display:grid;grid-template-columns:minmax(120px,1.4fr) 96px minmax(70px,1fr);gap:9px;align-items:center;padding:3.5px 0}
 .brow .bn{font-size:11px;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .brow .bv{font-size:10.5px;text-align:right;font-weight:700}
 .mix{display:flex;height:9px;border-radius:3px;overflow:hidden;background:var(--grid);min-width:80px}
-.mix i{display:block;height:100%}
+.mix i{display:block;height:100%;cursor:pointer}
 .legend{display:flex;gap:10px;flex-wrap:wrap;font-size:10px;color:var(--ink2);margin:4px 0 7px}
 .legend .sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+
+/* ---------- drill modal ---------- */
+#dmodal{position:fixed;inset:0;z-index:120;display:none;align-items:flex-start;justify-content:center;
+ background:rgba(0,45,98,.42);backdrop-filter:blur(1px);padding:26px 14px;overflow:auto}
+#dmodal.on{display:flex;animation:dfade .16s ease}
+@keyframes dfade{from{opacity:0}to{opacity:1}}
+#dbox{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-card);width:100%;max-width:1500px;
+ box-shadow:var(--shadow-pop);overflow:hidden;display:flex;flex-direction:column;max-height:calc(100vh - 52px);
+ animation:drise .18s ease}
+@keyframes drise{from{opacity:0;transform:translateY(6px) scale(.985)}to{opacity:1;transform:none}}
+#dhd{display:flex;align-items:flex-start;gap:10px;padding:14px 18px;border-bottom:1px solid var(--line)}
+#dhd .t{flex:1;min-width:0}
+#dhd h3{font-size:15px;font-weight:800;letter-spacing:-.01em;line-height:1.3}
+#dhd .s{color:var(--mut);font-size:10.5px;margin-top:2px}
+#dx{border:1px solid var(--line2);border-radius:7px;width:28px;height:28px;font-size:16px;line-height:1;color:var(--mut);flex:0 0 auto}
+#dx:hover{background:var(--blue-wash);color:var(--blue)}
+#dtabs{display:flex;gap:5px;padding:9px 18px 0}
+#dtabs button{padding:5px 11px;font-size:11px;font-weight:700;border-radius:999px;background:var(--grid);color:var(--mut)}
+#dtabs button.on{background:var(--blue);color:#fff}
+#dbd{padding:11px 18px 16px;overflow:auto;flex:1 1 auto;min-height:0}
+#dft{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 18px;border-top:1px solid var(--line);
+ font-size:10.5px;color:var(--mut)}
+#dbd .twrap{max-height:none}
 
 /* ---------- misc ---------- */
 .empty{padding:22px 8px;text-align:center;color:var(--mut);font-size:11.5px}
@@ -157,7 +184,6 @@ tr:hover td{background:var(--blue-wash)}
  pointer-events:none;box-shadow:var(--shadow-lift);display:none;max-width:320px;line-height:1.45}
 :root[data-theme="dark"] #tip{background:#eef3fa;color:#0a1220}
 svg text{fill:var(--mut);font-family:inherit}
-.srolls{overflow-x:auto}
 </style>
 </head>
 <body>
@@ -196,12 +222,21 @@ svg text{fill:var(--mut);font-family:inherit}
     <select id="f-action"><option value="">All actions</option></select>
     <label>From <input type="date" id="f-d1"></label>
     <label>To <input type="date" id="f-d2"></label>
-    <span class="tgl on" id="f-imp" title="Schedule imports are one planner pushing an MPP file. They dwarf day-to-day updating, so they are excluded by default.">&#9776; Exclude schedule imports</span>
     <input type="search" id="f-q" placeholder="Search activity or note…">
     <button class="reset" id="f-reset">Reset</button>
     <span class="fnote" id="f-count"></span>
   </div>
   <div id="page"></div>
+</div>
+
+<div id="dmodal" role="dialog" aria-modal="true" aria-labelledby="dttl">
+  <div id="dbox">
+    <div id="dhd"><div class="t"><div class="eyebrow" id="deye"></div><h3 id="dttl"></h3><div class="s" id="dsub"></div></div>
+      <button id="dx" title="Close (Esc)" aria-label="Close">&times;</button></div>
+    <div id="dtabs"></div>
+    <div id="dbd"></div>
+    <div id="dft"><span id="dcount"></span><button class="btn" id="dcsv" style="margin-left:auto">&#8681; Export this list</button></div>
+  </div>
 </div>
 <div id="tip"></div>
 
@@ -215,11 +250,8 @@ const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;"
 const fmt=n=>Number(n||0).toLocaleString();
 const f1=n=>(Math.round(n*10)/10).toFixed(1);
 const MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-function dparts(ts){ // "2026-09-07T14:22:10"
-  if(!ts)return null;
-  const y=+ts.slice(0,4),m=+ts.slice(5,7),d=+ts.slice(8,10),H=+ts.slice(11,13),Mi=+ts.slice(14,16);
-  return {y,m,d,H,Mi,day:ts.slice(0,10)};
-}
+function dparts(ts){if(!ts)return null;
+  return {y:+ts.slice(0,4),m:+ts.slice(5,7),d:+ts.slice(8,10),H:+ts.slice(11,13),Mi:+ts.slice(14,16)}}
 const dshow=ts=>{const p=dparts(ts);return p?`${String(p.d).padStart(2,"0")}-${MON[p.m-1]}-${String(p.y).slice(2)}`:"—"};
 const dtshow=ts=>{const p=dparts(ts);return p?`${dshow(ts)} ${String(p.H).padStart(2,"0")}:${String(p.Mi).padStart(2,"0")}`:"—"};
 const ACTION={import:["Schedule import","mut"],status:["Status update","info"],note:["Note / comment","good"],
@@ -234,13 +266,11 @@ function showTip(e,html){const t=document.getElementById("tip");t.innerHTML=html
   t.style.left=x+"px";t.style.top=y+"px"}
 function hideTip(){const t=document.getElementById("tip");if(t)t.style.display="none"}
 
-/* ---------- state + filtering ---------- */
-const state={tab:"overview",f:{actor:"",dept:"",atype:"",loc:"",pkg:"",owner:"",ownship:"",action:"",d1:"",d2:"",q:""},noImports:true,
-  sort:{key:"n",dir:-1}};
+/* ---------- state ---------- */
+const state={tab:"overview",f:{actor:"",dept:"",atype:"",loc:"",pkg:"",owner:"",ownship:"",action:"",d1:"",d2:"",q:""}};
 function filtered(){
-  const f=state.f, q=f.q.toLowerCase();
+  const f=state.f,q=f.q.toLowerCase();
   return EV.filter(r=>{
-    if(state.noImports && r[C.action]==="import")return false;
     if(f.actor && r[C.actor]!==f.actor)return false;
     if(f.dept && r[C.dept]!==f.dept)return false;
     if(f.atype && r[C.atype]!==f.atype)return false;
@@ -262,72 +292,180 @@ function groupCount(rows,i){const g={};rows.forEach(r=>{const k=r[i]||"— not s
 function actionMix(rows){const g={};rows.forEach(r=>{g[r[C.action]]=(g[r[C.action]]||0)+1});
   return Object.entries(g).map(([k,n])=>({k,n})).sort((a,b)=>b.n-a.n)}
 const days=rows=>[...new Set(rows.map(r=>(r[C.ts]||"").slice(0,10)).filter(Boolean))];
+const acts=rows=>new Set(rows.map(r=>r[C.tid])).size;
 
-/* ---------- shared render bits ---------- */
+/* =========================================================================
+   Every number on this page is a drill-through. A renderer calls num() with
+   the rows behind the figure; the click opens them as an activity list, an
+   update list, or a per-user summary.
+   ========================================================================= */
+let NUMS=[];
+function num(display,title,rows,sub){
+  const i=NUMS.length; NUMS.push({title,rows,sub});
+  return `<span class="numlink" data-n="${i}" tabindex="0" role="button"
+    title="Open the ${fmt(rows.length)} update${rows.length===1?"":"s"} behind this number">${display}</span>`;
+}
+function bindNums(){
+  document.querySelectorAll("[data-n]").forEach(el=>{
+    const s=NUMS[+el.dataset.n];
+    const go=()=>drillOpen(s.title,s.sub,s.rows);
+    el.onclick=go;
+    el.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();go()}};
+  });
+}
+
+/* ---------- drill modal ---------- */
+let DR=null;
+const DVIEWS=[["act","Activities"],["upd","Updates"],["usr","Users"]];
+function drillOpen(title,sub,rows){DR={title,sub,rows,view:"act"};paintDrill()}
+function drillClose(){DR=null;document.getElementById("dmodal").classList.remove("on");document.body.style.overflow=""}
+function drillActivities(rows){
+  const g={};
+  rows.forEach(r=>{const k=r[C.tid];
+    if(!g[k])g[k]={tid:k,task:r[C.task],dept:r[C.dept],atype:r[C.atype],pkg:r[C.pkg],owner:r[C.owner],
+      ownship:r[C.ownship],loc:r[C.loc],n:0,who:new Set(),mix:{},last:""};
+    const x=g[k];x.n++;x.who.add(r[C.actor]);x.mix[r[C.action]]=(x.mix[r[C.action]]||0)+1;
+    if((r[C.ts]||"")>x.last)x.last=r[C.ts]||""});
+  const items=Object.values(g).sort((a,b)=>b.n-a.n||String(a.task).localeCompare(String(b.task)));
+  if(!items.length)return {html:`<div class="empty">Nothing to show.</div>`,n:0};
+  const body=items.map(x=>`<tr><td><b>${esc(x.task)}</b>
+      <div class="dim" style="font-size:9.5px">Task ID ${esc(x.tid)}${x.loc?" · "+esc(x.loc):""}</div></td>
+    <td class="dim">${esc(x.dept||"—")}</td><td class="dim">${esc(x.atype||"—")}</td>
+    <td class="dim">${esc(x.pkg||"—")}</td><td class="dim">${esc(x.owner||"—")}</td>
+    <td class="dim">${esc(x.ownship||"—")}</td>
+    <td class="num"><b>${fmt(x.n)}</b></td>
+    <td class="dim">${Object.entries(x.mix).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<span class="tag">${esc(aLabel(k))} ×${v}</span>`).join("")}</td>
+    <td class="dim">${[...x.who].map(w=>`<span class="tag">${esc(w)}</span>`).join("")}</td>
+    <td class="dim mono" style="white-space:nowrap">${dtshow(x.last)}</td></tr>`);
+  return {html:`<div class="twrap"><table><tr><th>Activity</th><th>Department</th><th>Activity type</th><th>Package</th>
+    <th>Assigned owner</th><th>Ownership</th><th class="num">Updates</th><th>What was done</th><th>Updated by</th><th>Last update</th></tr>
+    ${body.join("")}</table></div>`,n:items.length};
+}
+function drillUpdates(rows){
+  const sorted=rows.slice().sort((a,b)=>String(b[C.ts]).localeCompare(String(a[C.ts])));
+  if(!sorted.length)return {html:`<div class="empty">Nothing to show.</div>`,n:0};
+  return {html:`<div class="twrap"><table><tr><th>When</th><th>User</th><th>Action</th><th>Activity</th>
+      <th>Department</th><th>What VisiLean recorded</th></tr>`+
+    sorted.map(r=>`<tr><td class="dim mono" style="white-space:nowrap">${dtshow(r[C.ts])}</td>
+      <td class="who">${esc(r[C.actor])}</td>
+      <td><span class="chip ${aTone(r[C.action])}">${esc(aLabel(r[C.action]))}</span></td>
+      <td>${esc(r[C.task])}<div class="dim" style="font-size:9.5px">${esc(r[C.pkg]||"")}</div></td>
+      <td class="dim">${esc(r[C.dept]||"—")}</td>
+      <td class="dim" style="max-width:560px">${esc(String(r[C.detail]).slice(0,340))}${String(r[C.detail]).length>340?"…":""}</td></tr>`).join("")
+    +`</table></div>`,n:sorted.length};
+}
+function drillUsers(rows){
+  const g=groupCount(rows,C.actor);
+  if(!g.length)return {html:`<div class="empty">Nothing to show.</div>`,n:0};
+  return {html:`<div class="twrap"><table><tr><th>User</th><th>Ownership</th><th class="num">Updates</th>
+      <th class="num">Activities</th><th class="num">Active days</th><th>Action mix</th><th>Last update</th></tr>`+
+    g.map(a=>{const rs=rows.filter(r=>r[C.actor]===a.k);
+      return `<tr><td class="who">${esc(a.k)}</td>
+        <td class="dim">${esc([...new Set(rs.map(r=>r[C.ownship]).filter(Boolean))].join(", ")||"—")}</td>
+        <td class="num"><b>${fmt(a.n)}</b></td><td class="num">${fmt(acts(rs))}</td><td class="num">${days(rs).length}</td>
+        <td class="dim">${actionMix(rs).map(m=>`<span class="tag">${esc(aLabel(m.k))} ×${m.n}</span>`).join("")}</td>
+        <td class="dim mono" style="white-space:nowrap">${dtshow(rs.map(r=>r[C.ts]).filter(Boolean).sort().slice(-1)[0]||"")}</td></tr>`}).join("")
+    +`</table></div>`,n:g.length};
+}
+function paintDrill(){
+  const m=document.getElementById("dmodal");
+  if(!DR){drillClose();return}
+  document.getElementById("deye").textContent=(M.projectShort||"")+" · user adoption";
+  document.getElementById("dttl").textContent=DR.title;
+  document.getElementById("dsub").textContent=DR.sub||"";
+  document.getElementById("dtabs").innerHTML=DVIEWS.map(([k,l])=>
+    `<button data-dv="${k}" class="${DR.view===k?"on":""}">${l}</button>`).join("");
+  const out=DR.view==="act"?drillActivities(DR.rows):DR.view==="upd"?drillUpdates(DR.rows):drillUsers(DR.rows);
+  document.getElementById("dbd").innerHTML=out.html;
+  const noun=DR.view==="act"?"activities":DR.view==="upd"?"updates":"users";
+  document.getElementById("dcount").innerHTML=
+    `<b style="color:var(--ink)">${fmt(out.n)}</b> ${noun} · from ${fmt(DR.rows.length)} update${DR.rows.length===1?"":"s"} · ${fmt(acts(DR.rows))} activities · ${fmt(new Set(DR.rows.map(r=>r[C.actor])).size)} users`;
+  document.getElementById("dtabs").querySelectorAll("button").forEach(b=>
+    b.onclick=()=>{DR.view=b.dataset.dv;paintDrill()});
+  m.classList.add("on");document.body.style.overflow="hidden";m.scrollTop=0;
+}
+document.getElementById("dx").onclick=drillClose;
+document.getElementById("dmodal").addEventListener("click",e=>{if(e.target.id==="dmodal")drillClose()});
+addEventListener("keydown",e=>{if(e.key==="Escape"&&DR)drillClose()});
+function csvOf(rows,name){
+  const head=["When","User","Action","Task ID","Activity","Department","Activity type","Location","Package",
+              "Assigned owner","Ownership","What VisiLean recorded"];
+  const q=s=>`"${String(s==null?"":s).replace(/"/g,'""')}"`;
+  const csv=[head.map(q).join(",")].concat(rows.map(r=>[dtshow(r[C.ts]),r[C.actor],aLabel(r[C.action]),r[C.tid],
+    r[C.task],r[C.dept],r[C.atype],r[C.loc],r[C.pkg],r[C.owner],r[C.ownship],r[C.detail]].map(q).join(","))).join("\r\n");
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8"}));
+  a.download=name;document.body.appendChild(a);a.click();a.remove();
+}
+document.getElementById("dcsv").onclick=()=>{if(DR)csvOf(DR.rows,"ntpc-adoption-drill.csv")};
+
+/* ---------- shared bits ---------- */
 function card(cls,title,hint,body,extra){
   return `<div class="card ${cls}"><div class="hdrrow"><div><h2>${title}</h2>${hint?`<div class="hint">${hint}</div>`:""}</div>${extra||""}</div>${body}</div>`}
-function ktile(icon,name,sub,val,unit,tone){
+function ktile(icon,name,sub,valHtml,unit,tone){
   return `<div class="ktile"><div class="kicon">${icon}</div><div class="kl">
     <div class="kn">${name}</div><div class="ks">${sub||""}</div></div>
-    <div class="kv" ${tone?`style="color:var(--${tone}-text)"`:""}>${val}${unit?`<small>${unit}</small>`:""}</div></div>`}
-function metric(code,title,val,unit,bench,info,insight,tone){
+    <div class="kv" ${tone?`style="color:var(--${tone}-text)"`:""}>${valHtml}${unit?`<small>${unit}</small>`:""}</div></div>`}
+function metric(code,title,valHtml,unit,bench,info,insight,tone){
   return `<div class="card sp4"><div class="hdrrow"><div class="eyebrow">${code}</div></div>
     <h2>${title}</h2>
-    <div class="mbig" ${tone?`style="color:var(--${tone}-text)"`:""}>${val}${unit?`<small>${unit}</small>`:""}</div>
+    <div class="mbig" ${tone?`style="color:var(--${tone}-text)"`:""}>${valHtml}${unit?`<small>${unit}</small>`:""}</div>
     ${bench?`<div class="bench">${bench}</div>`:""}
     ${info?`<div class="ibox"><span class="ic">&#9432;</span><span>${info}</span></div>`:""}
     ${insight?`<div class="nbox"><span class="ic">&#9755;</span><span>${insight}</span></div>`:""}</div>`}
-function barRows(items,total,fmtv){
-  const max=Math.max(1,...items.map(x=>x.n));
-  return items.map(x=>`<div class="brow"><div class="bn" title="${esc(x.k)}">${esc(x.k)}</div>
-    <div class="bv">${fmtv?fmtv(x):fmt(x.n)}</div>
-    <div class="bar"><i style="width:${100*x.n/max}%"></i></div></div>`).join("")}
-function mixBar(mix,total){
-  return `<div class="mix" title="${mix.map(m=>aLabel(m.k)+": "+m.n).join(" · ")}">`+
-    mix.map((m,i)=>`<i style="width:${100*m.n/Math.max(1,total)}%;background:${SER[i%SER.length]}"></i>`).join("")+`</div>`}
-function tbl(head,rows,cls){
+function mixBar(mix,total,rows,label){
+  return `<div class="mix">`+mix.map((m,i)=>{
+    const rs=rows?rows.filter(r=>r[C.action]===m.k):null;
+    const seg=`<i style="width:${100*m.n/Math.max(1,total)}%;background:${SER[i%SER.length]}" title="${esc(aLabel(m.k))}: ${m.n}"`;
+    if(!rs)return seg+`></i>`;
+    const idx=NUMS.length;NUMS.push({title:aLabel(m.k)+(label?" — "+label:""),rows:rs,sub:"one action type"});
+    return seg+` data-n="${idx}"></i>`}).join("")+`</div>`}
+function tbl(head,rows){
   if(!rows.length)return `<div class="empty">Nothing matches the current filters.</div>`;
-  return `<div class="twrap ${cls||""}"><table><tr>${head}</tr>${rows.join("")}</table></div>`}
+  return `<div class="twrap"><table><tr>${head}</tr>${rows.join("")}</table></div>`}
 
-/* ---------- daily activity chart ---------- */
+/* ---------- daily chart (bars drill too) ---------- */
 function dailyChart(rows,id){
-  const g={};rows.forEach(r=>{const d=(r[C.ts]||"").slice(0,10);if(d)g[d]=(g[d]||0)+1});
+  const g={};rows.forEach(r=>{const d=(r[C.ts]||"").slice(0,10);if(d)(g[d]=g[d]||[]).push(r)});
   const ds=Object.keys(g).sort();
   if(!ds.length)return `<div class="empty">No dated events in this selection.</div>`;
-  const first=ds[0],last=ds[ds.length-1];
-  const all=[];{const d=new Date(first+"T00:00:00"),e=new Date(last+"T00:00:00");
+  const all=[];{const d=new Date(ds[0]+"T00:00:00"),e=new Date(ds[ds.length-1]+"T00:00:00");
     while(d<=e){all.push(d.toISOString().slice(0,10));d.setDate(d.getDate()+1)}}
   const W=980,H=190,pl=34,pr=8,pt=10,pb=30,iw=W-pl-pr,ih=H-pt-pb;
-  const max=Math.max(1,...all.map(d=>g[d]||0));
+  const max=Math.max(1,...all.map(d=>(g[d]||[]).length));
   const bw=Math.max(2,iw/all.length*0.72);
   let s=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" id="${id}">`;
   for(let t=0;t<=3;t++){const v=max*t/3,y=pt+ih*(1-t/3);
     s+=`<line x1="${pl}" x2="${W-pr}" y1="${y}" y2="${y}" stroke="var(--grid)"/><text x="${pl-5}" y="${y+3}" font-size="9" text-anchor="end">${Math.round(v)}</text>`}
   all.forEach((d,i)=>{
-    const n=g[d]||0,x=pl+iw*i/all.length,h=ih*n/max;
-    if(n)s+=`<rect class="dbar" data-d="${d}" data-n="${n}" x="${x+ (iw/all.length-bw)/2}" y="${pt+ih-h}" width="${bw}" height="${h}" rx="2" fill="var(--s1)"/>`;
+    const rs=g[d]||[],n=rs.length,x=pl+iw*i/all.length,h=ih*n/max;
+    if(n){const idx=NUMS.length;NUMS.push({title:"Updates on "+dshow(d+"T00:00:00"),rows:rs,sub:"one day"});
+      s+=`<rect class="dbar" data-n="${idx}" data-d="${d}" data-c="${n}" x="${x+(iw/all.length-bw)/2}" y="${pt+ih-h}"
+        width="${bw}" height="${h}" rx="2" fill="var(--s1)" style="cursor:pointer"/>`}
     const p=dparts(d+"T00:00:00");
     if(all.length<=32 || i%Math.ceil(all.length/16)===0)
       s+=`<text x="${x+iw/all.length/2}" y="${H-9}" font-size="8.5" text-anchor="middle">${String(p.d).padStart(2,"0")} ${MON[p.m-1]}</text>`});
   s+=`</svg>`;
   setTimeout(()=>{document.querySelectorAll(`#${id} .dbar`).forEach(el=>{
-    el.addEventListener("mousemove",e=>showTip(e,`<b>${dshow(el.dataset.d+"T00:00:00")}</b><br>${el.dataset.n} update${el.dataset.n==="1"?"":"s"}`));
+    el.addEventListener("mousemove",e=>showTip(e,`<b>${dshow(el.dataset.d+"T00:00:00")}</b><br>${el.dataset.c} update${el.dataset.c==="1"?"":"s"} — click to open`));
     el.addEventListener("mouseleave",hideTip)})},0);
   return s;
 }
-/* ---------- donut ---------- */
-function donut(items,total,id){
+function donut(items,total,rows,id){
   const W=150,cx=75,cy=75,R=68,ri=42;
   if(!total)return "";
   let a0=-Math.PI/2,s=`<svg viewBox="0 0 ${W} ${W}" style="width:150px;height:150px;flex:0 0 auto" id="${id}">`;
+  const seg=(x,i,d)=>{const rs=rows.filter(r=>r[C.action]===x.k);
+    const idx=NUMS.length;NUMS.push({title:aLabel(x.k),rows:rs,sub:"one action type"});
+    return `<path d="${d}" fill="${SER[i%SER.length]}" data-n="${idx}" style="cursor:pointer"><title>${esc(aLabel(x.k))}: ${x.n} — click to open</title></path>`};
   if(items.length===1){
-    s+=`<circle cx="${cx}" cy="${cy}" r="${(R+ri)/2}" fill="none" stroke="${SER[0]}" stroke-width="${R-ri}"/>`;
+    const rs=rows;const idx=NUMS.length;NUMS.push({title:aLabel(items[0].k),rows:rs,sub:"one action type"});
+    s+=`<circle cx="${cx}" cy="${cy}" r="${(R+ri)/2}" fill="none" stroke="${SER[0]}" stroke-width="${R-ri}" data-n="${idx}" style="cursor:pointer"/>`;
   }else items.forEach((x,i)=>{
     const fr=x.n/total,a1=a0+fr*Math.PI*2,big=fr>0.5?1:0;
     const p=(a,r)=>[(cx+r*Math.cos(a)).toFixed(2),(cy+r*Math.sin(a)).toFixed(2)];
     const[o0x,o0y]=p(a0,R),[o1x,o1y]=p(a1,R),[i1x,i1y]=p(a1,ri),[i0x,i0y]=p(a0,ri);
-    s+=`<path d="M${o0x},${o0y} A${R},${R} 0 ${big},1 ${o1x},${o1y} L${i1x},${i1y} A${ri},${ri} 0 ${big},0 ${i0x},${i0y} Z"
-      fill="${SER[i%SER.length]}"><title>${esc(aLabel(x.k))}: ${x.n}</title></path>`;
+    s+=seg(x,i,`M${o0x},${o0y} A${R},${R} 0 ${big},1 ${o1x},${o1y} L${i1x},${i1y} A${ri},${ri} 0 ${big},0 ${i0x},${i0y} Z`);
     a0=a1});
   s+=`<text x="${cx}" y="${cy-2}" text-anchor="middle" font-size="19" font-weight="800" style="fill:var(--ink)">${fmt(total)}</text>`;
   s+=`<text x="${cx}" y="${cy+13}" text-anchor="middle" font-size="8.5">updates</text></svg>`;
@@ -336,60 +474,59 @@ function donut(items,total,id){
 
 /* ---------- TAB: overview ---------- */
 function tabOverview(rows){
-  const acts=groupCount(rows,C.actor), mix=actionMix(rows);
-  const dset=days(rows), touched=new Set(rows.map(r=>r[C.tid])).size;
-  const roster=M.rosterSize||acts.length;
-  const activeUsers=acts.length;
+  const users=groupCount(rows,C.actor), mix=actionMix(rows);
+  const dset=days(rows), touched=acts(rows), roster=M.rosterSize||users.length;
   const perDay=dset.length?rows.length/dset.length:0;
-  const lastDay=dset.sort().slice(-1)[0]||"";
-  const staleDays=lastDay?Math.round((new Date(M.lastEvent+"T00:00:00")-new Date(lastDay+"T00:00:00"))/86400000):0;
   const cover=M.tasksInProject?100*touched/M.tasksInProject:0;
-  const top=acts[0];
-  const concentration=rows.length?100*(top?top.n:0)/rows.length:0;
+  const top=users[0], conc=rows.length&&top?100*top.n/rows.length:0;
+  const topRows=top?rows.filter(r=>r[C.actor]===top.k):[];
 
   let h=`<div class="kstrip">
-    ${ktile("&#128101;","Active users","recorded at least one update",fmt(activeUsers),"/ "+roster)}
-    ${ktile("&#9998;","Updates logged",state.noImports?"schedule imports excluded":"including schedule imports",fmt(rows.length),"")}
-    ${ktile("&#128203;","Activities touched","distinct activities updated",fmt(touched),"")}
-    ${ktile("&#128197;","Updates per active day",dset.length+" active day"+(dset.length===1?"":"s"),f1(perDay),"")}
+    ${ktile("&#128101;","Active users","logged at least one update",num(fmt(users.length),"All updates by the "+users.length+" active users",rows,"every user in the current filter"),"/ "+roster)}
+    ${ktile("&#9998;","Updates logged","in the current filter",num(fmt(rows.length),"All updates",rows,"the full filtered set"),"")}
+    ${ktile("&#128203;","Activities touched","distinct activities updated",num(fmt(touched),"Activities touched",rows,"grouped from the filtered updates"),"")}
+    ${ktile("&#128197;","Updates per active day",dset.length+" active day"+(dset.length===1?"":"s"),num(f1(perDay),"Updates across "+dset.length+" active days",rows,"the same set, by day"),"")}
   </div><div class="grid">`;
 
-  h+=metric("A01","Team participation",fmt(activeUsers)+" of "+roster,"","Benchmark: every named owner updating weekly",
+  h+=metric("A01","Team participation",num(fmt(users.length)+" of "+roster,"Active users",rows,"who has logged anything"),"",
+    "Benchmark: every named owner updating weekly",
     "Share of the VisiLean user roster that has logged at least one update in the filtered window.",
-    activeUsers>=roster*0.8?`<b>Healthy.</b> Most of the roster is updating.`
-      :`<b>${roster-activeUsers} user${roster-activeUsers===1?"":"s"} on the roster logged nothing here.</b> Chase the silent owners before the next review.`,
-    activeUsers>=roster*0.8?"good":"warn");
-  h+=metric("A02","Activity coverage",f1(cover),"%","Benchmark &ge; 20% of the schedule touched",
+    users.length>=roster*0.8?`<b>Healthy.</b> Most of the roster is updating.`
+      :`<b>${roster-users.length} user${roster-users.length===1?"":"s"} on the roster logged nothing here.</b> Chase the silent owners before the next review.`,
+    users.length>=roster*0.8?"good":"warn");
+  h+=metric("A02","Activity coverage",num(f1(cover),"The "+fmt(touched)+" activities being updated",rows,"as a share of the published schedule"),"%",
+    "Benchmark &ge; 20% of the schedule touched",
     `Distinct activities updated (${fmt(touched)}) against the ${fmt(M.tasksInProject)} activities published for this project.`,
     cover>=20?`<b>Wide coverage.</b>`:`<b>Updating is concentrated on a small slice of the schedule.</b>`,
     cover>=20?"good":"warn");
-  h+=metric("A03","Load concentration",f1(concentration),"%","Benchmark &le; 40% from any one user",
+  h+=metric("A03","Load concentration",num(f1(conc),(top?top.k:"Busiest user")+" — every update",topRows,"the single busiest user"),"%",
+    "Benchmark &le; 40% from any one user",
     `Share of all updates made by the single busiest user${top?` (${esc(top.k)})`:""}. A high number means adoption depends on one person.`,
-    concentration<=40?`<b>Well spread.</b>`:`<b>${top?esc(top.k):"One user"} carries ${f1(concentration)}% of the updating.</b> Adoption is fragile if they stop.`,
-    concentration<=40?"good":"crit");
+    conc<=40?`<b>Well spread.</b>`:`<b>${top?esc(top.k):"One user"} carries ${f1(conc)}% of the updating.</b> Adoption is fragile if they stop.`,
+    conc<=40?"good":"crit");
 
-  h+=card("sp8","Updating over time","one bar per calendar day · hover for the count",dailyChart(rows,"ch-day"));
-  h+=card("sp4","What kind of updates","by action type",
-    `<div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">${donut(mix,rows.length,"ch-mix")}
+  h+=card("sp8","Updating over time","one bar per calendar day · click a bar for that day's activities",dailyChart(rows,"ch-day"));
+  h+=card("sp4","What kind of updates","click a slice or a number",
+    `<div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">${donut(mix,rows.length,rows,"ch-mix")}
       <div style="flex:1;min-width:150px">`+
-      mix.map((m,i)=>`<div style="display:flex;align-items:center;gap:7px;padding:2px 0;font-size:11px">
+      mix.map((m,i)=>{const rs=rows.filter(r=>r[C.action]===m.k);
+        return `<div style="display:flex;align-items:center;gap:7px;padding:2px 0;font-size:11px">
         <span style="width:10px;height:10px;border-radius:3px;background:${SER[i%SER.length]};flex:0 0 auto"></span>
-        <span style="flex:1">${esc(aLabel(m.k))}</span><b>${fmt(m.n)}</b>
-        <span class="dim" style="width:38px;text-align:right">${f1(100*m.n/Math.max(1,rows.length))}%</span></div>`).join("")+
+        <span style="flex:1">${esc(aLabel(m.k))}</span>${num(fmt(m.n),aLabel(m.k),rs,"one action type")}
+        <span class="dim" style="width:38px;text-align:right">${f1(100*m.n/Math.max(1,rows.length))}%</span></div>`}).join("")+
       `</div></div>`);
 
-  // leaderboard
-  const lb=acts.map(a=>{
-    const rs=rows.filter(r=>r[C.actor]===a.k);
-    return {k:a.k,n:a.n,tasks:new Set(rs.map(r=>r[C.tid])).size,dys:days(rs).length,mix:actionMix(rs),
+  const lb=users.map(a=>{const rs=rows.filter(r=>r[C.actor]===a.k);
+    return {k:a.k,n:a.n,rs,tasks:acts(rs),dys:days(rs).length,mix:actionMix(rs),
       last:rs.map(r=>r[C.ts]).filter(Boolean).sort().slice(-1)[0]||"",
       org:[...new Set(rs.map(r=>r[C.ownship]).filter(Boolean))].join(", ")}});
-  h+=card("sp12","Who is updating","every user with at least one update in the window · click a number to see the activities",
+  h+=card("sp12","Who is updating","every user with at least one update · every number opens the list behind it",
     tbl(`<th>User</th><th>Ownership</th><th class="num">Updates</th><th class="num">Activities</th><th class="num">Active days</th><th>Action mix</th><th>Last update</th>`,
       lb.map(x=>`<tr><td class="who">${esc(x.k)}</td><td class="dim">${esc(x.org||"—")}</td>
-        <td class="num"><span class="numlink" data-drill="actor" data-v="${esc(x.k)}">${fmt(x.n)}</span></td>
-        <td class="num">${fmt(x.tasks)}</td><td class="num">${x.dys}</td>
-        <td style="min-width:120px">${mixBar(x.mix,x.n)}</td>
+        <td class="num">${num(fmt(x.n),x.k+" — every update",x.rs,"one user")}</td>
+        <td class="num">${num(fmt(x.tasks),x.k+" — activities updated",x.rs,"one user, grouped by activity")}</td>
+        <td class="num">${num(x.dys,x.k+" — updates across "+x.dys+" active days",x.rs,"one user, by day")}</td>
+        <td style="min-width:120px">${mixBar(x.mix,x.n,x.rs,x.k)}</td>
         <td class="dim">${dtshow(x.last)}</td></tr>`)));
   h+=`</div>`;
   return h;
@@ -397,24 +534,38 @@ function tabOverview(rows){
 
 /* ---------- TAB: people ---------- */
 function tabPeople(rows){
-  const acts=groupCount(rows,C.actor);
+  const users=groupCount(rows,C.actor);
   let h=`<div class="grid">`;
-  h+=card("sp6","Updates by user","who is carrying the updating",
-    barRows(acts,rows.length,x=>`${fmt(x.n)} <span class="dim">${f1(100*x.n/Math.max(1,rows.length))}%</span>`));
-  const byOrg=groupCount(rows,C.ownship);
-  h+=card("sp6","Updates by ownership","the organisation the activity belongs to",barRows(byOrg,rows.length));
-  acts.forEach(a=>{
+  h+=card("sp6","Updates by user","who is carrying the updating · click a number",
+    users.map(x=>{const rs=rows.filter(r=>r[C.actor]===x.k),max=users[0].n;
+      return `<div class="brow"><div class="bn" title="${esc(x.k)}">${esc(x.k)}</div>
+        <div class="bv">${num(fmt(x.n),x.k+" — every update",rs,"one user")} <span class="dim">${f1(100*x.n/Math.max(1,rows.length))}%</span></div>
+        <div class="bar"><i style="width:${100*x.n/max}%"></i></div></div>`}).join(""));
+  const orgs=groupCount(rows,C.ownship);
+  h+=card("sp6","Updates by ownership","the organisation the activity belongs to · click a number",
+    orgs.map(x=>{const rs=rows.filter(r=>(r[C.ownship]||"— not set")===x.k),max=orgs[0].n;
+      return `<div class="brow"><div class="bn" title="${esc(x.k)}">${esc(x.k)}</div>
+        <div class="bv">${num(fmt(x.n),x.k,rs,"one ownership")}</div>
+        <div class="bar"><i style="width:${100*x.n/max}%"></i></div></div>`}).join(""));
+  users.forEach(a=>{
     const rs=rows.filter(r=>r[C.actor]===a.k);
     const mix=actionMix(rs), dep=groupCount(rs,C.dept).slice(0,4), pk=groupCount(rs,C.pkg).slice(0,4);
     const dys=days(rs).length;
-    h+=`<div class="card sp4"><div class="hdrrow"><div><div class="eyebrow">${esc([...new Set(rs.map(r=>r[C.ownship]).filter(Boolean))].join(", ")||"—")}</div>
-      <h2>${esc(a.k)}</h2></div><span class="pill ${a.n>=50?"good":a.n>=10?"warn":"crit"}">${fmt(a.n)} updates</span></div>
-      <div class="legend">${mix.slice(0,4).map((m,i)=>`<span><span class="sw" style="background:${SER[i%SER.length]}"></span>${esc(aLabel(m.k))} ${m.n}</span>`).join("")}</div>
-      ${mixBar(mix,a.n)}
+    h+=`<div class="card sp4"><div class="hdrrow"><div>
+        <div class="eyebrow">${esc([...new Set(rs.map(r=>r[C.ownship]).filter(Boolean))].join(", ")||"—")}</div>
+        <h2>${esc(a.k)}</h2></div>
+      <span class="pill ${a.n>=50?"good":a.n>=10?"warn":"crit"}">${num(fmt(a.n),a.k+" — every update",rs,"one user")} updates</span></div>
+      <div class="legend">${mix.slice(0,4).map((m,i)=>{const mr=rs.filter(r=>r[C.action]===m.k);
+        return `<span><span class="sw" style="background:${SER[i%SER.length]}"></span>${esc(aLabel(m.k))} ${num(m.n,a.k+" — "+aLabel(m.k),mr,"one user, one action")}</span>`}).join("")}</div>
+      ${mixBar(mix,a.n,rs,a.k)}
       <div class="ibox" style="display:block">
-        <div><b style="color:var(--ink)">${new Set(rs.map(r=>r[C.tid])).size}</b> activities · <b style="color:var(--ink)">${dys}</b> active day${dys===1?"":"s"} · last ${dtshow(rs.map(r=>r[C.ts]).filter(Boolean).sort().slice(-1)[0]||"")}</div>
-        <div style="margin-top:5px">${dep.map(d=>`<span class="tag">${esc(d.k)} ${d.n}</span>`).join("")||"<span class=tag>no department set</span>"}</div>
-        <div style="margin-top:3px">${pk.map(d=>`<span class="tag">${esc(d.k)} ${d.n}</span>`).join("")}</div>
+        <div>${num(fmt(acts(rs)),a.k+" — activities updated",rs,"grouped by activity")} activities ·
+             ${num(dys,a.k+" — updates by day",rs,"one user, by day")} active day${dys===1?"":"s"} ·
+             last ${dtshow(rs.map(r=>r[C.ts]).filter(Boolean).sort().slice(-1)[0]||"")}</div>
+        <div style="margin-top:5px">${dep.map(d=>{const dr=rs.filter(r=>(r[C.dept]||"— not set")===d.k);
+          return `<span class="tag">${esc(d.k)} ${num(d.n,a.k+" — "+d.k,dr,"one user, one department")}</span>`}).join("")||"<span class=tag>no department set</span>"}</div>
+        <div style="margin-top:3px">${pk.map(d=>{const pr=rs.filter(r=>(r[C.pkg]||"— not set")===d.k);
+          return `<span class="tag">${esc(d.k)} ${num(d.n,a.k+" — "+d.k,pr,"one user, one package")}</span>`}).join("")}</div>
       </div></div>`});
   h+=`</div>`;
   return h;
@@ -423,25 +574,24 @@ function tabPeople(rows){
 /* ---------- TAB: breakdowns ---------- */
 function crossTab(rows,dimIdx,dimLabel){
   const dims=groupCount(rows,dimIdx);
-  const actors=groupCount(rows,C.actor).map(a=>a.k);
   if(!dims.length)return `<div class="empty">No values recorded for ${esc(dimLabel)} in this selection.</div>`;
-  const head=`<th>${esc(dimLabel)}</th><th class="num">Updates</th><th class="num">Activities</th><th>Users</th><th>Action mix</th>`;
   const body=dims.map(d=>{
     const rs=rows.filter(r=>(r[dimIdx]||"— not set")===d.k);
     const who=groupCount(rs,C.actor);
     return `<tr><td>${esc(d.k)}</td>
-      <td class="num"><span class="numlink" data-drill="dim" data-i="${dimIdx}" data-v="${esc(d.k)}">${fmt(d.n)}</span></td>
-      <td class="num">${fmt(new Set(rs.map(r=>r[C.tid])).size)}</td>
-      <td class="dim" style="min-width:170px">${who.slice(0,3).map(w=>`<span class="tag">${esc(w.k)} ${w.n}</span>`).join("")}${who.length>3?`<span class="tag">+${who.length-3}</span>`:""}</td>
-      <td style="min-width:110px">${mixBar(actionMix(rs),d.n)}</td></tr>`});
-  return tbl(head,body);
+      <td class="num">${num(fmt(d.n),dimLabel+": "+d.k,rs,"one "+dimLabel.toLowerCase())}</td>
+      <td class="num">${num(fmt(acts(rs)),dimLabel+": "+d.k+" — activities",rs,"grouped by activity")}</td>
+      <td class="dim" style="min-width:180px">${who.slice(0,3).map(w=>{const wr=rs.filter(r=>r[C.actor]===w.k);
+        return `<span class="tag">${esc(w.k)} ${num(w.n,w.k+" — "+dimLabel+": "+d.k,wr,"one user in this slice")}</span>`}).join("")}${who.length>3?`<span class="tag">+${who.length-3}</span>`:""}</td>
+      <td style="min-width:110px">${mixBar(actionMix(rs),d.n,rs,d.k)}</td></tr>`});
+  return tbl(`<th>${esc(dimLabel)}</th><th class="num">Updates</th><th class="num">Activities</th><th>Users</th><th>Action mix</th>`,body);
 }
 function tabBreakdown(rows){
   let h=`<div class="grid">`;
   h+=card("sp6","By department","the Department custom field on the activity",crossTab(rows,C.dept,"Department"));
   h+=card("sp6","By activity type","VisiLean Activity Type",crossTab(rows,C.atype,"Activity type"));
-  h+=card("sp6","By package",'the Package custom field',crossTab(rows,C.pkg,"Package"));
-  h+=card("sp6","By activity owner","the owner the activity is assigned to — not necessarily the person who updated it",
+  h+=card("sp6","By package","the Package custom field",crossTab(rows,C.pkg,"Package"));
+  h+=card("sp6","By activity owner","the owner the activity is assigned to — not necessarily who updated it",
     crossTab(rows,C.owner,"Activity owner"));
   h+=card("sp6","By location","VisiLean location / zone",
     (uniq(C.loc,rows).length?crossTab(rows,C.loc,"Location")
@@ -456,29 +606,29 @@ function tabActivities(rows){
   const g={};
   rows.forEach(r=>{const k=r[C.tid];
     if(!g[k])g[k]={tid:k,task:r[C.task],dept:r[C.dept],atype:r[C.atype],pkg:r[C.pkg],owner:r[C.owner],
-      ownship:r[C.ownship],loc:r[C.loc],n:0,who:new Set(),last:""};
-    const x=g[k];x.n++;x.who.add(r[C.actor]);if((r[C.ts]||"")>x.last)x.last=r[C.ts]||""});
-  let items=Object.values(g).sort((a,b)=>b.n-a.n||String(a.task).localeCompare(String(b.task)));
-  const cap=400, shown=items.slice(0,cap);
+      ownship:r[C.ownship],loc:r[C.loc],rs:[],who:new Set(),last:""};
+    const x=g[k];x.rs.push(r);x.who.add(r[C.actor]);if((r[C.ts]||"")>x.last)x.last=r[C.ts]||""});
+  const items=Object.values(g).sort((a,b)=>b.rs.length-a.rs.length||String(a.task).localeCompare(String(b.task)));
+  const cap=400,shown=items.slice(0,cap);
   let h=`<div class="grid">`;
   h+=card("sp12",`Activities being updated <span class="dim" style="font-weight:400">(${fmt(items.length)})</span>`,
-    `most-updated first${items.length>cap?` · showing the top ${cap}`:""} · one row per activity`,
-    tbl(`<th>Activity</th><th>Department</th><th>Activity type</th><th>Package</th><th>Activity owner</th><th class="num">Updates</th><th>Updated by</th><th>Last update</th>`,
+    `most-updated first${items.length>cap?` · showing the top ${cap}`:""} · click a number for that activity's updates`,
+    tbl(`<th>Activity</th><th>Department</th><th>Activity type</th><th>Package</th><th>Assigned owner</th><th class="num">Updates</th><th>Updated by</th><th>Last update</th>`,
       shown.map(x=>`<tr><td><b>${esc(x.task)}</b><div class="dim" style="font-size:9.5px">Task ID ${esc(x.tid)}${x.loc?" · "+esc(x.loc):""}</div></td>
         <td class="dim">${esc(x.dept||"—")}</td><td class="dim">${esc(x.atype||"—")}</td>
         <td class="dim">${esc(x.pkg||"—")}</td><td class="dim">${esc(x.owner||"—")}</td>
-        <td class="num"><b>${fmt(x.n)}</b></td>
+        <td class="num">${num(fmt(x.rs.length),x.task,x.rs,"one activity · Task ID "+x.tid)}</td>
         <td class="dim">${[...x.who].map(w=>`<span class="tag">${esc(w)}</span>`).join("")}</td>
         <td class="dim">${dtshow(x.last)}</td></tr>`)));
   h+=`</div>`;
   return h;
 }
 
-/* ---------- TAB: event log ---------- */
+/* ---------- TAB: update log ---------- */
 let logPage=0;
 function tabLog(rows){
   const sorted=rows.slice().sort((a,b)=>String(b[C.ts]).localeCompare(String(a[C.ts])));
-  const per=200, pages=Math.max(1,Math.ceil(sorted.length/per));
+  const per=200,pages=Math.max(1,Math.ceil(sorted.length/per));
   if(logPage>=pages)logPage=0;
   const slice=sorted.slice(logPage*per,(logPage+1)*per);
   let h=`<div class="grid">`;
@@ -526,64 +676,49 @@ function syncFilters(){
   fillSelect("f-pkg",uniq(C.pkg),f.pkg,"All packages");
   fillSelect("f-owner",uniq(C.owner),f.owner,"All activity owners");
   fillSelect("f-ownship",uniq(C.ownship),f.ownship,"All ownership");
-  const acts=[...new Set(EV.map(r=>r[C.action]))].sort((a,b)=>aLabel(a).localeCompare(aLabel(b)));
-  const el=document.getElementById("f-action");
-  el.innerHTML=`<option value="">All actions</option>`+acts.map(a=>
-    `<option value="${esc(a)}" ${f.action===a?"selected":""}>${esc(aLabel(a))}</option>`).join("");
-  document.getElementById("f-imp").classList.toggle("on",state.noImports);
+  const as=[...new Set(EV.map(r=>r[C.action]))].sort((a,b)=>aLabel(a).localeCompare(aLabel(b)));
+  document.getElementById("f-action").innerHTML=`<option value="">All actions</option>`+
+    as.map(a=>`<option value="${esc(a)}" ${f.action===a?"selected":""}>${esc(aLabel(a))}</option>`).join("");
   document.getElementById("f-q").value=f.q;
   document.getElementById("f-d1").value=f.d1;
   document.getElementById("f-d2").value=f.d2;
 }
 function render(){
+  NUMS=[];
   renderTabs();syncFilters();
   const rows=filtered();
-  document.getElementById("f-count").textContent=
-    `${fmt(rows.length)} update${rows.length===1?"":"s"} · ${fmt(new Set(rows.map(r=>r[C.actor])).size)} users · ${fmt(new Set(rows.map(r=>r[C.tid])).size)} activities`;
+  document.getElementById("f-count").innerHTML=
+    `${num(fmt(rows.length),"All updates in the current filter",rows,"everything on screen")} update${rows.length===1?"":"s"} · ${fmt(new Set(rows.map(r=>r[C.actor])).size)} users · ${fmt(acts(rows))} activities`;
   const pg=document.getElementById("page");
   if(state.tab==="overview")pg.innerHTML=tabOverview(rows);
   else if(state.tab==="people")pg.innerHTML=tabPeople(rows);
   else if(state.tab==="breakdown")pg.innerHTML=tabBreakdown(rows);
   else if(state.tab==="activities")pg.innerHTML=tabActivities(rows);
   else pg.innerHTML=tabLog(rows);
-  // number links: jump into the log filtered to that slice
-  document.querySelectorAll("[data-drill]").forEach(el=>el.onclick=()=>{
-    if(el.dataset.drill==="actor")state.f.actor=el.dataset.v;
-    else{const i=+el.dataset.i,v=el.dataset.v==="— not set"?"":el.dataset.v;
-      const key=Object.keys(C).find(k=>C[k]===i); if(key)state.f[key]=v}
-    state.tab="log";logPage=0;render();window.scrollTo(0,0)});
+  bindNums();
 }
 
 /* ---------- header + controls ---------- */
 document.getElementById("h-title").textContent=M.projectShort||M.project;
-document.getElementById("h-meta").innerHTML=
+{const ex=(M.excluded||[]).length?`<span class="chip mut" title="${esc((M.excluded||[]).join(', '))} — the VisiLean administrator for this project: bulk MPP imports plus owner/date reassignment. Excluded so the report reflects the site teams' own updating.">admin account excluded</span>`:"";
+ document.getElementById("h-meta").innerHTML=
   `${esc(M.client||"")} · LIVE from VisiLean · <span style="color:var(--blue);font-weight:600">last data change ${esc(M.generatedAt||"")}</span>`
-  +` <span class="chip mut">${fmt(M.events)} recorded events</span>`
+  +` <span class="chip mut">${fmt(M.events)} updates</span>`
   +` <span class="chip mut">${esc(dshow(M.firstEvent+"T00:00:00"))} → ${esc(dshow(M.lastEvent+"T00:00:00"))}</span>`
-  +` <span class="chip warn" title="VisiLean's PowerBI API does not expose file attachments, so document uploads cannot be counted here. Notes, status changes, assignments, reschedules and progress updates are all covered.">no attachment feed</span>`;
+  +` ${ex}`
+  +` <span class="chip warn" title="VisiLean's PowerBI API does not expose file attachments, so document uploads cannot be counted here. Notes, status changes, assignments, owner changes, reschedules and progress updates are all covered.">no attachment feed</span>`;}
 
 ["actor","dept","atype","loc","pkg","owner","ownship","action"].forEach(k=>{
   document.getElementById("f-"+k).addEventListener("change",e=>{state.f[k]=e.target.value;logPage=0;render()})});
 document.getElementById("f-d1").addEventListener("change",e=>{state.f.d1=e.target.value;logPage=0;render()});
 document.getElementById("f-d2").addEventListener("change",e=>{state.f.d2=e.target.value;logPage=0;render()});
-document.getElementById("f-imp").addEventListener("click",()=>{state.noImports=!state.noImports;logPage=0;render()});
 {let tmr=null;const q=document.getElementById("f-q");
  q.addEventListener("input",()=>{clearTimeout(tmr);tmr=setTimeout(()=>{state.f.q=q.value;logPage=0;render();
    const el=document.getElementById("f-q");if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}},250)})}
 document.getElementById("f-reset").addEventListener("click",()=>{
-  state.f={actor:"",dept:"",atype:"",loc:"",pkg:"",owner:"",ownship:"",action:"",d1:"",d2:"",q:""};
-  state.noImports=true;logPage=0;render()});
-
-document.getElementById("btn-csv").addEventListener("click",()=>{
-  const rows=filtered();
-  const head=["When","User","Action","Task ID","Activity","Department","Activity type","Location","Package","Activity owner","Ownership","What VisiLean recorded"];
-  const q=s=>`"${String(s==null?"":s).replace(/"/g,'""')}"`;
-  const csv=[head.map(q).join(",")].concat(rows.map(r=>[dtshow(r[C.ts]),r[C.actor],aLabel(r[C.action]),r[C.tid],r[C.task],
-    r[C.dept],r[C.atype],r[C.loc],r[C.pkg],r[C.owner],r[C.ownship],r[C.detail]].map(q).join(","))).join("\r\n");
-  const a=document.createElement("a");
-  a.href=URL.createObjectURL(new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8"}));
-  a.download="ntpc-user-adoption-"+(M.lastEvent||"")+".csv";document.body.appendChild(a);a.click();a.remove();
-});
+  state.f={actor:"",dept:"",atype:"",loc:"",pkg:"",owner:"",ownship:"",action:"",d1:"",d2:"",q:""};logPage=0;render()});
+document.getElementById("btn-csv").addEventListener("click",()=>
+  csvOf(filtered(),"ntpc-user-adoption-"+(M.lastEvent||"")+".csv"));
 document.getElementById("btn-refresh").addEventListener("click",()=>{
   location.replace(location.pathname+"?r="+Date.now())});
 
