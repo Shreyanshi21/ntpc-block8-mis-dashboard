@@ -201,6 +201,20 @@ tr:hover td{background:var(--blue-wash)}
 .critgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(235px,1fr));gap:9px;margin-top:6px}
 .critpt{border:1px solid var(--line2);border-radius:var(--r-tile);padding:8px 10px;background:var(--surface);min-width:0}
 .critpt .cph{font-size:11px;line-height:1.35;margin-bottom:3px}
+/* count-summary cards: every number is a button that opens its activity list and
+   filters the package table beside it */
+.stepgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.steptile{text-align:left;border:1px solid var(--line2);border-radius:var(--r-tile);padding:7px 10px;
+ background:var(--surface);cursor:pointer;min-width:0;transition:border-color .15s ease,box-shadow .15s ease}
+.steptile:hover{border-color:var(--blue);box-shadow:var(--shadow-lift)}
+.steptile.on{border-color:var(--blue);background:var(--blue-wash)}
+.steptile .n{font-size:21px;font-weight:800;line-height:1.15;font-variant-numeric:tabular-nums;color:var(--ink)}
+.stepby .twrap{max-height:302px}
+/* the summary card fills its half of the row: tiles on top, the bar and chips at the
+   foot, so the pair ends level instead of leaving a gap under the numbers */
+.card.stepsum{display:flex;flex-direction:column}
+.card.stepsum .stepfoot{margin-top:auto;padding-top:11px}
+table th.selcol,table td.selcol{background:var(--blue-wash)}
 /* a point that carries an activity opens the property panel on click */
 .critpt[data-uid]{cursor:pointer;transition:border-color .15s ease,box-shadow .15s ease}
 .critpt[data-uid]:hover{border-color:var(--blue);box-shadow:var(--shadow-lift)}
@@ -1084,7 +1098,7 @@ function stdCols(){
 }
 function drillOpen(spec){
   if(!spec.keepNav)_nav=[];
-  _dspec=spec;_dsub=(spec.subsets&&spec.subsets[0]&&spec.subsets[0].k)||"";
+  _dspec=spec;_dsub=spec.sub||((spec.subsets&&spec.subsets[0]&&spec.subsets[0].k)||"");
   _dsort={k:null,dir:1};_dpage=0;_dfilt={};_dpick={};_dbsel=null;closeColPop();
   drillRender();
 }
@@ -1611,7 +1625,9 @@ function kpiCards(rows,projectLevel){
        stopped?chip("vlst","needs attention"):null,"stp")
    // the forecast is the live number, so it leads; the baseline is the comparison
    + c("Forecast vs Baseline",`<span style="font-size:12px">${wdate(ffin,1)}</span>`,`baseline ${wdate(bfin,1)}`,(ffin-bfin)>=4?chip("vlw","+"+(ffin-bfin)+" days"):((ffin-bfin)<=-4?chip("vlc",(ffin-bfin)+" days"):chip("vlc","on plan")))
-   + c("Days to COD",d2cod+" days","forecast "+M.forecastFinish);
+   // KP 07-Sep: Days to COD belongs on the Project Summary only - a department page
+   // shows the same project-wide number, which reads as if it were that department's
+   + (projectLevel?c("Days to COD",d2cod+" days","forecast "+M.forecastFinish):"");
 }
 // ---------- S-curve ----------
 let scMode="cum";
@@ -1999,8 +2015,12 @@ function bindPipe(idp){
   }
 }
 // ---------- scope vs order vs deliver ----------
-function scopeOrderDeliver(rows){
-  const g={};rows.filter(r=>r[C.dept]==="supply").forEach(r=>{(g[r[C.pkg]]=g[r[C.pkg]]||[]).push(r)});
+// asIs: use the rows exactly as given (a department page already scopes them); the
+// Package Pipeline page passes the whole set, so it still narrows to supply itself.
+// Returns "" when nothing qualifies, so the caller can leave the card out.
+function scopeOrderDeliver(rows,asIs){
+  const g={};(asIs?rows:rows.filter(r=>r[C.dept]==="supply")).forEach(r=>{(g[r[C.pkg]]=g[r[C.pkg]]||[]).push(r)});
+  let nrows=0;
   let h=`<div class="twrap"><table><tr><th>Package</th><th class="num">Scope qty</th><th class="num">Ordered</th><th class="num">Delivered</th><th>Order</th><th>Delivery plan → forecast</th></tr>`;
   Object.entries(g).sort().forEach(([pkg,rr])=>{
     const scope=Math.max(...rr.map(r=>r[C.qty]||0),0);
@@ -2010,12 +2030,13 @@ function scopeOrderDeliver(rows){
     const grn=rr.filter(r=>CFG.grnStep.some(k=>nrm(r[C.name]).includes(k)));
     const del=grn.reduce((a,r)=>a+(r[C.qty]||0)*r[C.pct]/100,0);
     const gplan=grn.length?Math.max(...grn.map(r=>r[C.bEF])):0,gfc=grn.length?Math.max(...grn.map(r=>r[C.fEF])):0;
+    nrows++;
     h+=`<tr><td title="${esc(pkg)}">${esc(pkg.slice(0,38))}</td><td class="num">${fq(scope)}</td>
      <td class="num">${poDone?fq(scope):po.some(r=>r[C.pct]>0)?"in tender":"0"}</td><td class="num">${fq(del)}</td>
      <td>${poDone?chip("good","ordered"):po.some(r=>r[C.pct]>0)?chip("blue","ordering"):chip("mut","pending")}</td>
      <td class="small">${wdate(gplan,1)} → ${wdate(gfc,1)}${gfc-gplan>=4?` <span style="color:var(--crit-text)">(+${gfc-gplan}d)</span>`:""}</td></tr>`;
   });
-  return h+"</table></div>";
+  return nrows?h+"</table></div>":"";
 }
 // ---------- feeder tiles ----------
 const FCATS=[["Civil",r=>/Civil & Foundations|Other Site Works/.test(r[C.stage])&&!/pile/i.test(r[C.pkg]+r[C.name])],
@@ -2446,7 +2467,8 @@ function stepCounts(rows,spec){
     plan:sel.filter(r=>r[C.fEF]<=SW).length,
     act:sel.filter(isDone).length};
 }
-function stepDrill(rows,spec){
+// sub: which of the four numbers was clicked, so the list opens on that subset
+function stepDrill(rows,spec,sub){
   const c=stepCounts(rows,spec),short=c.base-c.act;
   const by={};c.sel.forEach(r=>{const k=String(r[C.pkg]||"—");by[k]=(by[k]||0)+1});
   drillOpen({
@@ -2459,48 +2481,77 @@ function stepDrill(rows,spec){
     breakdown:Object.entries(by).map(([label,n])=>({label,n})).sort((a,b)=>b.n-a.n),
     breakdownFilter:label=>r=>String(r[C.pkg]||"—")===label,
     rows:c.sel,cols:stdCols(),rowId:r=>String(r[C.tid]),
+    sub:(sub==="total"?"all":sub)||"",
+    // the first four mirror the four numbers on the card, so a click lands on its own list
     subsets:[{k:"all",label:"All"},
-             {k:"done",label:"Completed",f:isDone},
+             {k:"base",label:"Baseline till date",f:r=>r[C.bEF]<=SW},
+             {k:"plan",label:"Planned till date",f:r=>r[C.fEF]<=SW},
+             {k:"act",label:"Actual (completed)",f:isDone},
              {k:"late",label:"Due by today, not done",f:r=>!isDone(r)&&r[C.bEF]<=SW},
              {k:"future",label:"Not due yet",f:r=>!isDone(r)&&r[C.bEF]>SW}],
   });
 }
+// which number the reader clicked, per card - drives the package table beside it
+let stepSel={};
+const STEP_SUBS=[["total","Total"],["base","Baseline till date"],
+                 ["plan","Planned till date"],["act","Actual"]];
 // the summary card, and the same four numbers package by package, as one pair
 function stepSummaryCards(rows,spec){
   if(!CFG.countSummaries)return "";
   const c=stepCounts(rows,spec);
   if(!c.total)return "";
   const short=c.base-c.act, pctDone=100*c.act/c.total;
-  const stat=(lbl,n,sub,col)=>`<div style="flex:1;min-width:100px">
+  const sel=stepSel[spec.key]||"";
+  const N={total:c.total,base:c.base,plan:c.plan,act:c.act};
+  const SUB={total:spec.unit,base:"due by "+wdate(SW,1),plan:"on the current plan",
+             act:fmt1(pctDone)+"% of total"};
+  // every number is a button: it opens its own activity list and filters the table beside
+  const tile=(k,lbl)=>`<button type="button" class="steptile${sel===k?" on":""}" data-sk="${spec.key}" data-sub="${k}"
+      title="Open the ${esc(lbl.toLowerCase())} activities and filter the ${esc(String(spec.groupLabel).toLowerCase())} table">
     <div class="eyebrow">${lbl}</div>
-    <div style="font-size:21px;font-weight:800;line-height:1.15;font-variant-numeric:tabular-nums;color:${col||"var(--ink)"}">${n}</div>
-    <div class="small dim">${sub||""}</div></div>`;
-  const a=`<div style="display:flex;gap:13px;flex-wrap:wrap;align-items:flex-start">
-    ${stat("Total",c.total,spec.unit)}
-    ${stat("Baseline till date",c.base,"due by "+wdate(SW,1))}
-    ${stat("Planned till date",c.plan,"on the current plan")}
-    ${stat("Actual",c.act,fmt1(pctDone)+"% of total",short>0?"var(--crit-text)":"var(--good-text)")}
-   </div>
-   <div class="legend" style="margin-top:10px"><span><span class="sw" style="background:var(--s-act)"></span>Actual</span><span><span class="sw" style="background:var(--s-plan)"></span>Baseline till date (tick)</span></div>
+    <div class="n"${k==="act"?` style="color:${short>0?"var(--crit-text)":"var(--good-text)"}"`:""}>${N[k]}</div>
+    <div class="small dim">${SUB[k]}</div></button>`;
+  const a=`<div class="stepgrid">${STEP_SUBS.map(s=>tile(s[0],s[1])).join("")}</div>
+   <div class="stepfoot">
+   <div class="legend"><span><span class="sw" style="background:var(--s-act)"></span>Actual</span><span><span class="sw" style="background:var(--s-plan)"></span>Baseline till date (tick)</span></div>
    <div class="pbar" style="height:12px"><div class="fill" style="width:${Math.min(100,pctDone)}%"></div><div class="tick" style="left:${Math.min(100,100*c.base/c.total)}%"></div></div>
-   <div style="margin-top:9px">${short>0?chip("vlnr",short+" behind baseline"):chip("vlc","on or ahead of baseline")} ${chip("mut",(c.total-c.act)+" still open")}</div>`;
+   <div style="margin-top:9px">${short>0?chip("vlnr",short+" behind baseline"):chip("vlc","on or ahead of baseline")} ${chip("mut",(c.total-c.act)+" still open")}</div></div>`;
   const g={};c.sel.forEach(r=>{const k=String(r[C.pkg]||"—");(g[k]=g[k]||[]).push(r)});
   const items=Object.entries(g).map(([p,rr])=>({p,total:rr.length,
     base:rr.filter(r=>r[C.bEF]<=SW).length,plan:rr.filter(r=>r[C.fEF]<=SW).length,
     act:rr.filter(isDone).length}));
   items.forEach(x=>x.short=x.base-x.act);
   items.sort((x,y)=>y.short-x.short||y.total-x.total||String(x.p).localeCompare(String(y.p)));
-  let b=`<div class="twrap"><table><tr><th>${esc(spec.groupLabel)}</th><th class="num">Total</th><th class="num">Baseline till date</th><th class="num">Planned till date</th><th class="num">Actual</th><th>Status</th></tr>`;
-  items.forEach(x=>{
-    b+=`<tr><td title="${esc(x.p)}">${esc(x.p)}</td><td class="num">${x.total}</td><td class="num">${x.base}</td><td class="num">${x.plan}</td>
-      <td class="num"><b>${x.act}</b></td>
+  // a clicked number filters the table to the rows behind it and highlights its column
+  const fk=(sel&&sel!=="total")?sel:"";
+  const shown=fk?items.filter(x=>x[fk]>0):items;
+  const selLbl=(STEP_SUBS.find(s=>s[0]===sel)||["",""])[1];
+  const cc=k=>fk===k?' class="num selcol"':' class="num"';
+  const bar=sel?`<div style="margin-bottom:6px;display:flex;gap:7px;align-items:center;flex-wrap:wrap">
+      ${chip("blue","Filtered: "+esc(selLbl))}
+      <a href="#" onclick="stepSel['${spec.key}']='';render();return false" style="color:var(--blue);font-size:10px;font-weight:600">× clear</a>
+      <span class="fnote">${shown.length} of ${items.length} ${esc(String(spec.groupLabel).toLowerCase())}${items.length===1?"":"s"}${fk?` · ${esc(selLbl)} sums to ${N[fk]}`:""}</span></div>`:"";
+  let b=bar+`<div class="twrap"><table><tr><th>${esc(spec.groupLabel)}</th><th${cc("total")}>Total</th><th${cc("base")}>Baseline till date</th><th${cc("plan")}>Planned till date</th><th${cc("act")}>Actual</th><th>Status</th></tr>`;
+  shown.forEach(x=>{
+    b+=`<tr><td title="${esc(x.p)}">${esc(x.p)}</td><td${cc("total")}>${x.total}</td><td${cc("base")}>${x.base}</td><td${cc("plan")}>${x.plan}</td>
+      <td${cc("act")}><b>${x.act}</b></td>
       <td>${x.act>=x.total?chip("vlc","Complete"):(x.short>0?chip("vlnr",x.short+" behind"):(x.base?chip("vlc","on baseline"):chip("mut","not due yet")))}</td></tr>`});
+  if(!shown.length)b+=`<tr><td colspan="6" class="dim">no ${esc(String(spec.groupLabel).toLowerCase())} matches this filter</td></tr>`;
   b+="</table></div>";
-  setTimeout(()=>{const el=document.getElementById("step-"+spec.key);
-    if(el)el.addEventListener("click",()=>stepDrill(rows,spec))},0);
-  return card(spec.span||"span5",spec.title,spec.hint,a,
+  setTimeout(()=>{
+    document.querySelectorAll(`.steptile[data-sk="${spec.key}"]`).forEach(el=>{
+      el.addEventListener("click",()=>{
+        const k=el.dataset.sub;
+        stepSel[spec.key]=(stepSel[spec.key]===k)?"":k;   // click the same number again to clear
+        const keep=stepSel[spec.key];
+        render();                                          // re-filters the table beside it
+        if(keep)stepDrill(rows,spec,keep);                 // and opens that activity list
+      })});
+    const el=document.getElementById("step-"+spec.key);
+    if(el)el.addEventListener("click",()=>stepDrill(rows,spec,sel))},0);
+  return card((spec.span||"span5")+" stepsum",spec.title,spec.hint,a,
       `<button id="step-${spec.key}" class="rsndrill" title="Drill down to the activities">&#9783; ${c.act} of ${c.total}</button>`)
-    +card(spec.span2||"span7",spec.byTitle,spec.byHint,b);
+    +card((spec.span2||"span7")+" stepby",spec.byTitle,spec.byHint,b);
 }
 const SPEC_FA=()=>({key:"fa",re:CFG.acceptRe,unit:"documents",groupLabel:"Design package",
   eyebrow:"Design & Engineering · documents",
@@ -2522,7 +2573,10 @@ function pageSummary(){
   let h=`<div class="grid">`;
   // top row rebalanced: the Cost card carries only Budget (BAC) now, so it takes
   // span2 and the freed width goes to the gauge and the EPC bifurcation
-  h+=gaugeCard(rows,"span5")+epcCard("span5")+costCard();
+  // KP 07-Sep: Cost card hidden for now (costCard() is kept intact - put it back on
+  // this line to restore it). Overall progress and EPC split the full row instead of
+  // leaving the 2 columns the Cost card used to occupy.
+  h+=gaugeCard(rows,"span6")+epcCard("span6");
   h+=kpiCards(rows,true);
   // Reasons for Variance sits directly beside the KPI cards (next to Days to COD),
   // filling what used to be an empty second row
@@ -2534,7 +2588,9 @@ function pageSummary(){
     `<div id="sc-box"><div class="hint" style="margin-bottom:2px">Cumulative</div>${scurveMulti(rows,"sc",false)}<div class="hint" style="margin:8px 0 2px">Monthly</div>${scurveMulti(rows,"sc2",true)}</div>`,
     `<div style="display:flex;gap:5px;flex-wrap:wrap"><div class="toggle2" id="sc-series">${SC_SERIES.map(x=>`<button data-s="${x[0]}" class="${scSel.includes(x[0])?"on":""}">${x[1]}</button>`).join("")}</div><div class="toggle2"><button id="sc-chart" class="on">Chart</button><button id="sc-table">Table</button></div></div>`);
   h+=card("span5","Stage progress","Actual % vs Baseline Plan %",stageBars(rows));
-  h+=critPoints(rows);
+  // KP 07-Sep: Critical points card hidden for now (critPoints() is kept intact -
+  // put this line back to restore it).
+  // h+=critPoints(rows);
   setTimeout(()=>bindKpi(rows,""),0);
   h+=card("span12","Open Constraints / Awaiting to Start","live VisiLean constraints log · awaiting-start from schedule",constraints(rows),
     `<div class="toggle2"><button class="${consTab==="await"?"on":""}" onclick="consTab='await';render()">Awaiting Start</button><button class="${consTab==="vl"?"on":""}" onclick="consTab='vl';render()">VisiLean Constraints</button></div>`);
@@ -2568,7 +2624,7 @@ function pagePipeline(){
   const rows=filtered().filter(r=>r[C.dept]==="supply"||r[C.dept]==="services");
   let h=`<div class="grid">`;
   h+=stepSummaryCards(rows,SPEC_PO());
-  h+=card("span12","Procurement Pipeline — schedule stages","per package · red date = overdue vs baseline",pipeTable(rows,"pp",false));
+  h+=card("span12","Procurement Pipeline — schedule stages","per package · red date = overdue vs baseline · click a row for activities",pipeTable(rows,"pp",false));
   h+=card("span12","Scope vs Order vs Deliver","supply quantities",scopeOrderDeliver(filtered()));
   h+="</div>";
   setTimeout(()=>bindPipe("pp"),0);
@@ -2690,7 +2746,7 @@ function pageDept(key){
   h+=`<div class="card span8"><h2>S-curve — ${esc(DNAME[key])}</h2><div class="hint">cumulative plan vs actual</div>${scurve(rows,"scd",false)}</div>`;
   h+=kpiCards(rows,false);
   // same layout as the summary page: variance reasons sit beside the KPI cards
-  h+=reasonsCard(key,"span10");
+  h+=reasonsCard(key,"span12");   // 6 KPI cards fill the row exactly once Days to COD is summary-only
   if(key==="engineering"){
     h+=engOverview(rows);
     h+=stepSummaryCards(rows,SPEC_FA());
@@ -2701,7 +2757,11 @@ function pageDept(key){
     h+=card("span8","PO Tracker — expected vs actual","per ED format: value-wise baseline vs forecast PO with delay",poTracker(rows));
     h+=committedCard(rows);
     h+=card("span12","Delay Analysis — procurement heads","per ED format: a–e heads, packages currently behind baseline",delayHeads(rows));
-    h+=card("span12",`${esc(DNAME[key])} — pipeline`,"schedule stages per package · click a row for activities",pipeTable(rows,"pd",false));
+    // same pipeline template as the Package Pipeline page: identical card, and the
+    // quantity table under it (skipped where the department has no measured scope)
+    h+=card("span12","Procurement Pipeline — schedule stages","per package · red date = overdue vs baseline · click a row for activities",pipeTable(rows,"pd",false));
+    {const sod=scopeOrderDeliver(rows,true);
+     if(sod)h+=card("span12","Scope vs Order vs Deliver","supply quantities",sod);}
   }else if(key==="regulatory"||key==="liaisoning"){
     h+=card("span12","Critical approvals tracker","schedule order · sort by any column · click a row to filter the Updates Sheet below",regTable(rows,true,"rc"));
     h+=card("span12","All approval groups","",regTable(rows,false,"ra"));
