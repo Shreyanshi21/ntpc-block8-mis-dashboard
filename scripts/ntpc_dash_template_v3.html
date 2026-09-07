@@ -215,6 +215,12 @@ tr:hover td{background:var(--blue-wash)}
 .card.stepsum{display:flex;flex-direction:column}
 .card.stepsum .stepfoot{margin-top:auto;padding-top:11px}
 table th.selcol,table td.selcol{background:var(--blue-wash)}
+/* a count in the package table is a link into the activities behind it */
+.stepnum{font:inherit;color:var(--blue);font-weight:600;font-variant-numeric:tabular-nums;
+ cursor:pointer;padding:0 2px;background:none;border:0;border-radius:4px}
+.stepnum.b{font-weight:800}
+.stepnum:hover{background:var(--blue);color:#fff}
+.stepnum:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
 /* a point that carries an activity opens the property panel on click */
 .critpt[data-uid]{cursor:pointer;transition:border-color .15s ease,box-shadow .15s ease}
 .critpt[data-uid]:hover{border-color:var(--blue);box-shadow:var(--shadow-lift)}
@@ -2470,20 +2476,42 @@ function stepCounts(rows,spec){
     plan:sel.filter(r=>r[C.fEF]<=SW).length,
     act:sel.filter(isDone).length};
 }
-// sub: which of the four numbers was clicked, so the list opens on that subset
-function stepDrill(rows,spec,sub){
-  const c=stepCounts(rows,spec),short=c.base-c.act;
-  const by={};c.sel.forEach(r=>{const k=String(r[C.pkg]||"—");by[k]=(by[k]||0)+1});
+// The drill behind a count carries the quantity as well: on these steps VisiLean
+// measures the deliverable in "Nos (Doc)", so the quantity column IS the attached
+// document count KP asked to see next to the name and dates.
+function stepCols(){
+  const cols=stdCols();
+  const i=cols.findIndex(c=>c.k==="pct");
+  cols.splice(i<0?cols.length:i+1,0,{k:"qty",label:"Quantity / documents",w:118,num:true,
+    get:r=>r[C.qty]||0,
+    html:r=>r[C.qty]?`${fq(r[C.qty])} <span class="dim">${esc(r[C.uom]||"")}</span>`:`<span class="dim">—</span>`,
+    txt:r=>r[C.qty]?fq(r[C.qty])+" "+(r[C.uom]||""):"—"});
+  return cols;
+}
+// sub: which of the four numbers was clicked, so the list opens on that subset.
+// pkg: set when the number came from a row of the package table, so the list is
+// scoped to that package - "the 3 documents behind CIVIL INFRASTRUCTURE".
+function stepDrill(rows,spec,sub,pkg){
+  const all=stepCounts(rows,spec);
+  const rs=pkg?all.sel.filter(r=>String(r[C.pkg]||"—")===pkg):all.sel;
+  const c={total:rs.length,base:rs.filter(r=>r[C.bEF]<=SW).length,
+           plan:rs.filter(r=>r[C.fEF]<=SW).length,act:rs.filter(isDone).length};
+  const short=c.base-c.act;
+  const by={};rs.forEach(r=>{const k=String(r[C.pkg]||"—");by[k]=(by[k]||0)+1});
+  const docs=rs.reduce((a,r)=>a+(r[C.qty]||0),0);
   drillOpen({
-    eyebrow:spec.eyebrow,title:spec.title,
+    eyebrow:spec.eyebrow+(pkg?" · "+pkg:""),
+    title:spec.title+(pkg?" — "+pkg:""),
     status:pill(short>0?"crit":"good",c.act+" of "+c.total),
-    formula:`<b>${c.total}</b> ${spec.unit} carry this step · the baseline says <b>${c.base}</b> should be finished by ${wdate(SW,1)} · current plan <b>${c.plan}</b> · actually finished <b>${c.act}</b>`,
+    formula:`<b>${c.total}</b> ${spec.unit}${pkg?` in <b>${esc(pkg)}</b>`:``}`
+      +(docs?` · <b>${fq(docs)}</b> ${esc(rs[0][C.uom]||"")}`:``)
+      +` · the baseline says <b>${c.base}</b> should be finished by ${wdate(SW,1)} · current plan <b>${c.plan}</b> · actually finished <b>${c.act}</b>`,
     reconcile:short>0?`<span class="pill crit">▲ ${short} behind the baseline count</span>`
                      :`<span class="pill good">✓ on or ahead of the baseline count</span>`,
     breakdownBy:String(spec.groupLabel).toLowerCase(),
     breakdown:Object.entries(by).map(([label,n])=>({label,n})).sort((a,b)=>b.n-a.n),
     breakdownFilter:label=>r=>String(r[C.pkg]||"—")===label,
-    rows:c.sel,cols:stdCols(),rowId:r=>String(r[C.tid]),
+    rows:rs,cols:stepCols(),rowId:r=>String(r[C.tid]),
     sub:(sub==="total"?"all":sub)||"",
     // the first four mirror the four numbers on the card, so a click lands on its own list
     subsets:[{k:"all",label:"All"},
@@ -2534,10 +2562,16 @@ function stepSummaryCards(rows,spec){
       ${chip("blue","Filtered: "+esc(selLbl))}
       <a href="#" onclick="stepSel['${spec.key}']='';render();return false" style="color:var(--blue);font-size:10px;font-weight:600">× clear</a>
       <span class="fnote">${shown.length} of ${items.length} ${esc(String(spec.groupLabel).toLowerCase())}${items.length===1?"":"s"}${fk?` · ${esc(selLbl)} sums to ${N[fk]}`:""}</span></div>`:"";
+  // every count in the table opens the activities behind it, for that package alone
+  const numCell=(x,k,bold)=>{
+    const v=x[k];
+    if(!v)return `<td${cc(k)}><span class="dim">0</span></td>`;
+    const lbl=(STEP_SUBS.find(s=>s[0]===k)||["",""])[1];
+    return `<td${cc(k)}><button type="button" class="stepnum${bold?" b":""}" data-sk="${spec.key}" data-sub="${k}" data-pkg="${esc(x.p)}"
+      title="${esc(lbl)} — open the ${v} ${esc(String(spec.unit))} behind this number for ${esc(x.p)}">${v}</button></td>`};
   let b=bar+`<div class="twrap"><table><tr><th>${esc(spec.groupLabel)}</th><th${cc("total")}>Total</th><th${cc("base")}>Baseline till date</th><th${cc("plan")}>Planned till date</th><th${cc("act")}>Actual</th><th>Status</th></tr>`;
   shown.forEach(x=>{
-    b+=`<tr><td title="${esc(x.p)}">${esc(x.p)}</td><td${cc("total")}>${x.total}</td><td${cc("base")}>${x.base}</td><td${cc("plan")}>${x.plan}</td>
-      <td${cc("act")}><b>${x.act}</b></td>
+    b+=`<tr><td title="${esc(x.p)}">${esc(x.p)}</td>${numCell(x,"total")}${numCell(x,"base")}${numCell(x,"plan")}${numCell(x,"act",1)}
       <td>${x.act>=x.total?chip("vlc","Complete"):(x.short>0?chip("vlnr",x.short+" behind"):(x.base?chip("vlc","on baseline"):chip("mut","not due yet")))}</td></tr>`});
   if(!shown.length)b+=`<tr><td colspan="6" class="dim">no ${esc(String(spec.groupLabel).toLowerCase())} matches this filter</td></tr>`;
   b+="</table></div>";
@@ -2550,6 +2584,9 @@ function stepSummaryCards(rows,spec){
         render();                                          // re-filters the table beside it
         if(keep)stepDrill(rows,spec,keep);                 // and opens that activity list
       })});
+    document.querySelectorAll(`.stepnum[data-sk="${spec.key}"]`).forEach(el=>{
+      el.addEventListener("click",ev=>{ev.stopPropagation();
+        stepDrill(rows,spec,el.dataset.sub,el.dataset.pkg)})});
     const el=document.getElementById("step-"+spec.key);
     if(el)el.addEventListener("click",()=>stepDrill(rows,spec,sel))},0);
   return card((spec.span||"span5")+" stepsum",spec.title,spec.hint,a,
