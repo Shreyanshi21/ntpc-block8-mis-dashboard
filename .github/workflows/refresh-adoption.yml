@@ -1,0 +1,77 @@
+name: Refresh NTPC user adoption report from VisiLean
+
+# Same worker pattern as refresh-v2.yml (see the comments there): GitHub drops most
+# scheduled events, so the schedule only has to START a run and the run itself then
+# refreshes for just under 6 hours.
+#
+# The audit trail moves far more slowly than the schedule data (a few hundred events a
+# week, not thousands a day), so this worker cycles every 15 minutes rather than 5.
+
+on:
+  schedule:
+    - cron: "22,52 * * * *"
+  workflow_dispatch:
+    inputs:
+      once:
+        description: "Refresh once and exit (no loop)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-adoption
+  cancel-in-progress: true      # a newly started worker replaces the running one
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350        # stay under the 6h hard limit
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Refresh loop (every 15 minutes)
+        env:
+          VL_TOKEN_ADOPT_TASK: ${{ secrets.VL_TOKEN_ADOPT_TASK }}
+          VL_TOKEN_ADOPT_HIST: ${{ secrets.VL_TOKEN_ADOPT_HIST }}
+          VL_TOKEN_ADOPT_NOTES: ${{ secrets.VL_TOKEN_ADOPT_NOTES }}
+          ONCE: ${{ inputs.once }}
+        run: |
+          set -uo pipefail
+          git config user.name  "visilean-bot"
+          git config user.email "support@visilean.com"
+
+          END=$(( $(date +%s) + 330*60 ))   # leave headroom before the job timeout
+          n=0
+          while : ; do
+            n=$((n+1))
+            echo "::group::cycle $n  $(date -u '+%H:%M:%S UTC')"
+
+            if python scripts/adoption_data.py && python scripts/build_adoption.py ; then
+              if git diff --quiet -- adoption/.datahash ; then
+                echo "no new activity in the trail"
+              else
+                git add adoption/index.html adoption/meta.json adoption/.datahash
+                git commit -m "adoption auto-refresh $(TZ=Asia/Kolkata date '+%d-%b %H:%M IST')" || true
+                # another worker may have pushed while we were building
+                for try in 1 2 3 ; do
+                  git pull --rebase --autostash -q && git push -q && { echo "published"; break; }
+                  echo "push retry $try"; sleep 5
+                done
+              fi
+            else
+              # a bad cycle must not kill the worker - the next one recovers
+              echo "cycle failed (VisiLean unreachable or build error) - continuing"
+              git checkout -- adoption 2>/dev/null || true
+            fi
+            echo "::endgroup::"
+
+            if [ "${ONCE:-false}" = "true" ]; then echo "once-mode: done"; break; fi
+            if [ "$(date +%s)" -ge "$END" ]; then echo "worker window finished after $n cycles"; break; fi
+            sleep 900
+          done

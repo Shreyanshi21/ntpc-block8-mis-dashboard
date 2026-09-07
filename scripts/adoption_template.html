@@ -1,0 +1,604 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NTPC Bikaner Block 8 (200MW) — User Adoption Report</title>
+<style>
+/* ---------- VisiLean design tokens (same system as the LPS maturity dashboard) ---------- */
+:root{
+  --page:#f7f9fc; --surface:#ffffff; --ink:#002d62; --ink2:#2a3a55; --mut:#5b6b82;
+  --line:#e3e8f0; --line2:#e5eaf0; --grid:#e3e8f0;
+  --blue:#00a3e0; --blue-hov:#0091c9; --blue-wash:rgba(0,163,224,.10);
+  --navy:#002d62; --cyan-info:#00618a;
+  --good:#00a455; --good-text:#00713a; --good-wash:#e6f6ee;
+  --warn:#f59e00; --warn-text:#a66a00; --warn-wash:#fef4e6;
+  --crit:#ff4343; --crit-text:#c42121; --crit-wash:#ffecec;
+  --shadow-card:0 1px 0 rgba(0,45,98,.02),0 6px 24px -18px rgba(0,45,98,.15);
+  --shadow-lift:0 10px 30px -12px rgba(0,45,98,.28);
+  --r-card:14px; --r-tile:12px;
+  --s1:#00a3e0; --s2:#9d4f8c; --s3:#00a455; --s4:#f59e00; --s5:#7262fd; --s6:#f08bb4;
+}
+:root[data-theme="dark"]{
+  --page:#0a1220; --surface:#101a2b; --ink:#eef3fa; --ink2:#c3d0e2; --mut:#8fa3bd;
+  --line:#1e2a3d; --line2:#27364d; --grid:#1e2a3d;
+  --blue:#38b6ea; --blue-wash:rgba(0,163,224,.18); --navy:#0d2547; --cyan-info:#6bcbf2;
+  --good-text:#5fd39b; --good-wash:rgba(0,164,85,.18);
+  --warn-text:#f5c069; --warn-wash:rgba(245,158,0,.2);
+  --crit-text:#ff9b9b; --crit-wash:rgba(255,67,67,.18);
+  --shadow-card:0 1px 0 rgba(0,0,0,.2),0 6px 24px -18px rgba(0,0,0,.7);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font:12px/1.5 Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--page);color:var(--ink);
+ font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;padding-bottom:40px}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+a{color:inherit;text-decoration:none}
+select,input[type=search],input[type=date]{font:inherit;font-size:11px;color:var(--ink);background:var(--surface);
+ border:1px solid var(--line2);border-radius:7px;padding:4px 7px;max-width:190px}
+.wrap{max-width:1680px;margin:0 auto;padding:0 18px}
+
+/* ---------- header ---------- */
+.hdr{background:var(--surface);border-bottom:1px solid var(--line);padding:12px 0 0}
+.hdrtop{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap}
+.brand{display:flex;gap:10px;align-items:center}
+.brand img{width:34px;height:34px;border-radius:7px;background:#fff;object-fit:contain;padding:2px;border:1px solid var(--line2)}
+.eyebrow{text-transform:uppercase;letter-spacing:.06em;color:var(--mut);font-size:10px;font-weight:700}
+h1{font-size:17px;font-weight:800;letter-spacing:-.01em;display:flex;align-items:center;gap:7px}
+.hmeta{color:var(--mut);font-size:10.5px;margin-top:3px;display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.hbtns{margin-left:auto;display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.btn{border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:6px;
+ border:1px solid var(--line2);background:var(--surface);color:var(--ink2);white-space:nowrap}
+.btn:hover{background:var(--blue-wash);color:var(--blue);border-color:var(--blue)}
+.btn.dark{background:var(--navy);color:#fff;border-color:var(--navy)}
+.btn.dark:hover{background:#013f85;color:#fff}
+.btn.pri{background:var(--blue);color:#fff;border-color:var(--blue)}
+.btn.pri:hover{background:var(--blue-hov);color:#fff}
+.thm{display:flex;border:1px solid var(--line2);border-radius:8px;overflow:hidden}
+.thm button{padding:5px 9px;font-size:10.5px;color:var(--mut)}
+.thm button.on{background:var(--blue);color:#fff}
+
+/* ---------- tabs ---------- */
+.tabs{display:flex;gap:2px;margin-top:11px;overflow-x:auto}
+.tabs button{padding:9px 13px;font-size:12px;font-weight:600;color:var(--mut);border-bottom:2px solid transparent;white-space:nowrap}
+.tabs button:hover{color:var(--ink)}
+.tabs button.on{color:var(--blue);border-bottom-color:var(--blue)}
+
+/* ---------- filter bar ---------- */
+.fbar{position:sticky;top:0;z-index:30;background:var(--surface);border:1px solid var(--line);border-radius:10px;
+ padding:8px 10px;margin:14px 0;display:flex;gap:6px;align-items:center;flex-wrap:wrap;box-shadow:var(--shadow-card)}
+.fbar label{font-size:10px;color:var(--mut);font-weight:600;display:flex;gap:4px;align-items:center}
+.tgl{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;color:var(--ink2);border:1px solid var(--line2);
+ border-radius:7px;padding:4px 9px;cursor:pointer;user-select:none}
+.tgl.on{background:var(--blue-wash);color:var(--blue);border-color:var(--blue);font-weight:700}
+.reset{color:var(--blue);font-weight:700;font-size:10.5px}
+.fnote{font-size:10.5px;color:var(--mut)}
+
+/* ---------- grid + cards ---------- */
+.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-card);padding:16px 18px;
+ grid-column:span 12;min-width:0;box-shadow:var(--shadow-card)}
+.sp3{grid-column:span 3}.sp4{grid-column:span 4}.sp5{grid-column:span 5}
+.sp6{grid-column:span 6}.sp7{grid-column:span 7}.sp8{grid-column:span 8}.sp9{grid-column:span 9}
+@media(max-width:1240px){.sp3,.sp4{grid-column:span 6}.sp5,.sp6,.sp7,.sp8,.sp9{grid-column:span 12}}
+@media(max-width:760px){.sp3,.sp4{grid-column:span 12}}
+.card h2{font-size:13.5px;font-weight:700;letter-spacing:-.01em}
+.card .hint{color:var(--mut);font-size:10.5px;line-height:1.45;margin-top:2px}
+.hdrrow{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+
+/* ---------- KPI strip (reference: icon + label + big value + status) ---------- */
+.kstrip{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px;margin-bottom:14px}
+.ktile{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-card);padding:13px 15px;
+ display:flex;align-items:center;gap:12px;box-shadow:var(--shadow-card)}
+.kicon{width:34px;height:34px;border-radius:9px;background:var(--blue-wash);color:var(--blue);flex:0 0 auto;
+ display:flex;align-items:center;justify-content:center;font-size:16px}
+.ktile .kl{flex:1;min-width:0}
+.ktile .kn{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--mut)}
+.ktile .ks{font-size:10px;color:var(--mut);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ktile .kv{font-size:21px;font-weight:800;letter-spacing:-.02em;white-space:nowrap}
+.ktile .kv small{font-size:11px;font-weight:700;color:var(--mut)}
+
+/* ---------- metric card (reference: code, big number, benchmark, info, insight) ---------- */
+.mbig{font-size:34px;font-weight:800;letter-spacing:-.02em;line-height:1.05;margin:6px 0 2px}
+.mbig small{font-size:14px;font-weight:700;color:var(--mut);margin-left:2px}
+.bench{font-size:10.5px;color:var(--mut);font-weight:600}
+.ibox{margin-top:10px;border-radius:var(--r-tile);background:var(--page);padding:9px 11px;font-size:10.5px;
+ line-height:1.45;color:var(--mut);display:flex;gap:7px;align-items:flex-start}
+.ibox .ic{color:var(--cyan-info);font-weight:700;flex:0 0 auto}
+.nbox{margin-top:8px;border-radius:var(--r-tile);background:var(--blue-wash);padding:9px 11px;font-size:10.5px;
+ line-height:1.45;color:var(--ink2);display:flex;gap:7px;align-items:flex-start}
+.nbox b{color:var(--ink)}
+
+/* ---------- chips / pills ---------- */
+.chip{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:700;border-radius:14px;padding:2px 8px;white-space:nowrap}
+.chip.good{background:var(--good-wash);color:var(--good-text)}
+.chip.warn{background:var(--warn-wash);color:var(--warn-text)}
+.chip.crit{background:var(--crit-wash);color:var(--crit-text)}
+.chip.info{background:var(--blue-wash);color:var(--blue)}
+.chip.mut{background:var(--grid);color:var(--ink2)}
+.pill{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:3px 10px;font-size:10px;font-weight:700;
+ text-transform:uppercase;letter-spacing:.04em}
+.pill.good{background:var(--good-wash);color:var(--good-text)}
+.pill.warn{background:var(--warn-wash);color:var(--warn-text)}
+.pill.crit{background:var(--crit-wash);color:var(--crit-text)}
+
+/* ---------- tables ---------- */
+.twrap{overflow:auto;position:relative;max-height:520px;border-radius:9px}
+table{width:100%;border-collapse:collapse;font-size:11.5px}
+th{position:sticky;top:0;z-index:2;background:var(--surface);font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;
+ color:var(--mut);font-weight:700;text-align:left;padding:8px 9px;border-bottom:1px solid var(--line2);white-space:nowrap}
+th.num,td.num{text-align:right}
+th.sortable{cursor:pointer;user-select:none}
+th.sortable:hover{color:var(--blue)}
+td{padding:8px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:hover td{background:var(--blue-wash)}
+.dim{color:var(--mut)}
+.who{font-weight:700}
+.mono{font-variant-numeric:tabular-nums}
+.clickable{cursor:pointer}
+.numlink{color:var(--blue);font-weight:700;cursor:pointer;padding:0 2px;border-radius:4px}
+.numlink:hover{background:var(--blue);color:#fff}
+
+/* ---------- bars ---------- */
+.bar{position:relative;height:9px;background:var(--grid);border-radius:3px;overflow:hidden;min-width:60px}
+.bar i{position:absolute;left:0;top:0;bottom:0;background:var(--blue);border-radius:3px}
+.brow{display:grid;grid-template-columns:minmax(120px,1.4fr) 62px minmax(70px,1fr);gap:9px;align-items:center;padding:3.5px 0}
+.brow .bn{font-size:11px;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.brow .bv{font-size:10.5px;text-align:right;font-weight:700}
+.mix{display:flex;height:9px;border-radius:3px;overflow:hidden;background:var(--grid);min-width:80px}
+.mix i{display:block;height:100%}
+.legend{display:flex;gap:10px;flex-wrap:wrap;font-size:10px;color:var(--ink2);margin:4px 0 7px}
+.legend .sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+
+/* ---------- misc ---------- */
+.empty{padding:22px 8px;text-align:center;color:var(--mut);font-size:11.5px}
+.tag{display:inline-block;background:var(--page);border:1px solid var(--line2);border-radius:6px;padding:1px 6px;
+ font-size:9.5px;color:var(--mut);margin:1px 2px 1px 0}
+#tip{position:fixed;z-index:400;background:var(--navy);color:#fff;border-radius:7px;padding:7px 10px;font-size:10.5px;
+ pointer-events:none;box-shadow:var(--shadow-lift);display:none;max-width:320px;line-height:1.45}
+:root[data-theme="dark"] #tip{background:#eef3fa;color:#0a1220}
+svg text{fill:var(--mut);font-family:inherit}
+.srolls{overflow-x:auto}
+</style>
+</head>
+<body>
+<div class="hdr">
+  <div class="wrap">
+    <div class="hdrtop">
+      <div class="brand">
+        <img src="__LOGO__" alt="KP Group">
+        <div>
+          <div class="eyebrow">User adoption report</div>
+          <h1 id="h-title">NTPC Bikaner Block 8 · 200 MW</h1>
+          <div class="hmeta" id="h-meta"></div>
+        </div>
+      </div>
+      <div class="hbtns">
+        <button class="btn dark" id="btn-csv">&#8681; Export CSV</button>
+        <button class="btn pri" id="btn-refresh">&#8635; Refresh</button>
+        <div class="thm" id="thm">
+          <button data-t="auto">Auto</button><button data-t="light">Light</button><button data-t="dark">Dark</button>
+        </div>
+      </div>
+    </div>
+    <div class="tabs" id="tabs"></div>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="fbar" id="fbar">
+    <select id="f-actor"><option value="">All users</option></select>
+    <select id="f-dept"><option value="">All departments</option></select>
+    <select id="f-atype"><option value="">All activity types</option></select>
+    <select id="f-loc"><option value="">All locations</option></select>
+    <select id="f-pkg"><option value="">All packages</option></select>
+    <select id="f-owner"><option value="">All activity owners</option></select>
+    <select id="f-ownship"><option value="">All ownership</option></select>
+    <select id="f-action"><option value="">All actions</option></select>
+    <label>From <input type="date" id="f-d1"></label>
+    <label>To <input type="date" id="f-d2"></label>
+    <span class="tgl on" id="f-imp" title="Schedule imports are one planner pushing an MPP file. They dwarf day-to-day updating, so they are excluded by default.">&#9776; Exclude schedule imports</span>
+    <input type="search" id="f-q" placeholder="Search activity or note…">
+    <button class="reset" id="f-reset">Reset</button>
+    <span class="fnote" id="f-count"></span>
+  </div>
+  <div id="page"></div>
+</div>
+<div id="tip"></div>
+
+<script>
+const DATA = __DATA__;
+const M = DATA.meta, C = {}; DATA.cols.forEach((c,i)=>C[c]=i);
+const EV = DATA.events;
+
+/* ---------- helpers ---------- */
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmt=n=>Number(n||0).toLocaleString();
+const f1=n=>(Math.round(n*10)/10).toFixed(1);
+const MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function dparts(ts){ // "2026-09-07T14:22:10"
+  if(!ts)return null;
+  const y=+ts.slice(0,4),m=+ts.slice(5,7),d=+ts.slice(8,10),H=+ts.slice(11,13),Mi=+ts.slice(14,16);
+  return {y,m,d,H,Mi,day:ts.slice(0,10)};
+}
+const dshow=ts=>{const p=dparts(ts);return p?`${String(p.d).padStart(2,"0")}-${MON[p.m-1]}-${String(p.y).slice(2)}`:"—"};
+const dtshow=ts=>{const p=dparts(ts);return p?`${dshow(ts)} ${String(p.H).padStart(2,"0")}:${String(p.Mi).padStart(2,"0")}`:"—"};
+const ACTION={import:["Schedule import","mut"],status:["Status update","info"],note:["Note / comment","good"],
+  assign:["Assignment","info"],ownerchg:["Owner change","warn"],fieldchg:["Field change","warn"],
+  resched:["Reschedule","warn"],bulk:["Bulk complete","good"],forced:["Forced ready","warn"],
+  pct:["Progress %","good"],constraint:["Constraint","crit"],actionitem:["Action item","info"],other:["Other update","mut"]};
+const aLabel=k=>(ACTION[k]||[k,"mut"])[0], aTone=k=>(ACTION[k]||[k,"mut"])[1];
+const SER=["var(--s1)","var(--s2)","var(--s3)","var(--s4)","var(--s5)","var(--s6)"];
+function showTip(e,html){const t=document.getElementById("tip");t.innerHTML=html;t.style.display="block";
+  const w=t.offsetWidth,h=t.offsetHeight;let x=e.clientX+13,y=e.clientY+13;
+  if(x+w>innerWidth-8)x=e.clientX-w-13; if(y+h>innerHeight-8)y=e.clientY-h-13;
+  t.style.left=x+"px";t.style.top=y+"px"}
+function hideTip(){const t=document.getElementById("tip");if(t)t.style.display="none"}
+
+/* ---------- state + filtering ---------- */
+const state={tab:"overview",f:{actor:"",dept:"",atype:"",loc:"",pkg:"",owner:"",ownship:"",action:"",d1:"",d2:"",q:""},noImports:true,
+  sort:{key:"n",dir:-1}};
+function filtered(){
+  const f=state.f, q=f.q.toLowerCase();
+  return EV.filter(r=>{
+    if(state.noImports && r[C.action]==="import")return false;
+    if(f.actor && r[C.actor]!==f.actor)return false;
+    if(f.dept && r[C.dept]!==f.dept)return false;
+    if(f.atype && r[C.atype]!==f.atype)return false;
+    if(f.loc && r[C.loc]!==f.loc)return false;
+    if(f.pkg && r[C.pkg]!==f.pkg)return false;
+    if(f.owner && r[C.owner]!==f.owner)return false;
+    if(f.ownship && r[C.ownship]!==f.ownship)return false;
+    if(f.action && r[C.action]!==f.action)return false;
+    const day=(r[C.ts]||"").slice(0,10);
+    if(f.d1 && day && day<f.d1)return false;
+    if(f.d2 && day && day>f.d2)return false;
+    if(q && !(String(r[C.task]).toLowerCase().includes(q)||String(r[C.detail]).toLowerCase().includes(q)))return false;
+    return true;
+  });
+}
+const uniq=(i,rows)=>[...new Set((rows||EV).map(r=>r[i]).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b)));
+function groupCount(rows,i){const g={};rows.forEach(r=>{const k=r[i]||"— not set";g[k]=(g[k]||0)+1});
+  return Object.entries(g).map(([k,n])=>({k,n})).sort((a,b)=>b.n-a.n)}
+function actionMix(rows){const g={};rows.forEach(r=>{g[r[C.action]]=(g[r[C.action]]||0)+1});
+  return Object.entries(g).map(([k,n])=>({k,n})).sort((a,b)=>b.n-a.n)}
+const days=rows=>[...new Set(rows.map(r=>(r[C.ts]||"").slice(0,10)).filter(Boolean))];
+
+/* ---------- shared render bits ---------- */
+function card(cls,title,hint,body,extra){
+  return `<div class="card ${cls}"><div class="hdrrow"><div><h2>${title}</h2>${hint?`<div class="hint">${hint}</div>`:""}</div>${extra||""}</div>${body}</div>`}
+function ktile(icon,name,sub,val,unit,tone){
+  return `<div class="ktile"><div class="kicon">${icon}</div><div class="kl">
+    <div class="kn">${name}</div><div class="ks">${sub||""}</div></div>
+    <div class="kv" ${tone?`style="color:var(--${tone}-text)"`:""}>${val}${unit?`<small>${unit}</small>`:""}</div></div>`}
+function metric(code,title,val,unit,bench,info,insight,tone){
+  return `<div class="card sp4"><div class="hdrrow"><div class="eyebrow">${code}</div></div>
+    <h2>${title}</h2>
+    <div class="mbig" ${tone?`style="color:var(--${tone}-text)"`:""}>${val}${unit?`<small>${unit}</small>`:""}</div>
+    ${bench?`<div class="bench">${bench}</div>`:""}
+    ${info?`<div class="ibox"><span class="ic">&#9432;</span><span>${info}</span></div>`:""}
+    ${insight?`<div class="nbox"><span class="ic">&#9755;</span><span>${insight}</span></div>`:""}</div>`}
+function barRows(items,total,fmtv){
+  const max=Math.max(1,...items.map(x=>x.n));
+  return items.map(x=>`<div class="brow"><div class="bn" title="${esc(x.k)}">${esc(x.k)}</div>
+    <div class="bv">${fmtv?fmtv(x):fmt(x.n)}</div>
+    <div class="bar"><i style="width:${100*x.n/max}%"></i></div></div>`).join("")}
+function mixBar(mix,total){
+  return `<div class="mix" title="${mix.map(m=>aLabel(m.k)+": "+m.n).join(" · ")}">`+
+    mix.map((m,i)=>`<i style="width:${100*m.n/Math.max(1,total)}%;background:${SER[i%SER.length]}"></i>`).join("")+`</div>`}
+function tbl(head,rows,cls){
+  if(!rows.length)return `<div class="empty">Nothing matches the current filters.</div>`;
+  return `<div class="twrap ${cls||""}"><table><tr>${head}</tr>${rows.join("")}</table></div>`}
+
+/* ---------- daily activity chart ---------- */
+function dailyChart(rows,id){
+  const g={};rows.forEach(r=>{const d=(r[C.ts]||"").slice(0,10);if(d)g[d]=(g[d]||0)+1});
+  const ds=Object.keys(g).sort();
+  if(!ds.length)return `<div class="empty">No dated events in this selection.</div>`;
+  const first=ds[0],last=ds[ds.length-1];
+  const all=[];{const d=new Date(first+"T00:00:00"),e=new Date(last+"T00:00:00");
+    while(d<=e){all.push(d.toISOString().slice(0,10));d.setDate(d.getDate()+1)}}
+  const W=980,H=190,pl=34,pr=8,pt=10,pb=30,iw=W-pl-pr,ih=H-pt-pb;
+  const max=Math.max(1,...all.map(d=>g[d]||0));
+  const bw=Math.max(2,iw/all.length*0.72);
+  let s=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" id="${id}">`;
+  for(let t=0;t<=3;t++){const v=max*t/3,y=pt+ih*(1-t/3);
+    s+=`<line x1="${pl}" x2="${W-pr}" y1="${y}" y2="${y}" stroke="var(--grid)"/><text x="${pl-5}" y="${y+3}" font-size="9" text-anchor="end">${Math.round(v)}</text>`}
+  all.forEach((d,i)=>{
+    const n=g[d]||0,x=pl+iw*i/all.length,h=ih*n/max;
+    if(n)s+=`<rect class="dbar" data-d="${d}" data-n="${n}" x="${x+ (iw/all.length-bw)/2}" y="${pt+ih-h}" width="${bw}" height="${h}" rx="2" fill="var(--s1)"/>`;
+    const p=dparts(d+"T00:00:00");
+    if(all.length<=32 || i%Math.ceil(all.length/16)===0)
+      s+=`<text x="${x+iw/all.length/2}" y="${H-9}" font-size="8.5" text-anchor="middle">${String(p.d).padStart(2,"0")} ${MON[p.m-1]}</text>`});
+  s+=`</svg>`;
+  setTimeout(()=>{document.querySelectorAll(`#${id} .dbar`).forEach(el=>{
+    el.addEventListener("mousemove",e=>showTip(e,`<b>${dshow(el.dataset.d+"T00:00:00")}</b><br>${el.dataset.n} update${el.dataset.n==="1"?"":"s"}`));
+    el.addEventListener("mouseleave",hideTip)})},0);
+  return s;
+}
+/* ---------- donut ---------- */
+function donut(items,total,id){
+  const W=150,cx=75,cy=75,R=68,ri=42;
+  if(!total)return "";
+  let a0=-Math.PI/2,s=`<svg viewBox="0 0 ${W} ${W}" style="width:150px;height:150px;flex:0 0 auto" id="${id}">`;
+  if(items.length===1){
+    s+=`<circle cx="${cx}" cy="${cy}" r="${(R+ri)/2}" fill="none" stroke="${SER[0]}" stroke-width="${R-ri}"/>`;
+  }else items.forEach((x,i)=>{
+    const fr=x.n/total,a1=a0+fr*Math.PI*2,big=fr>0.5?1:0;
+    const p=(a,r)=>[(cx+r*Math.cos(a)).toFixed(2),(cy+r*Math.sin(a)).toFixed(2)];
+    const[o0x,o0y]=p(a0,R),[o1x,o1y]=p(a1,R),[i1x,i1y]=p(a1,ri),[i0x,i0y]=p(a0,ri);
+    s+=`<path d="M${o0x},${o0y} A${R},${R} 0 ${big},1 ${o1x},${o1y} L${i1x},${i1y} A${ri},${ri} 0 ${big},0 ${i0x},${i0y} Z"
+      fill="${SER[i%SER.length]}"><title>${esc(aLabel(x.k))}: ${x.n}</title></path>`;
+    a0=a1});
+  s+=`<text x="${cx}" y="${cy-2}" text-anchor="middle" font-size="19" font-weight="800" style="fill:var(--ink)">${fmt(total)}</text>`;
+  s+=`<text x="${cx}" y="${cy+13}" text-anchor="middle" font-size="8.5">updates</text></svg>`;
+  return s;
+}
+
+/* ---------- TAB: overview ---------- */
+function tabOverview(rows){
+  const acts=groupCount(rows,C.actor), mix=actionMix(rows);
+  const dset=days(rows), touched=new Set(rows.map(r=>r[C.tid])).size;
+  const roster=M.rosterSize||acts.length;
+  const activeUsers=acts.length;
+  const perDay=dset.length?rows.length/dset.length:0;
+  const lastDay=dset.sort().slice(-1)[0]||"";
+  const staleDays=lastDay?Math.round((new Date(M.lastEvent+"T00:00:00")-new Date(lastDay+"T00:00:00"))/86400000):0;
+  const cover=M.tasksInProject?100*touched/M.tasksInProject:0;
+  const top=acts[0];
+  const concentration=rows.length?100*(top?top.n:0)/rows.length:0;
+
+  let h=`<div class="kstrip">
+    ${ktile("&#128101;","Active users","recorded at least one update",fmt(activeUsers),"/ "+roster)}
+    ${ktile("&#9998;","Updates logged",state.noImports?"schedule imports excluded":"including schedule imports",fmt(rows.length),"")}
+    ${ktile("&#128203;","Activities touched","distinct activities updated",fmt(touched),"")}
+    ${ktile("&#128197;","Updates per active day",dset.length+" active day"+(dset.length===1?"":"s"),f1(perDay),"")}
+  </div><div class="grid">`;
+
+  h+=metric("A01","Team participation",fmt(activeUsers)+" of "+roster,"","Benchmark: every named owner updating weekly",
+    "Share of the VisiLean user roster that has logged at least one update in the filtered window.",
+    activeUsers>=roster*0.8?`<b>Healthy.</b> Most of the roster is updating.`
+      :`<b>${roster-activeUsers} user${roster-activeUsers===1?"":"s"} on the roster logged nothing here.</b> Chase the silent owners before the next review.`,
+    activeUsers>=roster*0.8?"good":"warn");
+  h+=metric("A02","Activity coverage",f1(cover),"%","Benchmark &ge; 20% of the schedule touched",
+    `Distinct activities updated (${fmt(touched)}) against the ${fmt(M.tasksInProject)} activities published for this project.`,
+    cover>=20?`<b>Wide coverage.</b>`:`<b>Updating is concentrated on a small slice of the schedule.</b>`,
+    cover>=20?"good":"warn");
+  h+=metric("A03","Load concentration",f1(concentration),"%","Benchmark &le; 40% from any one user",
+    `Share of all updates made by the single busiest user${top?` (${esc(top.k)})`:""}. A high number means adoption depends on one person.`,
+    concentration<=40?`<b>Well spread.</b>`:`<b>${top?esc(top.k):"One user"} carries ${f1(concentration)}% of the updating.</b> Adoption is fragile if they stop.`,
+    concentration<=40?"good":"crit");
+
+  h+=card("sp8","Updating over time","one bar per calendar day · hover for the count",dailyChart(rows,"ch-day"));
+  h+=card("sp4","What kind of updates","by action type",
+    `<div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">${donut(mix,rows.length,"ch-mix")}
+      <div style="flex:1;min-width:150px">`+
+      mix.map((m,i)=>`<div style="display:flex;align-items:center;gap:7px;padding:2px 0;font-size:11px">
+        <span style="width:10px;height:10px;border-radius:3px;background:${SER[i%SER.length]};flex:0 0 auto"></span>
+        <span style="flex:1">${esc(aLabel(m.k))}</span><b>${fmt(m.n)}</b>
+        <span class="dim" style="width:38px;text-align:right">${f1(100*m.n/Math.max(1,rows.length))}%</span></div>`).join("")+
+      `</div></div>`);
+
+  // leaderboard
+  const lb=acts.map(a=>{
+    const rs=rows.filter(r=>r[C.actor]===a.k);
+    return {k:a.k,n:a.n,tasks:new Set(rs.map(r=>r[C.tid])).size,dys:days(rs).length,mix:actionMix(rs),
+      last:rs.map(r=>r[C.ts]).filter(Boolean).sort().slice(-1)[0]||"",
+      org:[...new Set(rs.map(r=>r[C.ownship]).filter(Boolean))].join(", ")}});
+  h+=card("sp12","Who is updating","every user with at least one update in the window · click a number to see the activities",
+    tbl(`<th>User</th><th>Ownership</th><th class="num">Updates</th><th class="num">Activities</th><th class="num">Active days</th><th>Action mix</th><th>Last update</th>`,
+      lb.map(x=>`<tr><td class="who">${esc(x.k)}</td><td class="dim">${esc(x.org||"—")}</td>
+        <td class="num"><span class="numlink" data-drill="actor" data-v="${esc(x.k)}">${fmt(x.n)}</span></td>
+        <td class="num">${fmt(x.tasks)}</td><td class="num">${x.dys}</td>
+        <td style="min-width:120px">${mixBar(x.mix,x.n)}</td>
+        <td class="dim">${dtshow(x.last)}</td></tr>`)));
+  h+=`</div>`;
+  return h;
+}
+
+/* ---------- TAB: people ---------- */
+function tabPeople(rows){
+  const acts=groupCount(rows,C.actor);
+  let h=`<div class="grid">`;
+  h+=card("sp6","Updates by user","who is carrying the updating",
+    barRows(acts,rows.length,x=>`${fmt(x.n)} <span class="dim">${f1(100*x.n/Math.max(1,rows.length))}%</span>`));
+  const byOrg=groupCount(rows,C.ownship);
+  h+=card("sp6","Updates by ownership","the organisation the activity belongs to",barRows(byOrg,rows.length));
+  acts.forEach(a=>{
+    const rs=rows.filter(r=>r[C.actor]===a.k);
+    const mix=actionMix(rs), dep=groupCount(rs,C.dept).slice(0,4), pk=groupCount(rs,C.pkg).slice(0,4);
+    const dys=days(rs).length;
+    h+=`<div class="card sp4"><div class="hdrrow"><div><div class="eyebrow">${esc([...new Set(rs.map(r=>r[C.ownship]).filter(Boolean))].join(", ")||"—")}</div>
+      <h2>${esc(a.k)}</h2></div><span class="pill ${a.n>=50?"good":a.n>=10?"warn":"crit"}">${fmt(a.n)} updates</span></div>
+      <div class="legend">${mix.slice(0,4).map((m,i)=>`<span><span class="sw" style="background:${SER[i%SER.length]}"></span>${esc(aLabel(m.k))} ${m.n}</span>`).join("")}</div>
+      ${mixBar(mix,a.n)}
+      <div class="ibox" style="display:block">
+        <div><b style="color:var(--ink)">${new Set(rs.map(r=>r[C.tid])).size}</b> activities · <b style="color:var(--ink)">${dys}</b> active day${dys===1?"":"s"} · last ${dtshow(rs.map(r=>r[C.ts]).filter(Boolean).sort().slice(-1)[0]||"")}</div>
+        <div style="margin-top:5px">${dep.map(d=>`<span class="tag">${esc(d.k)} ${d.n}</span>`).join("")||"<span class=tag>no department set</span>"}</div>
+        <div style="margin-top:3px">${pk.map(d=>`<span class="tag">${esc(d.k)} ${d.n}</span>`).join("")}</div>
+      </div></div>`});
+  h+=`</div>`;
+  return h;
+}
+
+/* ---------- TAB: breakdowns ---------- */
+function crossTab(rows,dimIdx,dimLabel){
+  const dims=groupCount(rows,dimIdx);
+  const actors=groupCount(rows,C.actor).map(a=>a.k);
+  if(!dims.length)return `<div class="empty">No values recorded for ${esc(dimLabel)} in this selection.</div>`;
+  const head=`<th>${esc(dimLabel)}</th><th class="num">Updates</th><th class="num">Activities</th><th>Users</th><th>Action mix</th>`;
+  const body=dims.map(d=>{
+    const rs=rows.filter(r=>(r[dimIdx]||"— not set")===d.k);
+    const who=groupCount(rs,C.actor);
+    return `<tr><td>${esc(d.k)}</td>
+      <td class="num"><span class="numlink" data-drill="dim" data-i="${dimIdx}" data-v="${esc(d.k)}">${fmt(d.n)}</span></td>
+      <td class="num">${fmt(new Set(rs.map(r=>r[C.tid])).size)}</td>
+      <td class="dim" style="min-width:170px">${who.slice(0,3).map(w=>`<span class="tag">${esc(w.k)} ${w.n}</span>`).join("")}${who.length>3?`<span class="tag">+${who.length-3}</span>`:""}</td>
+      <td style="min-width:110px">${mixBar(actionMix(rs),d.n)}</td></tr>`});
+  return tbl(head,body);
+}
+function tabBreakdown(rows){
+  let h=`<div class="grid">`;
+  h+=card("sp6","By department","the Department custom field on the activity",crossTab(rows,C.dept,"Department"));
+  h+=card("sp6","By activity type","VisiLean Activity Type",crossTab(rows,C.atype,"Activity type"));
+  h+=card("sp6","By package",'the Package custom field',crossTab(rows,C.pkg,"Package"));
+  h+=card("sp6","By activity owner","the owner the activity is assigned to — not necessarily the person who updated it",
+    crossTab(rows,C.owner,"Activity owner"));
+  h+=card("sp6","By location","VisiLean location / zone",
+    (uniq(C.loc,rows).length?crossTab(rows,C.loc,"Location")
+      :`<div class="empty">Location is blank on every updated activity in this selection.<br><span class="dim">VisiLean carries a location on only ${fmt(M.locFilled||0)} of the ${fmt(M.events)} recorded events, so this cut stays empty until the team sets it.</span></div>`));
+  h+=card("sp6","By ownership","the organisation on the activity",crossTab(rows,C.ownship,"Ownership"));
+  h+=`</div>`;
+  return h;
+}
+
+/* ---------- TAB: activities ---------- */
+function tabActivities(rows){
+  const g={};
+  rows.forEach(r=>{const k=r[C.tid];
+    if(!g[k])g[k]={tid:k,task:r[C.task],dept:r[C.dept],atype:r[C.atype],pkg:r[C.pkg],owner:r[C.owner],
+      ownship:r[C.ownship],loc:r[C.loc],n:0,who:new Set(),last:""};
+    const x=g[k];x.n++;x.who.add(r[C.actor]);if((r[C.ts]||"")>x.last)x.last=r[C.ts]||""});
+  let items=Object.values(g).sort((a,b)=>b.n-a.n||String(a.task).localeCompare(String(b.task)));
+  const cap=400, shown=items.slice(0,cap);
+  let h=`<div class="grid">`;
+  h+=card("sp12",`Activities being updated <span class="dim" style="font-weight:400">(${fmt(items.length)})</span>`,
+    `most-updated first${items.length>cap?` · showing the top ${cap}`:""} · one row per activity`,
+    tbl(`<th>Activity</th><th>Department</th><th>Activity type</th><th>Package</th><th>Activity owner</th><th class="num">Updates</th><th>Updated by</th><th>Last update</th>`,
+      shown.map(x=>`<tr><td><b>${esc(x.task)}</b><div class="dim" style="font-size:9.5px">Task ID ${esc(x.tid)}${x.loc?" · "+esc(x.loc):""}</div></td>
+        <td class="dim">${esc(x.dept||"—")}</td><td class="dim">${esc(x.atype||"—")}</td>
+        <td class="dim">${esc(x.pkg||"—")}</td><td class="dim">${esc(x.owner||"—")}</td>
+        <td class="num"><b>${fmt(x.n)}</b></td>
+        <td class="dim">${[...x.who].map(w=>`<span class="tag">${esc(w)}</span>`).join("")}</td>
+        <td class="dim">${dtshow(x.last)}</td></tr>`)));
+  h+=`</div>`;
+  return h;
+}
+
+/* ---------- TAB: event log ---------- */
+let logPage=0;
+function tabLog(rows){
+  const sorted=rows.slice().sort((a,b)=>String(b[C.ts]).localeCompare(String(a[C.ts])));
+  const per=200, pages=Math.max(1,Math.ceil(sorted.length/per));
+  if(logPage>=pages)logPage=0;
+  const slice=sorted.slice(logPage*per,(logPage+1)*per);
+  let h=`<div class="grid">`;
+  h+=card("sp12",`Update log <span class="dim" style="font-weight:400">(${fmt(sorted.length)})</span>`,
+    "newest first · exactly what VisiLean recorded, with the user it attributes the action to",
+    tbl(`<th>When</th><th>User</th><th>Action</th><th>Activity</th><th>Department</th><th>What VisiLean recorded</th>`,
+      slice.map(r=>`<tr><td class="dim mono" style="white-space:nowrap">${dtshow(r[C.ts])}</td>
+        <td class="who">${esc(r[C.actor])}</td>
+        <td><span class="chip ${aTone(r[C.action])}">${esc(aLabel(r[C.action]))}</span></td>
+        <td>${esc(r[C.task])}<div class="dim" style="font-size:9.5px">${esc(r[C.pkg]||"")}</div></td>
+        <td class="dim">${esc(r[C.dept]||"—")}</td>
+        <td class="dim" style="max-width:520px">${esc(String(r[C.detail]).slice(0,320))}${String(r[C.detail]).length>320?"…":""}</td></tr>`)),
+    pages>1?`<div style="display:flex;gap:6px;align-items:center">
+      <button class="btn" id="lg-prev" ${logPage===0?"disabled":""}>&#8592; Prev</button>
+      <span class="fnote">page ${logPage+1} of ${pages}</span>
+      <button class="btn" id="lg-next" ${logPage>=pages-1?"disabled":""}>Next &#8594;</button></div>`:"");
+  h+=`</div>`;
+  setTimeout(()=>{
+    const p=document.getElementById("lg-prev"),n=document.getElementById("lg-next");
+    if(p)p.onclick=()=>{if(logPage>0){logPage--;render()}};
+    if(n)n.onclick=()=>{logPage++;render()};
+  },0);
+  return h;
+}
+
+/* ---------- tabs + render ---------- */
+const TABS=[["overview","Overview"],["people","People"],["breakdown","Breakdowns"],
+            ["activities","Activities"],["log","Update log"]];
+function renderTabs(){
+  document.getElementById("tabs").innerHTML=TABS.map(([k,l])=>
+    `<button data-tab="${k}" class="${state.tab===k?"on":""}">${l}</button>`).join("");
+  document.querySelectorAll("#tabs button").forEach(b=>b.onclick=()=>{state.tab=b.dataset.tab;logPage=0;render();window.scrollTo(0,0)});
+}
+function fillSelect(id,vals,cur,first){
+  const el=document.getElementById(id);
+  el.innerHTML=`<option value="">${first}</option>`+vals.map(v=>
+    `<option value="${esc(v)}" title="${esc(v)}" ${v===cur?"selected":""}>${esc(String(v).length>36?String(v).slice(0,35)+"…":v)}</option>`).join("");
+}
+function syncFilters(){
+  const f=state.f;
+  fillSelect("f-actor",uniq(C.actor),f.actor,"All users");
+  fillSelect("f-dept",uniq(C.dept),f.dept,"All departments");
+  fillSelect("f-atype",uniq(C.atype),f.atype,"All activity types");
+  fillSelect("f-loc",uniq(C.loc),f.loc,"All locations");
+  fillSelect("f-pkg",uniq(C.pkg),f.pkg,"All packages");
+  fillSelect("f-owner",uniq(C.owner),f.owner,"All activity owners");
+  fillSelect("f-ownship",uniq(C.ownship),f.ownship,"All ownership");
+  const acts=[...new Set(EV.map(r=>r[C.action]))].sort((a,b)=>aLabel(a).localeCompare(aLabel(b)));
+  const el=document.getElementById("f-action");
+  el.innerHTML=`<option value="">All actions</option>`+acts.map(a=>
+    `<option value="${esc(a)}" ${f.action===a?"selected":""}>${esc(aLabel(a))}</option>`).join("");
+  document.getElementById("f-imp").classList.toggle("on",state.noImports);
+  document.getElementById("f-q").value=f.q;
+  document.getElementById("f-d1").value=f.d1;
+  document.getElementById("f-d2").value=f.d2;
+}
+function render(){
+  renderTabs();syncFilters();
+  const rows=filtered();
+  document.getElementById("f-count").textContent=
+    `${fmt(rows.length)} update${rows.length===1?"":"s"} · ${fmt(new Set(rows.map(r=>r[C.actor])).size)} users · ${fmt(new Set(rows.map(r=>r[C.tid])).size)} activities`;
+  const pg=document.getElementById("page");
+  if(state.tab==="overview")pg.innerHTML=tabOverview(rows);
+  else if(state.tab==="people")pg.innerHTML=tabPeople(rows);
+  else if(state.tab==="breakdown")pg.innerHTML=tabBreakdown(rows);
+  else if(state.tab==="activities")pg.innerHTML=tabActivities(rows);
+  else pg.innerHTML=tabLog(rows);
+  // number links: jump into the log filtered to that slice
+  document.querySelectorAll("[data-drill]").forEach(el=>el.onclick=()=>{
+    if(el.dataset.drill==="actor")state.f.actor=el.dataset.v;
+    else{const i=+el.dataset.i,v=el.dataset.v==="— not set"?"":el.dataset.v;
+      const key=Object.keys(C).find(k=>C[k]===i); if(key)state.f[key]=v}
+    state.tab="log";logPage=0;render();window.scrollTo(0,0)});
+}
+
+/* ---------- header + controls ---------- */
+document.getElementById("h-title").textContent=M.projectShort||M.project;
+document.getElementById("h-meta").innerHTML=
+  `${esc(M.client||"")} · LIVE from VisiLean · <span style="color:var(--blue);font-weight:600">last data change ${esc(M.generatedAt||"")}</span>`
+  +` <span class="chip mut">${fmt(M.events)} recorded events</span>`
+  +` <span class="chip mut">${esc(dshow(M.firstEvent+"T00:00:00"))} → ${esc(dshow(M.lastEvent+"T00:00:00"))}</span>`
+  +` <span class="chip warn" title="VisiLean's PowerBI API does not expose file attachments, so document uploads cannot be counted here. Notes, status changes, assignments, reschedules and progress updates are all covered.">no attachment feed</span>`;
+
+["actor","dept","atype","loc","pkg","owner","ownship","action"].forEach(k=>{
+  document.getElementById("f-"+k).addEventListener("change",e=>{state.f[k]=e.target.value;logPage=0;render()})});
+document.getElementById("f-d1").addEventListener("change",e=>{state.f.d1=e.target.value;logPage=0;render()});
+document.getElementById("f-d2").addEventListener("change",e=>{state.f.d2=e.target.value;logPage=0;render()});
+document.getElementById("f-imp").addEventListener("click",()=>{state.noImports=!state.noImports;logPage=0;render()});
+{let tmr=null;const q=document.getElementById("f-q");
+ q.addEventListener("input",()=>{clearTimeout(tmr);tmr=setTimeout(()=>{state.f.q=q.value;logPage=0;render();
+   const el=document.getElementById("f-q");if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}},250)})}
+document.getElementById("f-reset").addEventListener("click",()=>{
+  state.f={actor:"",dept:"",atype:"",loc:"",pkg:"",owner:"",ownship:"",action:"",d1:"",d2:"",q:""};
+  state.noImports=true;logPage=0;render()});
+
+document.getElementById("btn-csv").addEventListener("click",()=>{
+  const rows=filtered();
+  const head=["When","User","Action","Task ID","Activity","Department","Activity type","Location","Package","Activity owner","Ownership","What VisiLean recorded"];
+  const q=s=>`"${String(s==null?"":s).replace(/"/g,'""')}"`;
+  const csv=[head.map(q).join(",")].concat(rows.map(r=>[dtshow(r[C.ts]),r[C.actor],aLabel(r[C.action]),r[C.tid],r[C.task],
+    r[C.dept],r[C.atype],r[C.loc],r[C.pkg],r[C.owner],r[C.ownship],r[C.detail]].map(q).join(","))).join("\r\n");
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8"}));
+  a.download="ntpc-user-adoption-"+(M.lastEvent||"")+".csv";document.body.appendChild(a);a.click();a.remove();
+});
+document.getElementById("btn-refresh").addEventListener("click",()=>{
+  location.replace(location.pathname+"?r="+Date.now())});
+
+function applyTheme(t){
+  document.querySelectorAll("#thm button").forEach(b=>b.classList.toggle("on",b.dataset.t===t));
+  if(t==="auto")document.documentElement.dataset.theme=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";
+  else document.documentElement.dataset.theme=t;
+}
+function lsGet(k){try{return localStorage.getItem(k)}catch(e){return null}}
+function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+document.querySelectorAll("#thm button").forEach(b=>b.addEventListener("click",()=>{lsSet("kp-adopt-thm",b.dataset.t);applyTheme(b.dataset.t)}));
+applyTheme(lsGet("kp-adopt-thm")||"auto");
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>applyTheme(lsGet("kp-adopt-thm")||"auto"));
+
+render();
+</script>
+</body>
+</html>
