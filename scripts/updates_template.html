@@ -97,6 +97,7 @@ h1{font-size:17px;font-weight:800;letter-spacing:-.01em}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-card);padding:15px 17px;
  grid-column:span 12;min-width:0;box-shadow:var(--shadow-card)}
 .sp6{grid-column:span 6}
+.sp12{grid-column:span 12}
 @media(max-width:1400px){.sp6{grid-column:span 12}}
 .card h2{font-size:13.5px;font-weight:700;letter-spacing:-.01em}
 .card .hint{color:var(--mut);font-size:10.5px;margin-top:2px}
@@ -119,6 +120,29 @@ tbody tr:hover td{background:var(--blue-wash)}
 .who{font-weight:700}
 .mono{font-variant-numeric:tabular-nums}
 .empty{padding:26px 8px;text-align:center;color:var(--mut);font-size:11.5px}
+
+/* ---------- summary of the week ---------- */
+.wtop{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media(max-width:1000px){.wtop{grid-template-columns:repeat(2,1fr)}}
+.wtile{border:1px solid var(--line2);border-radius:11px;padding:10px 13px;background:var(--page);cursor:pointer;transition:.12s}
+.wtile:hover{border-color:var(--blue);background:var(--blue-wash)}
+.wtile.flat,.wtile.flat:hover{cursor:default;border-color:var(--line2);background:var(--page)}
+.wtile .v{font-size:22px;font-weight:800;letter-spacing:-.02em;line-height:1.1}
+.wtile .l{font-size:9.5px;color:var(--mut);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-top:1px}
+.wtile .s{font-size:10px;color:var(--mut);margin-top:5px;line-height:1.45}
+.wcols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px}
+@media(max-width:1000px){.wcols{grid-template-columns:1fr}}
+.lbl{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);margin-bottom:5px}
+.urow{display:grid;grid-template-columns:16px minmax(0,1fr) 96px 40px;gap:9px;align-items:center;
+ padding:5px 6px;border-radius:8px;cursor:pointer}
+.urow:hover{background:var(--blue-wash)}
+.urow.on{background:var(--blue-wash);box-shadow:inset 0 0 0 1px var(--blue)}
+.urow .rk{font-size:10px;font-weight:800;color:var(--mut);text-align:right}
+.urow .nm{font-size:11.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.urow .n{font-size:11.5px;font-weight:800;text-align:right;font-variant-numeric:tabular-nums}
+.mbar{height:7px;border-radius:4px;background:var(--grid);overflow:hidden}
+.mbar i{display:block;height:100%;border-radius:4px}
+.silent{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-top:11px}
 
 /* charts */
 .vbar{cursor:pointer;transition:opacity .12s}
@@ -195,12 +219,13 @@ const F={d1:"",d2:"",loc:"",q:""};
 let page=0;
 function keep(r,skip){
   const day=(r[C.ts]||"").slice(0,10);
-  if(F.d1&&day&&day<F.d1)return false;
-  if(F.d2&&day&&day>F.d2)return false;
+  const nd=skip==="date";                 // "date" skips every date filter, not one slicer
+  if(!nd&&F.d1&&day&&day<F.d1)return false;
+  if(!nd&&F.d2&&day&&day>F.d2)return false;
   if(F.loc&&(r[C.loc]||"")!==F.loc)return false;
   if(F.q){const q=F.q.toLowerCase();
     if(!(String(r[C.task]).toLowerCase().includes(q)||String(r[C.detail]).toLowerCase().includes(q)))return false}
-  if(skip!=="day"&&S.day.size&&!S.day.has(day))return false;
+  if(!nd&&skip!=="day"&&S.day.size&&!S.day.has(day))return false;
   if(skip!=="actor"&&S.actor.size&&!S.actor.has(r[C.actor]))return false;
   if(skip!=="action"&&S.action.size&&!S.action.has(r[C.action]))return false;
   if(skip!=="trade"&&S.trade.size&&!S.trade.has(r[C.trade]||"— not set"))return false;
@@ -259,6 +284,50 @@ function renderRail(){
     F.d1="";F.d2="";F.loc="";F.q="";page=0;render()});
 }
 
+/* ---------- active users over time: distinct people who updated on each day ----------
+   A line rather than bars, because the question is a trend ("is the team still on it?")
+   not a ranking. Days with nobody updating are plotted as zero rather than skipped, so
+   a gap in adoption reads as a gap. Clicking a point filters to that day, exactly like
+   the date slicer. */
+function usersOverTime(rs,id){
+  const g={};rs.forEach(r=>{const d=(r[C.ts]||"").slice(0,10);if(!d)return;(g[d]=g[d]||new Set()).add(r[C.actor])});
+  const ks=Object.keys(g).sort();
+  if(!ks.length)return `<div class="empty">No dated updates in this selection.</div>`;
+  const all=[];{const a=new Date(ks[0]+"T12:00:00Z"),b=new Date(ks[ks.length-1]+"T12:00:00Z");
+    while(a<=b&&all.length<400){all.push(a.toISOString().slice(0,10));a.setUTCDate(a.getUTCDate()+1)}
+    if(all.length>=400)all.length=0}                      // absurd span: chart only the days present
+  if(!all.length)ks.forEach(k=>all.push(k));
+  const val=d=>(g[d]?g[d].size:0);
+  const W=Math.max(900,all.length*48),H=232,pl=52,pr=16,pt=22,pb=48;
+  const iw=W-pl-pr,ih=H-pt-pb,max=Math.max(1,...all.map(val));
+  const stp=Math.ceil(max/4),top=stp*Math.ceil(max/stp);            // ticks stay whole people
+  const X=i=>pl+(all.length===1?iw/2:iw*i/(all.length-1)),Y=v=>pt+ih*(1-v/top);
+  let s=`<div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:${Math.min(W,880)}px;height:auto" id="${id}">`;
+  for(let v=0;v<=top;v+=stp){const y=Y(v);
+    s+=`<line x1="${pl}" x2="${W-pr}" y1="${y}" y2="${y}" stroke="var(--grid)"/>
+        <text x="${pl-7}" y="${y+3}" font-size="9" text-anchor="end">${Math.round(v)}</text>`}
+  s+=`<text class="axt" transform="rotate(-90 15 ${pt+ih/2})" x="15" y="${pt+ih/2}" text-anchor="middle">Active users</text>`;
+  const pts=all.map((d,i)=>`${X(i).toFixed(1)} ${Y(val(d)).toFixed(1)}`);
+  s+=`<path d="M ${pts.join(" L ")} L ${X(all.length-1).toFixed(1)} ${Y(0)} L ${X(0).toFixed(1)} ${Y(0)} Z" fill="var(--b4)" opacity=".14"/>`;
+  s+=`<path d="M ${pts.join(" L ")}" fill="none" stroke="var(--b2)" stroke-width="2.2" stroke-linejoin="round"/>`;
+  all.forEach((d,i)=>{
+    const v=val(d),sel=S.day.has(d);
+    s+=`<circle class="vbar${sel?" sel":""}" data-v="${d}" cx="${X(i).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="${sel?5.5:4}"
+         fill="${v?"var(--b2)":"var(--surface)"}" stroke="var(--b2)" stroke-width="1.6"/>`;
+    if(v)s+=`<text x="${X(i).toFixed(1)}" y="${(Y(v)-9).toFixed(1)}" font-size="9.5" font-weight="800" text-anchor="middle" style="fill:var(--ink)">${v}</text>`;
+    const p=dp(d+"T00:00:00");
+    if(all.length<=22||i%Math.ceil(all.length/12)===0)
+      s+=`<text x="${X(i).toFixed(1)}" y="${pt+ih+16}" font-size="8.5" text-anchor="middle">${String(p.d).padStart(2,"0")} ${MON[p.m-1]}</text>`});
+  s+=`<text class="axt" x="${pl+iw/2}" y="${H-5}" text-anchor="middle">History date</text>`;
+  s+=`</svg></div>`;
+  setTimeout(()=>{document.querySelectorAll(`#${id} .vbar`).forEach(el=>{
+    const d=el.dataset.v,v=val(d);
+    el.addEventListener("mousemove",e=>showTip(e,`<b>${dshow(d+"T00:00:00")}</b><br>${v} active user${v===1?"":"s"}`
+      +(v?`<br><span style="opacity:.75">${esc([...g[d]].join(", "))}</span><br>click to filter to this day`:"")));
+    el.addEventListener("mouseleave",hideTip);
+    if(v)el.addEventListener("click",()=>{hideTip();toggle("day",d)})})},0);
+  return s;
+}
 /* ---------- vertical bars with axis titles, as in the reference ---------- */
 function vbars(items,o){
   if(!items.length)return `<div class="empty">Nothing to chart for this selection.</div>`;
@@ -283,6 +352,72 @@ function vbars(items,o){
     el.addEventListener("mouseleave",hideTip);
     el.addEventListener("click",()=>{hideTip();toggle(o.set,el.dataset.v)})})},0);
   return s;
+}
+
+/* ---------- summary of the week ----------
+   Mon-Sun weeks over the audit trail. "Active" = made at least one update inside the
+   week; "inactive" = someone this project has seen updating who made none, so the
+   number reads as "went quiet", not "outside the chosen dates" - which is why the
+   universe is built with keep(r,"date"), ignoring the date filters but honouring the
+   Trade / Category / Status / Owner slicers. */
+let WK="";
+const dAdd=(d,n)=>{const x=new Date(d+"T12:00:00Z");x.setUTCDate(x.getUTCDate()+n);return x.toISOString().slice(0,10)};
+const dMon=d=>dAdd(d,-((new Date(d+"T12:00:00Z").getUTCDay()+6)%7));
+function weekSummary(){
+  const univ=EV.filter(r=>keep(r,"date"));
+  const wks=[...new Set(univ.map(r=>(r[C.ts]||"").slice(0,10)).filter(Boolean).map(dMon))].sort();
+  if(!wks.length)return card("sp12","Summary of the week","",
+    `<div class="empty">No dated updates in this selection.</div>`);
+  if(wks.indexOf(WK)<0)WK=wks[wks.length-1];
+  const a=WK,b=dAdd(WK,6),pa=dAdd(WK,-7),pb=dAdd(WK,-1);
+  const inR=(r,x,y)=>{const d=(r[C.ts]||"").slice(0,10);return !!d&&d>=x&&d<=y};
+  const cur=univ.filter(r=>inR(r,a,b)),prv=univ.filter(r=>inR(r,pa,pb));
+  const tally=rs=>{const g={};rs.forEach(r=>{g[r[C.actor]]=(g[r[C.actor]]||0)+1});return g};
+  const gc=tally(cur),gp=tally(prv);
+  const known=[...new Set(univ.map(r=>r[C.actor]))];
+  const act=known.filter(u=>gc[u]),idle=known.filter(u=>!gc[u]).sort();
+  const dys=u=>new Set(cur.filter(r=>r[C.actor]===u).map(r=>(r[C.ts]||"").slice(0,10))).size;
+  const rank=act.map(u=>({k:u,n:gc[u],d:dys(u)})).sort((x,y)=>y.n-x.n||x.k.localeCompare(y.k));
+  const mx=Math.max(1,...rank.map(x=>x.n));
+  const top=rank.slice(0,5),bot=rank.slice(-5).reverse();      // weakest first
+  const wlbl=`${dshow(a+"T00:00:00")} – ${dshow(b+"T00:00:00")}`;
+  const clean=!(S.actor.size||S.action.size||S.trade.size||S.status.size||F.loc||F.q);
+  const never=Math.max(0,(M.rosterSize||0)-known.length);
+  const dlt=(n,o,unit)=>{const d=n-o;if(!prv.length)return `<span class="chip mut" style="margin-left:5px">first week in the trail</span>`;
+    return `<span class="chip ${d>0?"good":d<0?"crit":"mut"}" style="margin-left:5px">${d>0?"▲":d<0?"▼":"="} ${fmt(Math.abs(d))} ${unit} vs previous week</span>`};
+  const tile=(v,l,s,fil)=>`<div class="wtile${fil?"":" flat"}"${fil?' data-wkf="1" title="filter the whole page to this week"':""}>
+    <div class="v">${v}</div><div class="l">${l}</div><div class="s">${s}</div></div>`;
+  const ulist=(arr,col,rk)=>arr.length?arr.map((x,i)=>`<div class="urow${S.actor.has(x.k)?" on":""}" data-un="actor" data-v="${esc(x.k)}"
+      title="${esc(x.k)} — ${fmt(x.n)} update${x.n===1?"":"s"} on ${x.d} day${x.d===1?"":"s"} this week · click to filter the page to this person">
+      <div class="rk">${rk(i)}</div><div class="nm">${esc(x.k)}</div>
+      <div class="mbar"><i style="width:${Math.max(4,100*x.n/mx).toFixed(1)}%;background:${col}"></i></div>
+      <div class="n">${fmt(x.n)}</div></div>`).join("")
+    :`<div class="dim" style="font-size:10.5px;padding:8px 2px">nobody updated in this week</div>`;
+  const body=`<div class="wtop">
+      ${tile(fmt(act.length),"Active users this week",
+        `of ${fmt(known.length)} who have ever updated on this project${dlt(act.length,Object.keys(gp).length,"users")}`,1)}
+      ${tile(fmt(idle.length),"Inactive users this week",
+        (idle.length?`no update between ${wlbl}`:`everyone updated in this week`)+
+        (clean&&never>0?` · ${never} more on the VisiLean roster have never updated at all`:""),0)}
+      ${tile(fmt(cur.length),"Updates in the week",dlt(cur.length,prv.length,"updates"),1)}
+      ${tile(fmt(new Set(cur.map(r=>r[C.tid])).size),"Activities touched",
+        `distinct activities updated · ${fmt(new Set(cur.map(r=>(r[C.ts]||"").slice(0,10))).size)} of 7 days had activity`,1)}
+    </div>
+    ${idle.length?`<div class="silent"><span class="lbl" style="margin:0">Silent this week</span>
+      ${idle.map(u=>`<span class="chip mut" title="${esc(u)} made no update between ${wlbl}">${esc(u)}</span>`).join("")}</div>`:""}
+    <div class="wcols">
+      <div><div class="lbl">Top 5 users · most updates this week</div>${ulist(top,"var(--b2)",i=>i+1)}</div>
+      <div><div class="lbl">Bottom 5 users · fewest updates this week${rank.length<10?
+        ` <span class="dim" style="font-weight:400;text-transform:none;letter-spacing:0">— only ${rank.length} active, so these overlap the top 5</span>`:""}</div>
+        ${ulist(bot,"var(--b4)",i=>rank.length-i)}</div>
+    </div>`;
+  const pick=`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+    <select id="wk-sel" title="pick the week">${wks.slice().reverse().map(w=>
+      `<option value="${w}" ${w===WK?"selected":""}>${dshow(w+"T00:00:00")} – ${dshow(dAdd(w,6)+"T00:00:00")}${w===wks[wks.length-1]?" (latest)":""}</option>`).join("")}</select>
+    <button class="btn" id="wk-apply">Filter page to this week</button></div>`;
+  return card("sp12",`Summary of the week <span class="dim" style="font-weight:400">(${wlbl})</span>`,
+    "Mon–Sun · active vs inactive users, and who did the most and the least · click any tile or name to drill in",
+    body,pick);
 }
 
 /* ---------- render ---------- */
@@ -318,6 +453,14 @@ function render(){
   document.getElementById("fchips").innerHTML=parts.join("");
 
   let h="";
+  const dayUsers=(()=>{const g={};rs.forEach(r=>{const d=(r[C.ts]||"").slice(0,10);
+    if(d)(g[d]=g[d]||new Set()).add(r[C.actor])});return g})();
+  const peakDay=Object.keys(dayUsers).sort((a,b)=>dayUsers[b].size-dayUsers[a].size)[0];
+  h+=card("sp12","Number of active users over time",
+    "distinct people who updated on each day · click a point to filter to that day",
+    usersOverTime(rs,"ch-au"),
+    peakDay?`<span class="chip info">peak ${dayUsers[peakDay].size} users on ${dshow(peakDay+"T00:00:00")}</span>`:"");
+  h+=weekSummary();
   h+=card("sp6","No of Updates made by Users","click a bar to filter the page to that person",
     vbars(byUser,{id:"ch-u",set:"actor",unit:"updates",yTitle:"Count",xTitle:"History owner"}));
   h+=card("sp6","No of Days users made updates","distinct calendar days each person was active",
@@ -351,6 +494,12 @@ function render(){
 
   document.querySelectorAll("[data-un]").forEach(el=>el.onclick=()=>toggle(el.dataset.un,el.dataset.v));
   document.querySelectorAll("[data-clr]").forEach(el=>el.onclick=()=>{F[el.dataset.clr]="";page=0;render()});
+  const ws=document.getElementById("wk-sel");
+  if(ws)ws.onchange=()=>{WK=ws.value;page=0;render()};
+  const wa=document.getElementById("wk-apply");
+  const toWeek=()=>{S.day.clear();F.d1=WK;F.d2=dAdd(WK,6);page=0;render()};
+  if(wa)wa.onclick=toWeek;
+  document.querySelectorAll("[data-wkf]").forEach(el=>el.onclick=toWeek);
   const p=document.getElementById("pg-prev"),n=document.getElementById("pg-next");
   if(p)p.onclick=()=>{if(page>0){page--;render()}};
   if(n)n.onclick=()=>{page++;render()};
