@@ -72,7 +72,7 @@ h1{font-size:17px;font-weight:800;letter-spacing:-.01em}
 .chip.pur{background:var(--purple-wash);color:var(--purple)}
 
 /* ---------- shell: slicer rail + main ---------- */
-.shell{display:grid;grid-template-columns:252px 1fr;gap:14px;padding:14px 18px 34px;align-items:start}
+.shell{display:grid;grid-template-columns:278px 1fr;gap:14px;padding:14px 18px 34px;align-items:start}
 @media(max-width:1100px){.shell{grid-template-columns:1fr}}
 .rail{position:sticky;top:74px;display:flex;flex-direction:column;gap:10px;max-height:calc(100vh - 92px);overflow:auto;padding-right:2px}
 .slicer{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-card);box-shadow:var(--shadow-card);
@@ -81,7 +81,8 @@ h1{font-size:17px;font-weight:800;letter-spacing:-.01em}
  background:var(--navy);padding:7px 11px;display:flex;align-items:center;gap:6px}
 .slicer>h3 .n{margin-left:auto;background:rgba(255,255,255,.2);border-radius:10px;padding:0 6px;font-size:9.5px}
 .slicer .body{padding:9px 11px}
-.slist{--row:20px;max-height:calc(var(--row)*10);overflow-y:auto;overscroll-behavior:contain;padding-right:3px}
+.slist{--row:20px;max-height:calc(var(--row)*10);overflow-y:auto;overscroll-behavior:contain;padding-right:3px;
+ scroll-snap-type:y proximity}                            /* a scroll always lands on whole rows */
 /* Windows Chrome hides its overlay scrollbar until you scroll, so a list that
    continues below the fold looked like it simply ended. Give every scrolling area a
    visible track, and fade the last row of a list that still has more in it. */
@@ -96,11 +97,12 @@ h1{font-size:17px;font-weight:800;letter-spacing:-.01em}
 .slicer .body{position:relative}
 .slicer .body.ovf::after{content:"";position:absolute;left:11px;right:17px;bottom:6px;height:13px;pointer-events:none;
  background:linear-gradient(to bottom,transparent,var(--surface))}
-.opt{display:flex;align-items:center;gap:7px;height:20px;padding:0 3px;font-size:11px;cursor:pointer;border-radius:5px}
+.opt{display:flex;align-items:center;gap:7px;min-height:20px;padding:1px 3px;font-size:11px;cursor:pointer;
+ border-radius:5px;scroll-snap-align:start}
 .opt:hover{background:var(--blue-wash)}
 .opt input{accent-color:var(--blue);flex:0 0 auto;margin:0}
-.opt .t{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.opt .c{color:var(--mut);font-size:9.5px}
+.opt .t{flex:1;min-width:0;line-height:1.3;overflow-wrap:anywhere}   /* wrap rather than truncate */
+.opt .c{color:var(--mut);font-size:9.5px;flex:0 0 auto;min-width:30px;text-align:right;font-variant-numeric:tabular-nums}
 .opt.on .t{font-weight:700;color:var(--blue)}
 .dpair{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .dpair label{font-size:9px;color:var(--mut);font-weight:700;text-transform:uppercase;letter-spacing:.05em}
@@ -290,6 +292,10 @@ function renderRail(){
   rail.querySelectorAll("input[data-set]").forEach(el=>
     el.addEventListener("change",()=>toggle(el.dataset.set,el.dataset.v)));
   rail.querySelectorAll(".slist").forEach(el=>{
+    const opts=[...el.querySelectorAll(".opt")];
+    if(opts.length>10)el.style.maxHeight=                     // exactly ten rows, whatever they measure
+      Math.round(opts[10].getBoundingClientRect().top-el.getBoundingClientRect().top)+"px";
+    else el.style.maxHeight="none";
     const more=()=>el.parentElement.classList.toggle("ovf",
       el.scrollHeight-el.clientHeight>4&&el.scrollTop+el.clientHeight<el.scrollHeight-4);
     more();el.addEventListener("scroll",more,{passive:true})});
