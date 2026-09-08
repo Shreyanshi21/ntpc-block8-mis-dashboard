@@ -375,14 +375,20 @@
     "sldc": []
   },
   "_reg_comment": "this project has no Regulatory & Statutory department in VisiLean, so the approvals trackers have nothing to key on",
-  "countSummaries": false,
-  "_countSummaries_comment": "the Final Acceptance document-count and PO Placement count cards are an NTPC request; enable here once the equivalent steps are agreed for this project",
-  "procDatesCard": true,
-  "_procDatesCard_comment": "keep the Key Procurement Dates matrix - this project configures its own procDateCols",
+  "countSummaries": true,
+  "_countSummaries_comment": "the count-summary cards, as on NTPC. The PO pair counts the LOI / PO Release step (37 packages). This schedule has no separate acceptance step - its engineering activities ARE the drawings - so the document pair counts those, with wording set by the accept* keys below.",
+  "procDatesCard": false,
+  "_procDatesCard_comment": "as on NTPC: the pipeline table replaces the Key Procurement Dates matrix on the procurement pages. Set true to bring the matrix back (procDateCols is still configured).",
   "actionsRunsApi": "https://api.github.com/repos/Vikas-visilean/ntpc-block8-mis-dashboard/actions/workflows/refresh-adani.yml/runs?per_page=1&status=in_progress",
   "_actionsRunsApi_comment": "best-effort, public API: lets the Refresh button say whether this project's sync worker is running. Purely informational - the click always reloads.",
   "_engStage_comment": "engStage takes single keyword/label pairs (unlike procStage, which takes key lists)",
   "pipeColFrom": "sub",
   "_pipeColFrom_comment": "procurement activities are named <Package>-<Step>-Lot-NN, so the pipeline matrix is keyed on the sub-stage (Spec/Tender/PO/Mfg/Dispatch/Transit/At Site) instead of the activity name",
-  "_spelling_comment": "the schedule spells some steps inconsistently ('Purchase Requistion', 'Receipt For Site', 'Receipt Site At'); every variant is matched"
+  "_spelling_comment": "the schedule spells some steps inconsistently ('Purchase Requistion', 'Receipt For Site', 'Receipt Site At'); every variant is matched",
+  "acceptRe": ".",
+  "acceptLabel": "Engineering drawings",
+  "acceptTitle": "Engineering drawings — document count",
+  "acceptHint": "every engineering deliverable in this view - this schedule has no separate Final Acceptance step, each activity is the drawing itself - completed vs what the baseline says should be complete today",
+  "acceptByTitle": "Engineering drawings by group",
+  "acceptGroupLabel": "Drawing group"
 }
