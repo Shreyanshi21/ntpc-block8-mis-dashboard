@@ -298,7 +298,7 @@ function usersOverTime(rs,id){
     if(all.length>=400)all.length=0}                      // absurd span: chart only the days present
   if(!all.length)ks.forEach(k=>all.push(k));
   const val=d=>(g[d]?g[d].size:0);
-  const W=Math.max(900,all.length*48),H=232,pl=52,pr=16,pt=22,pb=48;
+  const W=Math.max(1288,all.length*48),H=250,pl=54,pr=14,pt=24,pb=44;   // 2x620 + the 48px of gap and card padding the full-width card does not spend
   const iw=W-pl-pr,ih=H-pt-pb,max=Math.max(1,...all.map(val));
   const stp=Math.ceil(max/4),top=stp*Math.ceil(max/stp);            // ticks stay whole people
   const X=i=>pl+(all.length===1?iw/2:iw*i/(all.length-1)),Y=v=>pt+ih*(1-v/top);
@@ -309,12 +309,12 @@ function usersOverTime(rs,id){
   s+=`<text class="axt" transform="rotate(-90 15 ${pt+ih/2})" x="15" y="${pt+ih/2}" text-anchor="middle">Active users</text>`;
   const pts=all.map((d,i)=>`${X(i).toFixed(1)} ${Y(val(d)).toFixed(1)}`);
   s+=`<path d="M ${pts.join(" L ")} L ${X(all.length-1).toFixed(1)} ${Y(0)} L ${X(0).toFixed(1)} ${Y(0)} Z" fill="var(--b4)" opacity=".14"/>`;
-  s+=`<path d="M ${pts.join(" L ")}" fill="none" stroke="var(--b2)" stroke-width="2.2" stroke-linejoin="round"/>`;
+  s+=`<path d="M ${pts.join(" L ")}" fill="none" stroke="var(--b2)" stroke-width="2.4" stroke-linejoin="round"/>`;
   all.forEach((d,i)=>{
     const v=val(d),sel=S.day.has(d);
-    s+=`<circle class="vbar${sel?" sel":""}" data-v="${d}" cx="${X(i).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="${sel?5.5:4}"
+    s+=`<circle class="vbar${sel?" sel":""}" data-v="${d}" cx="${X(i).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="${sel?6:4.5}"
          fill="${v?"var(--b2)":"var(--surface)"}" stroke="var(--b2)" stroke-width="1.6"/>`;
-    if(v)s+=`<text x="${X(i).toFixed(1)}" y="${(Y(v)-9).toFixed(1)}" font-size="9.5" font-weight="800" text-anchor="middle" style="fill:var(--ink)">${v}</text>`;
+    if(v)s+=`<text x="${X(i).toFixed(1)}" y="${(Y(v)-8).toFixed(1)}" font-size="9" font-weight="800" text-anchor="middle" style="fill:var(--ink)">${v}</text>`;
     const p=dp(d+"T00:00:00");
     if(all.length<=22||i%Math.ceil(all.length/12)===0)
       s+=`<text x="${X(i).toFixed(1)}" y="${pt+ih+16}" font-size="8.5" text-anchor="middle">${String(p.d).padStart(2,"0")} ${MON[p.m-1]}</text>`});
