@@ -75,13 +75,28 @@ h1{font-size:17px;font-weight:800;letter-spacing:-.01em}
 .shell{display:grid;grid-template-columns:252px 1fr;gap:14px;padding:14px 18px 34px;align-items:start}
 @media(max-width:1100px){.shell{grid-template-columns:1fr}}
 .rail{position:sticky;top:74px;display:flex;flex-direction:column;gap:10px;max-height:calc(100vh - 92px);overflow:auto;padding-right:2px}
-.slicer{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-card);box-shadow:var(--shadow-card);overflow:hidden}
+.slicer{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-card);box-shadow:var(--shadow-card);
+ overflow:hidden;flex:0 0 auto}    /* never shrink: a squeezed list clips a row in half */
 .slicer>h3{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#fff;
  background:var(--navy);padding:7px 11px;display:flex;align-items:center;gap:6px}
 .slicer>h3 .n{margin-left:auto;background:rgba(255,255,255,.2);border-radius:10px;padding:0 6px;font-size:9.5px}
 .slicer .body{padding:9px 11px}
-.slist{max-height:184px;overflow:auto}
-.opt{display:flex;align-items:center;gap:7px;padding:3px 2px;font-size:11px;cursor:pointer;border-radius:5px}
+.slist{--row:20px;max-height:calc(var(--row)*10);overflow-y:auto;overscroll-behavior:contain;padding-right:3px}
+/* Windows Chrome hides its overlay scrollbar until you scroll, so a list that
+   continues below the fold looked like it simply ended. Give every scrolling area a
+   visible track, and fade the last row of a list that still has more in it. */
+.hscroll{overflow-x:auto}
+.slist,.rail,.twrap,.hscroll{scrollbar-width:thin;scrollbar-color:var(--b3) var(--grid)}
+.slist::-webkit-scrollbar,.rail::-webkit-scrollbar,.twrap::-webkit-scrollbar,.hscroll::-webkit-scrollbar{width:10px;height:10px}
+.slist::-webkit-scrollbar-track,.rail::-webkit-scrollbar-track,.twrap::-webkit-scrollbar-track,.hscroll::-webkit-scrollbar-track{background:var(--grid);border-radius:7px}
+.slist::-webkit-scrollbar-thumb,.rail::-webkit-scrollbar-thumb,.twrap::-webkit-scrollbar-thumb,.hscroll::-webkit-scrollbar-thumb{
+ background:var(--b3);border-radius:7px;border:2px solid var(--surface);min-height:32px}
+.slist::-webkit-scrollbar-thumb:hover,.rail::-webkit-scrollbar-thumb:hover,.twrap::-webkit-scrollbar-thumb:hover,.hscroll::-webkit-scrollbar-thumb:hover{background:var(--b2)}
+.slist::-webkit-scrollbar-corner,.twrap::-webkit-scrollbar-corner{background:var(--grid)}
+.slicer .body{position:relative}
+.slicer .body.ovf::after{content:"";position:absolute;left:11px;right:17px;bottom:6px;height:13px;pointer-events:none;
+ background:linear-gradient(to bottom,transparent,var(--surface))}
+.opt{display:flex;align-items:center;gap:7px;height:20px;padding:0 3px;font-size:11px;cursor:pointer;border-radius:5px}
 .opt:hover{background:var(--blue-wash)}
 .opt input{accent-color:var(--blue);flex:0 0 auto;margin:0}
 .opt .t{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -246,7 +261,7 @@ function toggle(setName,v){S[setName].has(v)?S[setName].delete(v):S[setName].add
 function slicer(title,setName,opts,order){
   const sel=S[setName];
   const items=Object.entries(opts).sort(order||((a,b)=>b[1]-a[1]));
-  return `<div class="slicer"><h3>${title}${sel.size?`<span class="n">${sel.size}</span>`:""}</h3>
+  return `<div class="slicer"><h3>${title}<span class="n" title="${sel.size?`${sel.size} of ${items.length} selected`:`${items.length} options`}">${sel.size?`${sel.size}/${items.length}`:items.length}</span></h3>
     <div class="body"><div class="slist">`+
     (items.length?items.map(([k,n])=>`<label class="opt ${sel.has(k)?"on":""}">
         <input type="checkbox" data-set="${setName}" data-v="${esc(k)}" ${sel.has(k)?"checked":""}>
@@ -274,6 +289,10 @@ function renderRail(){
     const t=el.parentElement.querySelector(".t");t.textContent=dshow(el.dataset.v+"T00:00:00");t.title=el.dataset.v});
   rail.querySelectorAll("input[data-set]").forEach(el=>
     el.addEventListener("change",()=>toggle(el.dataset.set,el.dataset.v)));
+  rail.querySelectorAll(".slist").forEach(el=>{
+    const more=()=>el.parentElement.classList.toggle("ovf",
+      el.scrollHeight-el.clientHeight>4&&el.scrollTop+el.clientHeight<el.scrollHeight-4);
+    more();el.addEventListener("scroll",more,{passive:true})});
   document.getElementById("f-d1").addEventListener("change",e=>{F.d1=e.target.value;page=0;render()});
   document.getElementById("f-d2").addEventListener("change",e=>{F.d2=e.target.value;page=0;render()});
   const q=document.getElementById("f-q");let tm=null;
@@ -302,7 +321,7 @@ function usersOverTime(rs,id){
   const iw=W-pl-pr,ih=H-pt-pb,max=Math.max(1,...all.map(val));
   const stp=Math.ceil(max/4),top=stp*Math.ceil(max/stp);            // ticks stay whole people
   const X=i=>pl+(all.length===1?iw/2:iw*i/(all.length-1)),Y=v=>pt+ih*(1-v/top);
-  let s=`<div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:${Math.min(W,880)}px;height:auto" id="${id}">`;
+  let s=`<div class="hscroll"><svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:${Math.min(W,820)}px;height:auto" id="${id}">`;
   for(let v=0;v<=top;v+=stp){const y=Y(v);
     s+=`<line x1="${pl}" x2="${W-pr}" y1="${y}" y2="${y}" stroke="var(--grid)"/>
         <text x="${pl-7}" y="${y+3}" font-size="9" text-anchor="end">${Math.round(v)}</text>`}
@@ -333,7 +352,7 @@ function vbars(items,o){
   if(!items.length)return `<div class="empty">Nothing to chart for this selection.</div>`;
   const n=items.length,W=Math.max(620,n*58),H=288,pl=54,pr=12,pt=26,pb=96;
   const iw=W-pl-pr,ih=H-pt-pb,max=Math.max(1,...items.map(x=>x.n)),step=iw/n,bw=Math.min(38,step*0.6);
-  let s=`<div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:${Math.min(W,880)}px;height:auto" id="${o.id}">`;
+  let s=`<div class="hscroll"><svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:${Math.min(W,820)}px;height:auto" id="${o.id}">`;
   for(let t=0;t<=4;t++){const y=pt+ih*(1-t/4);
     s+=`<line x1="${pl}" x2="${W-pr}" y1="${y}" y2="${y}" stroke="var(--grid)"/>
         <text x="${pl-7}" y="${y+3}" font-size="9" text-anchor="end">${fmt(Math.round(max*t/4))}</text>`}
