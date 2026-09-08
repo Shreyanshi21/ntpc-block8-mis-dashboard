@@ -1,4 +1,4 @@
-name: Refresh NTPC user adoption report from VisiLean
+name: Refresh NTPC user adoption + updates reports from VisiLean
 
 # Same worker pattern as refresh-v2.yml (see the comments there): GitHub drops most
 # scheduled events, so the schedule only has to START a run and the run itself then
@@ -52,12 +52,13 @@ jobs:
             n=$((n+1))
             echo "::group::cycle $n  $(date -u '+%H:%M:%S UTC')"
 
-            if python scripts/adoption_data.py && python scripts/build_adoption.py ; then
+            if python scripts/adoption_data.py && python scripts/build_adoption.py && python scripts/build_updates.py ; then
               if git diff --quiet -- adoption/.datahash ; then
                 echo "no new activity in the trail"
               else
-                git add adoption/index.html adoption/meta.json adoption/.datahash
-                git commit -m "adoption auto-refresh $(TZ=Asia/Kolkata date '+%d-%b %H:%M IST')" || true
+                git add adoption/index.html adoption/meta.json adoption/.datahash \
+                        updates/index.html updates/meta.json updates/.datahash
+                git commit -m "adoption + updates auto-refresh $(TZ=Asia/Kolkata date '+%d-%b %H:%M IST')" || true
                 # another worker may have pushed while we were building
                 for try in 1 2 3 ; do
                   git pull --rebase --autostash -q && git push -q && { echo "published"; break; }
@@ -67,7 +68,7 @@ jobs:
             else
               # a bad cycle must not kill the worker - the next one recovers
               echo "cycle failed (VisiLean unreachable or build error) - continuing"
-              git checkout -- adoption 2>/dev/null || true
+              git checkout -- adoption updates 2>/dev/null || true
             fi
             echo "::endgroup::"
 
