@@ -2643,11 +2643,15 @@ function stepSummaryCards(rows,spec){
       `<button id="step-${spec.key}" class="rsndrill" title="Drill down to the activities">&#9783; ${c.act} of ${c.total}</button>`)
     +card((spec.span2||"span7")+" stepby",spec.byTitle,spec.byHint,b);
 }
-const SPEC_FA=()=>({key:"fa",re:CFG.acceptRe,unit:"documents",groupLabel:"Design package",
+// A project whose engineering activities ARE the documents (no separate acceptance
+// step to name) overrides the wording: acceptTitle / acceptHint / acceptByTitle /
+// acceptGroupLabel. Absent those, the acceptLabel phrasing below applies.
+const SPEC_FA=()=>({key:"fa",re:CFG.acceptRe,unit:"documents",
+  groupLabel:CFG.acceptGroupLabel||"Design package",
   eyebrow:"Design & Engineering · documents",
-  title:`Drawing ${CFG.acceptLabel} — document count`,
-  hint:`activities named “${CFG.acceptLabel}” in this view · completed vs what the baseline says should be finished by ${wdate(SW,1)}`,
-  byTitle:`${CFG.acceptLabel} by design package`,
+  title:CFG.acceptTitle||`Drawing ${CFG.acceptLabel} — document count`,
+  hint:CFG.acceptHint||`activities named “${CFG.acceptLabel}” in this view · completed vs what the baseline says should be finished by ${wdate(SW,1)}`,
+  byTitle:CFG.acceptByTitle||`${CFG.acceptLabel} by design package`,
   byHint:"the same four counts per package · largest shortfall first"});
 const SPEC_PO=()=>({key:"po",steps:CFG.poStep,unit:"packages",groupLabel:"Package",
   eyebrow:"Procurement · PO placement",
