@@ -535,15 +535,30 @@ if UNCLASSIFIED:
     print("WARNING: %d rows matched no department rule and defaulted to Project Initiation:"
           % len(UNCLASSIFIED), ", ".join("%s %s" % x for x in UNCLASSIFIED[:5]))
 
+# The constraint log carries activityGuid - the activity the constraint was raised
+# against. Resolve it to the same uid the activity rows use, so the Constraints Log
+# page can open that activity's property panel, and carry the name for projects
+# where the activity itself is not published (parent/summary rows).
 cons = []
 for c in CONS:
+    ag = (c.get("activityGuid") or "").strip()
+    at = GUID.get(ag)
+    auid = None
+    if at is not None:
+        try: auid = int(at.get("externalId"))
+        except Exception: auid = None
     cons.append({"id": c.get("constrainId"), "title": c.get("title") or "", "desc": (c.get("discription") or "")[:200],
                  "author": c.get("author") or "", "owner": c.get("owner") or "",
                  "cat": (c.get("category") or "").strip() or "Uncategorised",
                  "pri": c.get("priority") or "—",
                  "created": c.get("creationDate") or "", "target": c.get("targetDate") or "",
                  "committed": c.get("commitmentDate") or "", "completed": (c.get("completionDate") or "").strip(),
-                 "open": not (c.get("completionDate") or "").strip()})
+                 "open": not (c.get("completionDate") or "").strip(),
+                 "trade": (c.get("trade") or "").strip(), "zone": (c.get("zone") or "").strip(),
+                 "note": (c.get("note") or "")[:200],
+                 "act": auid, "actName": (at.get("taskName") if at is not None else "") or ""})
+print("constraints: %d, of which %d resolve to an activity"
+      % (len(cons), sum(1 for c in cons if c.get("act") is not None)))
 
 # ---------- variance reasons (from the task-history audit trail) ----------
 # Event phrasings VisiLean writes into activityHistory. The first four are the ones

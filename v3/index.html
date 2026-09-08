@@ -102,6 +102,10 @@ h1{font-size:14px;font-weight:700}
 .segbtn:hover:not(.on){background:var(--blue-wash);color:var(--blue)}
 .card h2{font-size:13px;font-weight:700;margin-bottom:2px;color:var(--ink);letter-spacing:-.01em}
 .card .hint{color:var(--mut);font-size:10.5px;line-height:1.45;margin-bottom:8px}
+/* KP 08-Sep: the description line under a card title is dropped on every page.
+   Only the header description is hidden - labels inside a card body (the S-curve's
+   Cumulative / Monthly, definition footnotes) are content, so they stay. */
+.card>.hdrrow .hint,.card>h2+.hint{display:none}
 .hdrrow{display:flex;justify-content:space-between;align-items:baseline;gap:6px;flex-wrap:wrap}
 .span2{grid-column:span 2}.span3{grid-column:span 3}.span4{grid-column:span 4}.span5{grid-column:span 5}.span6{grid-column:span 6}.span7{grid-column:span 7}.span8{grid-column:span 8}.span10{grid-column:span 10}.span12{grid-column:span 12}
 @media(max-width:1150px){.span2{grid-column:span 4}.span3,.span4{grid-column:span 6}.span5,.span6,.span7,.span8,.span10{grid-column:span 12}}
@@ -1382,6 +1386,17 @@ function actDetail(r){
            :((C.tid!==undefined)?(rsnByTid()[String(r[C.tid])]||""):"");
   const pn=(!own&&!rsn)?predNote(r):"";
   let h=``;
+  // constraints raised against this activity, so the panel opened from the
+  // Constraints Log shows the activity detail and the constraint side by side
+  const _cons=(uid!=null)?(consByAct()[uid]||[]):[];
+  if(_cons.length)h+=`<div class="pgrp"><div class="gh">Constraints (${_cons.length})</div>`
+    +_cons.map(c=>`<div class="notecard${c.open?" derived":""}">
+        <div class="nh">${c.open?"Open":"Closed"} · ${esc(c.cat)}${c.pri?" · "+esc(c.pri)+" priority":""}</div>
+        <div class="nb">${esc(c.title)}</div>
+        ${c.desc?`<div class="nf">${esc(c.desc)}</div>`:""}
+        <div class="nf">raised ${esc(c.created||"—")} by ${esc(c.author||"—")} · owner ${esc(c.owner||"—")}
+          · target ${esc(c.target||"—")}${c.completed?` · completed ${esc(c.completed)}`:""}</div></div>`).join("")
+    +`</div>`;
   h+=grp("Activity",[
     row("Task ID",esc(r[C.tid]||"\u2014")),
     row("WBS",esc(r[C.wbs]||"\u2014"),true),
@@ -2667,8 +2682,8 @@ function pageSummary(){
   // put this line back to restore it).
   // h+=critPoints(rows);
   setTimeout(()=>bindKpi(rows,""),0);
-  h+=card("span12","Open Constraints / Awaiting to Start","live VisiLean constraints log · awaiting-start from schedule",constraints(rows),
-    `<div class="toggle2"><button class="${consTab==="await"?"on":""}" onclick="consTab='await';render()">Awaiting Start</button><button class="${consTab==="vl"?"on":""}" onclick="consTab='vl';render()">VisiLean Constraints</button></div>`);
+  // KP 08-Sep: Open Constraints / Awaiting to Start removed from the Project Summary.
+  // constraints() itself stays - the Constraints Log page uses it.
   h+="</div>";
   return h;
 }
@@ -2700,10 +2715,96 @@ function pagePipeline(){
   let h=`<div class="grid">`;
   h+=stepSummaryCards(rows,SPEC_PO());
   h+=card("span12","Procurement Pipeline — schedule stages","per package · red date = overdue vs baseline · click a row for activities",pipeTable(rows,"pp",false));
-  h+=card("span12","Scope vs Order vs Deliver","supply quantities",scopeOrderDeliver(filtered()));
+  // KP 08-Sep: Scope vs Order vs Deliver hidden here as well
+  // h+=card("span12","Scope vs Order vs Deliver","supply quantities",scopeOrderDeliver(filtered()));
   h+="</div>";
   setTimeout(()=>bindPipe("pp"),0);
   return h;
+}
+// ---------- Constraints Log ----------
+// Every constraint raised in VisiLean, with the activity it was raised against.
+// Clicking a row opens that activity's property panel, so the reader gets the full
+// activity detail (and the constraint again, in its own block there) in one step.
+// A constraint whose activity is not published on the dashboard - a summary row, or
+// one VisiLean did not return - is still listed, just not clickable.
+let _consByAct=null;
+function consByAct(){
+  if(_consByAct)return _consByAct;
+  _consByAct={};
+  (DATA.constraints||[]).forEach(c=>{
+    if(c.act==null)return;
+    (_consByAct[c.act]=_consByAct[c.act]||[]).push(c);
+  });
+  return _consByAct;
+}
+const CONS_PRI=p=>/high/i.test(p)?"vlnr":/med/i.test(p)?"vlw":/low/i.test(p)?"mut":"mut";
+let consSort={k:"id",dir:-1}, consQ="", consOpen="";
+function pageConstraints(){
+  const all=DATA.constraints||[];
+  let cs=all.slice();
+  if(consOpen==="open")cs=cs.filter(c=>c.open);
+  if(consOpen==="closed")cs=cs.filter(c=>!c.open);
+  if(consQ){const q=consQ.toLowerCase();
+    cs=cs.filter(c=>[c.title,c.desc,c.note,c.actName,c.owner,c.author,c.cat,c.trade,c.zone]
+      .some(v=>String(v||"").toLowerCase().includes(q)));}
+  const K=consSort.k,D=consSort.dir;
+  cs.sort((a,b)=>{const va=a[K],vb=b[K];
+    const na=+va,nb=+vb;
+    if(!isNaN(na)&&!isNaN(nb)&&va!==""&&vb!=="")return (na-nb)*D;
+    return String(va||"").localeCompare(String(vb||""))*D});
+  const open=all.filter(c=>c.open).length;
+  const linked=all.filter(c=>c.act!=null).length;
+  const byPri={},byCat={};
+  all.forEach(c=>{byPri[c.pri]=(byPri[c.pri]||0)+1;byCat[c.cat]=(byCat[c.cat]||0)+1});
+  if(!all.length)
+    return `<div class="grid">`+card("span12","Constraints Log",
+      "live from the VisiLean constraints log",
+      `<div style="padding:14px 6px;text-align:center"><div style="font-weight:700;margin:4px 0">No constraints logged yet</div>
+       <div class="fnote">The VisiLean constraints log is connected — entries appear here as teams raise them.</div></div>`)+`</div>`;
+  const hd=(k,lbl,num)=>`<th class="sortable ${num?"num":""}" data-ck="${k}">${esc(lbl)}${consSort.k===k?(consSort.dir>0?" ▲":" ▼"):""}</th>`;
+  let h=`<div style="display:flex;gap:7px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
+    ${chip("blue","Total "+all.length)} ${chip(open?"vlnr":"vlc","Open "+open)} ${chip("vlc","Closed "+(all.length-open))}
+    ${chip("mut",linked+" linked to an activity")}
+    <input type="search" id="cons-q" placeholder="Search constraints, activity, owner…" value="${esc(consQ)}">
+    <select id="cons-st"><option value="">All statuses</option>
+      <option value="open" ${consOpen==="open"?"selected":""}>Open</option>
+      <option value="closed" ${consOpen==="closed"?"selected":""}>Closed</option></select>
+    <span class="fnote">${cs.length} shown · click a row to open the activity</span></div>`;
+  h+=`<div class="fnote" style="margin-bottom:6px">Priority: ${Object.entries(byPri).map(([k,v])=>esc(k)+" "+v).join(" · ")}
+      &nbsp;·&nbsp; Category: ${Object.entries(byCat).map(([k,v])=>esc(k)+" "+v).join(" · ")}</div>`;
+  h+=`<div class="twrap"><table><tr>${hd("id","ID",1)}${hd("title","Constraint")}${hd("actName","Activity it was raised against")}
+    ${hd("cat","Category")}${hd("pri","Priority")}${hd("trade","Trade")}${hd("author","Author")}${hd("owner","Owner")}
+    ${hd("created","Raised")}${hd("target","Target")}${hd("committed","Commitment")}${hd("completed","Completion")}${hd("open","Status")}</tr>`;
+  cs.forEach(c=>{
+    const live=c.act!=null&&!!byUid()[c.act];
+    h+=`<tr class="consrow"${live?` data-cu="${c.act}" style="cursor:pointer" title="Open the activity property panel"`:""}>
+      <td class="num"><b>${esc(String(c.id||"—"))}</b></td>
+      <td><b>${esc(c.title)}</b>${c.desc?`<div class="small dim">${esc(c.desc)}</div>`:""}${c.note?`<div class="small dim">${esc(c.note)}</div>`:""}</td>
+      <td>${c.actName?`<span title="${esc(c.actName)}">${esc(String(c.actName).slice(0,46))}</span>${live?"":` ${chip("mut","not on dashboard")}`}`
+                     :`<span class="dim">— not linked in VisiLean</span>`}</td>
+      <td class="dim">${esc(c.cat)}</td>
+      <td>${chip(CONS_PRI(c.pri),esc(c.pri))}</td>
+      <td class="dim">${esc(c.trade||"—")}</td>
+      <td>${esc(c.author||"—")}</td><td>${esc(c.owner||"—")}</td>
+      <td>${esc(c.created||"—")}</td><td>${esc(c.target||"—")}</td>
+      <td>${esc(c.committed||"—")}</td><td>${esc(c.completed||"—")}</td>
+      <td>${c.open?chip("vlnr","Open"):chip("vlc","Closed")}</td></tr>`});
+  h+=`</table></div>`;
+  setTimeout(()=>{
+    document.querySelectorAll("tr.consrow[data-cu]").forEach(el=>
+      el.addEventListener("click",()=>openActSolo(+el.dataset.cu)));
+    document.querySelectorAll("th.sortable[data-ck]").forEach(el=>
+      el.addEventListener("click",()=>{const k=el.dataset.ck;
+        if(consSort.k===k)consSort.dir*=-1;else consSort={k,dir:1};render()}));
+    const q=document.getElementById("cons-q");
+    if(q){let tmr=null;
+      q.addEventListener("input",()=>{clearTimeout(tmr);tmr=setTimeout(()=>{consQ=q.value;render();
+        const n=document.getElementById("cons-q");if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length)}},250)});}
+    const st=document.getElementById("cons-st");
+    if(st)st.addEventListener("change",()=>{consOpen=st.value;render()});
+  },0);
+  return `<div class="grid">`+card("span12","Constraints Log",
+    "every constraint raised in VisiLean · click a row to open the activity it was raised against",h)+`</div>`;
 }
 function pageMom(){
   return `<div class="grid">`+
@@ -2823,7 +2924,9 @@ function pageDept(key){
   // same layout as the summary page: variance reasons sit beside the KPI cards
   h+=reasonsCard(key,"span12");   // 6 KPI cards fill the row exactly once Days to COD is summary-only
   if(key==="engineering"){
-    h+=engOverview(rows);
+    // KP 08-Sep: Engineering Overview - Exec View hidden. engOverview() is untouched -
+    // put this line back to restore it.
+    // h+=engOverview(rows);
     h+=stepSummaryCards(rows,SPEC_FA());
     h+=card("span12","Engineering package pipeline","document stages per package · click a row for activities",pipeTable(rows,"pe",true));
   }else if(key==="supply"||key==="services"){
@@ -2834,15 +2937,12 @@ function pageDept(key){
     // procDateCols), and then gets both, matrix first.
     if(CFG.procDatesCard)
       h+=card("span12","Key Procurement Dates — Exec View","forecast dates per package · green ✓ complete · purple ▶ started · red = overdue vs baseline · rest Not Committed until VisiLean status feed",procDateMatrix(rows));
-    // same pipeline template as the Package Pipeline page: identical card, and the
-    // quantity table under it (skipped where the department has no measured scope)
-    h+=card("span12","Procurement Pipeline — schedule stages","per package · red date = overdue vs baseline · click a row for activities",pipeTable(rows,"pd",false));
+    // KP 08-Sep: the PO Placement pair leads, the pipeline follows it. PO Tracker,
+    // Committed vs Budgeted and Scope vs Order vs Deliver are hidden here -
+    // poTracker(), committedCard() and scopeOrderDeliver() are all left untouched.
     h+=stepSummaryCards(rows,SPEC_PO());
-    h+=card("span8","PO Tracker — expected vs actual","per ED format: value-wise baseline vs forecast PO with delay",poTracker(rows));
-    h+=committedCard(rows);
+    h+=card("span12","Procurement Pipeline — schedule stages","per package · red date = overdue vs baseline · click a row for activities",pipeTable(rows,"pd",false));
     h+=card("span12","Delay Analysis — procurement heads","per ED format: a–e heads, packages currently behind baseline",delayHeads(rows));
-    {const sod=scopeOrderDeliver(rows,true);
-     if(sod)h+=card("span12","Scope vs Order vs Deliver","supply quantities",sod);}
   }else if(key==="regulatory"||key==="liaisoning"){
     h+=card("span12","Critical approvals tracker","schedule order · sort by any column · click a row to filter the Updates Sheet below",regTable(rows,true,"rc"));
     h+=card("span12","All approval groups","",regTable(rows,false,"ra"));
@@ -2869,7 +2969,7 @@ function stageSecs(rows){
 }
 // ---------- shell ----------
 function navHtml(){
-  const top=[["summary","📊 Project Summary"],["layout","🗺 Plant Layout"],["pipeline","🔀 Package Pipeline"],["mom","📋 MOM & Actions"]];
+  const top=[["summary","📊 Project Summary"],["layout","🗺 Plant Layout"],["pipeline","🔀 Package Pipeline"],["constraints","🚧 Constraints Log"]];
   document.getElementById("nav-top").innerHTML=top.map(([k,n])=>`<a href="#" data-p="${k}" class="${state.page===k?"on":""}">${n}</a>`).join("");
   document.getElementById("nav-dept").innerHTML=DEPTS.map(d=>
     `<a href="#" data-p="d:${d.key}" class="${state.page==="d:"+d.key?"on":""}">${esc(d.name)}</a>`).join("");
@@ -2910,12 +3010,12 @@ function pageHtml(key){
   if(key==="summary")return pageSummary();
   if(key==="layout")return pageLayout();
   if(key==="pipeline")return pagePipeline();
-  if(key==="mom")return pageMom();
+  if(key==="constraints"||key==="mom")return pageConstraints();
   if(key&&key.startsWith("d:"))return pageDept(key.slice(2));
   return "";
 }
 const PRINT_ORDER=()=>[["summary","Project Summary"],["layout","Plant Layout"],
-  ["pipeline","Package Pipeline"],["mom","MOM & Actions"]]
+  ["pipeline","Package Pipeline"],["constraints","Constraints Log"]]
   .concat(DEPTS.map(d=>["d:"+d.key,d.name]));
 // ---------- PDF export ----------
 // The dashboard renders one page at a time, so "download the whole dashboard" means
@@ -3067,7 +3167,7 @@ function restoreUI(){
   const s=_uiRead();
   if(!s)return null;
   try{
-    if(s.page)state.page=s.page;
+    if(s.page)state.page=(s.page==="mom"?"constraints":s.page);   // the tab was renamed
     if(s.unit)state.unit=s.unit;
     if(typeof s.at==="number")state.at=s.at;
     if(s.f)state.f=Object.assign(state.f,s.f);
