@@ -1,0 +1,388 @@
+{
+  "_comment": "Adani Green Energy S6a (234 MW) - project configuration. Read by the data builder (dash_data.py: calendar, vocabulary, paths) and published to the page as DATA.cfg (labels, procurement columns). Never put API tokens here - they live in the gitignored scripts/vl_tokens.json / Actions secrets.",
+  "key": "adani",
+  "projectId": "8E1DC8F3-B98D-7466-372B-A885DE53F1BB",
+  "outDir": "adani",
+  "dataFile": "adani_dashboard_data.json",
+  "relationsFile": "adani_relations.json",
+  "_relations_comment": "built from the P6 XER (FY26-P18 S6a 07.09.2026.xer) by scripts/build_relations_from_xer.py. VisiLean returns prerequisites empty, so the schedule file is the only place the logic lives. Endpoints are activity codes (P6 task_code = VisiLean externalId); dash_data.py resolves them to uids. 6,152 links, 100% of leaves wired in.",
+  "title": "Adani Green Energy S6a (234 MW) — MIS Dashboard (Live)",
+  "name": "Adani Green Energy S6a · 234 MW",
+  "client": "KP Group",
+  "clientShort": "Adani",
+  "capacity": "234 MWac",
+  "location": "—",
+  "_location_comment": "site not supplied yet - set this to the town / state once confirmed",
+  "plant": "Adani Green Energy — S6a",
+  "tech": "Solar",
+  "week": "6-day weeks",
+  "loa": "Start 05-Jan-2026",
+  "calendar": {
+    "startDate": "2026-01-05",
+    "weeklyOff": [
+      6
+    ],
+    "_comment": "day 1 of the working-day axis = earliest planned start in VisiLean (05-Jan-2026). 6-day week, Sunday off - confirmed by KP 08-Sep-2026."
+  },
+  "baselineMode": "planned",
+  "_baselineMode_comment": "no baseline dates on any of the 2,300 leaves (checked 08-Sep-2026), so VisiLean planned dates ARE the baseline and rows are not flagged un-baselined. Switch to 'visilean' once a baseline is set there.",
+  "activityTypeFromDepartment": false,
+  "activityTypeMap": {
+    "_comment": "the project's own Activity Type values, mapped onto the four the EPC card counts. Anything unmapped (Handover, Pre Construction, Milestone, Contract Closure, PR and PG Test) passes through to the card's 'other activity types' line.",
+    "Execution": "Construction",
+    "Procurement - Service": "Procurement - Services"
+  },
+  "departments": {
+    "_comment": "VisiLean 'Department' custom field -> dashboard department key; 'Dept/Level2-prefix' splits a department on Level 2",
+    "PROCUREMENT/PROCUREMENT- ORDERING-SERVICE": "services",
+    "PROCUREMENT": "supply",
+    "ENGINEERING": "engineering",
+    "CONSTRUCTION & COMMISIONING": "execution",
+    "PR AND PG TEST": "tnc",
+    "HOTO": "hoto",
+    "CONTRACT CLOSURE": "hoto",
+    "PRE-CONSTRUCTION": "initiation",
+    "MILESTONES": "initiation"
+  },
+  "nullLevels": [
+    "0"
+  ],
+  "_nullLevels_comment": "this P6 export writes a literal '0' where a WBS level is unused (171 rows at Level 3, 953 at Level 4); treated as empty so it never becomes a package or section name",
+  "areaRe": "^Block[ -]?(\\d+)",
+  "areaFromLevel3": "^BLOCK[ -]?(\\d+)",
+  "areaLabel": "Block-%s",
+  "_area_comment": "areas are the 19 blocks across 5 phases; the block number is read from WBS Level 3 ('BLOCK-15'). Procurement and engineering rows carry no block and fall to 'Off-site / Office'.",
+  "packageFromField": false,
+  "_packageFromField_comment": "the 'Package' custom field holds the Level-2 group (PHASE-4 (50MW), PROCUREMENT- ORDERING & DELIVERY), not a package, so packages come from the WBS levels: Level 3 for procurement ('MODULE (IMPORTED FROM CHINA)', 'MC4 CONNECTOR' - 37 of them), the deepest work package for execution",
+  "procStage": [
+    [
+      [
+        "boqtechspecsrelease",
+        "purchaserequisition",
+        "purchaserequistion",
+        "tber",
+        "noteforapproval"
+      ],
+      "Tender"
+    ],
+    [
+      [
+        "loiporelease"
+      ],
+      "Order"
+    ],
+    [
+      [
+        "manufacturingclearance"
+      ],
+      "Mfg & Quality"
+    ],
+    [
+      [
+        "dispatchfromchina",
+        "dispatchforsite",
+        "transportationcustomclearance"
+      ],
+      "Dispatch & Transit"
+    ],
+    [
+      [
+        "receiptatsite",
+        "receiptforsite",
+        "receiptsiteat"
+      ],
+      "Delivery / At Site"
+    ]
+  ],
+  "subMap": [
+    [
+      [
+        "boqtechspecsrelease"
+      ],
+      "Spec"
+    ],
+    [
+      [
+        "purchaserequisition",
+        "purchaserequistion",
+        "tber",
+        "noteforapproval"
+      ],
+      "Tender"
+    ],
+    [
+      [
+        "loiporelease"
+      ],
+      "PO"
+    ],
+    [
+      [
+        "manufacturingclearance"
+      ],
+      "Mfg"
+    ],
+    [
+      [
+        "dispatchfromchina",
+        "dispatchforsite"
+      ],
+      "Dispatch"
+    ],
+    [
+      [
+        "transportationcustomclearance"
+      ],
+      "Transit"
+    ],
+    [
+      [
+        "receiptatsite",
+        "receiptforsite",
+        "receiptsiteat"
+      ],
+      "At Site"
+    ]
+  ],
+  "_steps_comment": "procurement activities are named '<Package>-<Step>-Lot-NN', so every key here is matched as a substring of the normalised name",
+  "procDateCols": [
+    [
+      "BOQ & Tech Specs",
+      [
+        "boqtechspecsrelease"
+      ]
+    ],
+    [
+      "Purchase Requisition",
+      [
+        "purchaserequisition",
+        "purchaserequistion"
+      ]
+    ],
+    [
+      "TBER",
+      [
+        "tber"
+      ]
+    ],
+    [
+      "Note For Approval",
+      [
+        "noteforapproval"
+      ]
+    ],
+    [
+      "LOI / PO Release",
+      [
+        "loiporelease"
+      ]
+    ],
+    [
+      "Mfg Clearance",
+      [
+        "manufacturingclearance"
+      ]
+    ],
+    [
+      "Dispatch",
+      [
+        "dispatchforsite",
+        "dispatchfromchina"
+      ]
+    ],
+    [
+      "Transport & Customs",
+      [
+        "transportationcustomclearance"
+      ]
+    ],
+    [
+      "Receipt At Site",
+      [
+        "receiptatsite",
+        "receiptforsite",
+        "receiptsiteat"
+      ]
+    ]
+  ],
+  "delayHeads": [
+    [
+      "a. BOQ & Tech Specs release",
+      [
+        "boqtechspecsrelease"
+      ]
+    ],
+    [
+      "b. Purchase Requisition",
+      [
+        "purchaserequisition",
+        "purchaserequistion"
+      ]
+    ],
+    [
+      "c. TBER",
+      [
+        "tber"
+      ]
+    ],
+    [
+      "d. LOI / PO release",
+      [
+        "loiporelease"
+      ]
+    ],
+    [
+      "e. Receipt at site",
+      [
+        "receiptatsite",
+        "receiptforsite",
+        "receiptsiteat"
+      ]
+    ]
+  ],
+  "poStep": [
+    "loiporelease"
+  ],
+  "grnStep": [
+    "receiptatsite",
+    "receiptforsite",
+    "receiptsiteat"
+  ],
+  "rfpStep": [
+    "boqtechspecsrelease"
+  ],
+  "tbeStep": [
+    "tber"
+  ],
+  "clientApprovalStep": [
+    "noteforapproval"
+  ],
+  "execStage": [
+    [
+      [
+        "piling",
+        "pile",
+        "foundation",
+        "civil",
+        "fencing",
+        "gate",
+        "road",
+        "drain",
+        "grading",
+        "levelling"
+      ],
+      "Civil & Foundations"
+    ],
+    [
+      [
+        "mms",
+        "modulemounting",
+        "tracker",
+        "purlin",
+        "torque",
+        "structure",
+        "sheeting"
+      ],
+      "MMS & Module"
+    ],
+    [
+      [
+        "module"
+      ],
+      "MMS & Module"
+    ],
+    [
+      [
+        "dccable",
+        "stringcombiner",
+        "scb",
+        "mc4"
+      ],
+      "DC Works"
+    ],
+    [
+      [
+        "ltpanel",
+        "ltcable",
+        "htltstation",
+        "htcable",
+        "accable",
+        "termination",
+        "jointing"
+      ],
+      "AC / HT Works"
+    ],
+    [
+      [
+        "earthing",
+        "lightning",
+        "lightening",
+        "la"
+      ],
+      "Earthing & LA"
+    ],
+    [
+      [
+        "commissioning",
+        "testing",
+        "voctesting",
+        "trialrun",
+        "synchron",
+        "charging"
+      ],
+      "T&C"
+    ],
+    [
+      [
+        "idt",
+        "transformer",
+        "inverter",
+        "robotic",
+        "robots",
+        "scada",
+        "cctv",
+        "ups",
+        "panel",
+        "erection",
+        "installation"
+      ],
+      "Equipment"
+    ]
+  ],
+  "engStage": [
+    [
+      "finalacceptance",
+      "Acceptance"
+    ],
+    [
+      "approval",
+      "Acceptance"
+    ],
+    [
+      "submission",
+      "Submission"
+    ],
+    [
+      "release",
+      "Submission"
+    ]
+  ],
+  "longLead": "module|robotic|robots|idt|transformer|inverter|dc cable|lt cable|structure|piling stub",
+  "regCrit": [],
+  "statSteps": {
+    "cea": [],
+    "cod": [],
+    "sldc": []
+  },
+  "_reg_comment": "this project has no Regulatory & Statutory department in VisiLean, so the approvals trackers have nothing to key on",
+  "countSummaries": false,
+  "_countSummaries_comment": "the Final Acceptance document-count and PO Placement count cards are an NTPC request; enable here once the equivalent steps are agreed for this project",
+  "procDatesCard": true,
+  "_procDatesCard_comment": "keep the Key Procurement Dates matrix - this project configures its own procDateCols",
+  "actionsRunsApi": "https://api.github.com/repos/Vikas-visilean/ntpc-block8-mis-dashboard/actions/workflows/refresh-adani.yml/runs?per_page=1&status=in_progress",
+  "_actionsRunsApi_comment": "best-effort, public API: lets the Refresh button say whether this project's sync worker is running. Purely informational - the click always reloads.",
+  "_engStage_comment": "engStage takes single keyword/label pairs (unlike procStage, which takes key lists)",
+  "pipeColFrom": "sub",
+  "_pipeColFrom_comment": "procurement activities are named <Package>-<Step>-Lot-NN, so the pipeline matrix is keyed on the sub-stage (Spec/Tender/PO/Mfg/Dispatch/Transit/At Site) instead of the activity name",
+  "_spelling_comment": "the schedule spells some steps inconsistently ('Purchase Requistion', 'Receipt For Site', 'Receipt Site At'); every variant is matched"
+}
