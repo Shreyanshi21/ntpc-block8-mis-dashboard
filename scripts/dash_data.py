@@ -64,7 +64,14 @@ def fetch(kind, attempts=3):
 print("fetching VisiLean APIs...")
 try:
     TASKS = fetch("task")
-    CONS = fetch("constraintLog")
+    # Only the task feed is essential. A project may not have a constraints report
+    # provisioned (no token, or the endpoint 500s); the Constraints tab then simply
+    # has nothing to list, exactly as it does before any constraint is raised.
+    try:
+        CONS = fetch("constraintLog", 2)
+    except Exception as ce:
+        print("constraints feed unavailable, the constraints log will be empty:", ce)
+        CONS = []
     try:
         HIST = fetch("history")
     except Exception as he:
@@ -84,6 +91,7 @@ TODAY = datetime.date.today()
 WEEKLY_OFF = set(_cal.get("weeklyOff", [6]))          # python weekday(): Monday=0 .. Sunday=6
 # a project with no baseline set in VisiLean reads its planned dates AS the baseline
 BASELINE_PLANNED = (CFG.get("baselineMode", "visilean") == "planned")
+NULL_LEVELS = {re.sub(r"[^a-z0-9]", "", str(x).lower()) for x in (CFG.get("nullLevels") or [])}
 wdates = []
 d = START
 while len(wdates) < 1200:
@@ -137,9 +145,33 @@ def classify_cf(t, depth=0):
 
 INHERITED = []
 _synth = [0]
+# A P6-driven project carries an activity CODE as its externalId ("S06A-CC-10220"),
+# not a number. Map those codes onto stable integers - sorted, so every rebuild
+# assigns the same uid - and reuse the map for the history feed and the relations
+# sidecar, whose endpoints are then written as codes too. Numeric externalIds
+# (MSP UniqueID, as NTPC and SJVN use) pass straight through.
+_CODE_UID = {}
+_codes = sorted({str(t.get("externalId") or "").strip() for t in TASKS
+                 if str(t.get("externalId") or "").strip()
+                 and not str(t.get("externalId")).strip().lstrip("-").isdigit()})
+if _codes:
+    _CODE_UID = {c: i + 1 for i, c in enumerate(_codes)}
+    print(f"externalIds are activity codes: {len(_CODE_UID)} mapped to stable uids")
+
+def uid_of(x):
+    s = str(x if x is not None else "").strip()
+    if not s: return None
+    try: return int(s)
+    except Exception: return _CODE_UID.get(s)
+
+# relations may reference either form; resolve them once and drop links whose ends
+# are not tasks we publish
+RELS = [[uid_of(a), uid_of(b), c, d] for a, b, c, d in RELS]
+RELS = [r for r in RELS if r[0] is not None and r[1] is not None]
+
 for t in TASKS:
-    try: uid = int(t.get("externalId"))
-    except Exception:
+    uid = uid_of(t.get("externalId"))
+    if uid is None:
         # Created directly in VisiLean, so no MSP UniqueID (drawing-revision rows
         # R0/R1/R2 etc). VisiLean counts these in "All Tasks" -> so do we.
         _synth[0] += 1
@@ -148,6 +180,9 @@ for t in TASKS:
     if inherited_from and not t.get("parent"):
         INHERITED.append((str(t.get("taskId") or ""), str(t.get("taskName") or ""), inherited_from))
     L = [cf.get(f"Level {i}", "") or "" for i in range(1, 8)]
+    # Some schedules write a literal placeholder where a WBS level is unused (P6
+    # exports "0"); treat those as empty so they never become a package or section.
+    if NULL_LEVELS: L = ["" if norm(v) in NULL_LEVELS else v for v in L]
     bs, bf = pdate(t.get("baselineStartDate")), pdate(t.get("baselineEndDate"))
     # "not baselined": VisiLean counts these in All Tasks but leaves them out of
     # Completed / Delayed, because there is no baseline to measure them against.
@@ -303,6 +338,14 @@ UNCLASSIFIED = []
 DEPT_MAP = {"/".join(norm(p) for p in k.split("/")): v
             for k, v in (CFG.get("departments") or {}).items() if not k.startswith("_")}
 ATYPE_FROM_DEPT = bool(CFG.get("activityTypeFromDepartment"))
+# A project may name its Activity Type values differently ("Execution" for what the
+# dashboard calls Construction). Map them onto the four the EPC card counts on;
+# anything unmapped passes through and lands in "other activity types".
+ATYPE_MAP = {norm(k): v for k, v in (CFG.get("activityTypeMap") or {}).items()
+             if not k.startswith("_")}
+def atype_of(dept, raw):
+    if ATYPE_FROM_DEPT: return ATYPE_BY_DEPT.get(dept, "") or raw
+    return ATYPE_MAP.get(norm(raw), raw)
 # EPC discipline per department, for projects with no "Activity Type" field. Every
 # department is covered so the EPC card's "other activity types" line stays readable.
 ATYPE_BY_DEPT = {"engineering": "Engineering", "supply": "Procurement - Supply",
@@ -478,7 +521,7 @@ for r in sorted(leafs.values(), key=lambda x: x["uid"]):
     elif r["pct"] > 0 or vs in ("Started", "Warning", "Stopped"): state = "inprog"
     elif r["bES"] < STATUS_WD: state = "late"
     else: state = "future"
-    rows.append([dept, ((ATYPE_BY_DEPT.get(dept, "") if ATYPE_FROM_DEPT else "") or r["atype"]), area, str(pkg)[:70], str(sec)[:60], stage,
+    rows.append([dept, atype_of(dept, r["atype"]), area, str(pkg)[:70], str(sec)[:60], stage,
                  r["name"][:70], int(r["bES"]), int(r["bEF"]), int(round(fES[u])), int(round(fEF[u])),
                  round(r["pct"]), round(r["dur"], 1), r["qty"], r["uom"][:14],
                  int(round(TF.get(u, 0))), state,
@@ -700,8 +743,8 @@ def split_events(hist):
 # every distinct trail an activity has.
 _hist_seen = defaultdict(list)
 for h in HIST:
-    try: hu = int(h.get("externalId"))
-    except Exception: continue
+    hu = uid_of(h.get("externalId"))
+    if hu is None: continue
     a = strip_html(str(h.get("activityHistory") or ""))
     if not a: continue
     if a not in _hist_seen[hu]: _hist_seen[hu].append(a)

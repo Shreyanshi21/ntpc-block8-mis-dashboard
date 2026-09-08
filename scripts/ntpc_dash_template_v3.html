@@ -1870,6 +1870,11 @@ const MQAP_SUBS=new Set(["draftingconceptualdiscussion","internalcheckingofmqap"
 const nrm=s=>s.toLowerCase().replace(/[^a-z0-9]/g,"");
 function colKey(r){
   const k=nrm(r[C.name]);
+  // Some schedules name every procurement activity "<Package>-<Step>-Lot-NN", so the
+  // activity name is unique per package and would give one column per package rather
+  // than one per step. Those projects key the matrix on the pipeline sub-stage.
+  if(CFG.pipeColFrom==="sub"&&(r[C.dept]==="supply"||r[C.dept]==="services"))
+    return r[C.sub]||r[C.name];
   if(r[C.dept]==="supply"&&MQAP_SUBS.has(k))return "MQAP";
   if(r[C.dept]==="engineering")return r[C.stage]||r[C.name];
   return r[C.name];
