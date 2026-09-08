@@ -552,8 +552,8 @@ function applyTheme(t){
 function lsGet(k){try{return localStorage.getItem(k)}catch(e){return null}}
 function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
 document.querySelectorAll("#thm button").forEach(b=>b.addEventListener("click",()=>{lsSet("kp-upd-thm",b.dataset.t);applyTheme(b.dataset.t)}));
-applyTheme(lsGet("kp-upd-thm")||"auto");
-matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>applyTheme(lsGet("kp-upd-thm")||"auto"));
+applyTheme(lsGet("kp-upd-thm")||"light");
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>applyTheme(lsGet("kp-upd-thm")||"light"));
 
 render();
 </script>
