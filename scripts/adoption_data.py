@@ -244,6 +244,7 @@ for feed in ("hist", "notes"):
             str(r.get("organisation") or "").strip(),
             " ".join(txt.split()),
             str(r.get("status") or "").strip(),
+            str(r.get("trade") or "").strip(),
             1 if str(cf.get("Critical Activity") or "").strip().lower() == "yes" else 0,
         ])
 
@@ -270,7 +271,7 @@ meta = {
 }
 out = {"meta": meta, "cols": ["ts", "actor", "action", "tid", "task", "dept", "atype",
                               "loc", "pkg", "owner", "ownship", "detail",
-                              "status", "crit"], "events": events}
+                              "status", "trade", "crit"], "events": events}
 dst = os.path.join(SCR, "adoption_data.json")
 with open(dst, "w", encoding="utf-8") as fh:
     json.dump(out, fh, ensure_ascii=False, separators=(",", ":"))

@@ -5,156 +5,156 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NTPC Bikaner Block 8 (200MW) — User Updates Report</title>
 <style>
-/* ---------- same VisiLean tokens as the other dashboards in this repo ---------- */
+/* ---------- VisiLean design tokens (same system as the other dashboards here) ---------- */
 :root{
   --page:#f7f9fc; --surface:#ffffff; --ink:#002d62; --ink2:#2a3a55; --mut:#5b6b82;
-  --line:#e3e8f0; --line2:#e5eaf0; --grid:#e3e8f0;
+  --line:#e3e8f0; --line2:#e5eaf0; --grid:#eaeef5;
   --blue:#00a3e0; --blue-hov:#0091c9; --blue-wash:rgba(0,163,224,.10);
-  --navy:#002d62; --cyan-info:#00618a;
+  --navy:#002d62; --navy2:#013f85; --cyan-info:#00618a;
   --good:#00a455; --good-text:#00713a; --good-wash:#e6f6ee;
   --warn:#f59e00; --warn-text:#a66a00; --warn-wash:#fef4e6;
   --crit:#ff4343; --crit-text:#c42121; --crit-wash:#ffecec;
+  --purple:#7262fd; --purple-wash:rgba(114,98,253,.12);
   --shadow-card:0 1px 0 rgba(0,45,98,.02),0 6px 24px -18px rgba(0,45,98,.15);
   --shadow-lift:0 10px 30px -12px rgba(0,45,98,.28);
   --r-card:14px; --r-tile:12px;
-  --s1:#00a3e0; --s2:#9d4f8c; --s3:#00a455; --s4:#f59e00; --s5:#7262fd; --s6:#f08bb4;
+  /* bar ramp: deep navy for the leaders, fading to light blue down the tail */
+  --b1:#002d62; --b2:#0b4f96; --b3:#1877c4; --b4:#00a3e0; --b5:#5cc4ee; --b6:#a5dcf3;
 }
 :root[data-theme="dark"]{
   --page:#0a1220; --surface:#101a2b; --ink:#eef3fa; --ink2:#c3d0e2; --mut:#8fa3bd;
-  --line:#1e2a3d; --line2:#27364d; --grid:#1e2a3d;
-  --blue:#38b6ea; --blue-wash:rgba(0,163,224,.18); --navy:#0d2547; --cyan-info:#6bcbf2;
+  --line:#1e2a3d; --line2:#27364d; --grid:#1b2739;
+  --blue:#38b6ea; --blue-wash:rgba(0,163,224,.18); --navy:#0d2547; --navy2:#154a86; --cyan-info:#6bcbf2;
   --good-text:#5fd39b; --good-wash:rgba(0,164,85,.18);
   --warn-text:#f5c069; --warn-wash:rgba(245,158,0,.2);
   --crit-text:#ff9b9b; --crit-wash:rgba(255,67,67,.18);
   --shadow-card:0 1px 0 rgba(0,0,0,.2),0 6px 24px -18px rgba(0,0,0,.7);
+  --b1:#1c6fb8; --b2:#2a86cf; --b3:#38b6ea; --b4:#5cc4ee; --b5:#7fd1f0; --b6:#a5dcf3;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{font:12px/1.5 Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--page);color:var(--ink);
- font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;padding-bottom:40px}
+ font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
 button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
-select,input[type=search],input[type=date]{font:inherit;font-size:11px;color:var(--ink);background:var(--surface);
- border:1px solid var(--line2);border-radius:7px;padding:4px 7px;max-width:185px}
-.wrap{max-width:1680px;margin:0 auto;padding:0 18px}
+input[type=date],input[type=search]{font:inherit;font-size:11px;color:var(--ink);background:var(--surface);
+ border:1px solid var(--line2);border-radius:7px;padding:4px 7px;width:100%}
+select{font:inherit;font-size:11px;color:var(--ink);background:var(--surface);border:1px solid var(--line2);
+ border-radius:7px;padding:5px 8px;max-width:190px}
 
-.hdr{background:var(--surface);border-bottom:1px solid var(--line);padding:12px 0}
-.hdrtop{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap}
-.brand{display:flex;gap:10px;align-items:center}
-.brand img{width:34px;height:34px;border-radius:7px;background:#fff;object-fit:contain;padding:2px;border:1px solid var(--line2)}
-.eyebrow{text-transform:uppercase;letter-spacing:.06em;color:var(--mut);font-size:10px;font-weight:700}
+/* ---------- header ---------- */
+.hdr{background:var(--surface);border-bottom:1px solid var(--line);padding:11px 18px;display:flex;
+ align-items:center;gap:14px;flex-wrap:wrap;position:sticky;top:0;z-index:40}
+.brand img{width:32px;height:32px;border-radius:7px;background:#fff;object-fit:contain;padding:2px;border:1px solid var(--line2)}
+.pbadge{background:var(--navy);color:#fff;border-radius:9px;padding:7px 14px;font-size:13px;font-weight:800;
+ letter-spacing:-.01em;white-space:nowrap}
 h1{font-size:17px;font-weight:800;letter-spacing:-.01em}
-.hmeta{color:var(--mut);font-size:10.5px;margin-top:3px;display:flex;gap:7px;align-items:center;flex-wrap:wrap}
-.hbtns{margin-left:auto;display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.hkpi{margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.hcard{background:var(--blue-wash);border:1px solid rgba(0,163,224,.25);border-radius:10px;padding:7px 18px;text-align:center;min-width:104px}
+.hcard .v{font-size:17px;font-weight:800;letter-spacing:-.02em;line-height:1.15}
+.hcard .l{font-size:9.5px;color:var(--mut);font-weight:700;text-transform:uppercase;letter-spacing:.05em}
 .btn{border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:6px;
  border:1px solid var(--line2);background:var(--surface);color:var(--ink2);white-space:nowrap}
 .btn:hover{background:var(--blue-wash);color:var(--blue);border-color:var(--blue)}
 .btn:disabled{opacity:.45;cursor:default}
 .btn.dark{background:var(--navy);color:#fff;border-color:var(--navy)}
-.btn.dark:hover{background:#013f85;color:#fff}
+.btn.dark:hover{background:var(--navy2);color:#fff}
 .btn.pri{background:var(--blue);color:#fff;border-color:var(--blue)}
 .btn.pri:hover{background:var(--blue-hov);color:#fff}
 .thm{display:flex;border:1px solid var(--line2);border-radius:8px;overflow:hidden}
 .thm button{padding:5px 9px;font-size:10.5px;color:var(--mut)}
 .thm button.on{background:var(--blue);color:#fff}
-
-.fbar{position:sticky;top:0;z-index:30;background:var(--surface);border:1px solid var(--line);border-radius:10px;
- padding:8px 10px;margin:14px 0;display:flex;gap:6px;align-items:center;flex-wrap:wrap;box-shadow:var(--shadow-card)}
-.fbar label{font-size:10px;color:var(--mut);font-weight:600;display:flex;gap:4px;align-items:center}
-.reset{color:var(--blue);font-weight:700;font-size:10.5px}
-.fnote{font-size:10.5px;color:var(--mut)}
-.fchips{display:flex;gap:5px;flex-wrap:wrap;margin:-6px 0 12px}
-.fchip{display:inline-flex;align-items:center;gap:6px;background:var(--blue-wash);color:var(--blue);border:1px solid var(--blue);
- border-radius:999px;padding:2px 9px;font-size:10px;font-weight:700;cursor:pointer}
-.fchip:hover{background:var(--blue);color:#fff}
-
-.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px}
-.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-card);padding:16px 18px;
- grid-column:span 12;min-width:0;box-shadow:var(--shadow-card)}
-.sp4{grid-column:span 4}.sp6{grid-column:span 6}.sp8{grid-column:span 8}
-@media(max-width:1240px){.sp4,.sp6,.sp8{grid-column:span 12}}
-.card h2{font-size:13.5px;font-weight:700;letter-spacing:-.01em}
-.card .hint{color:var(--mut);font-size:10.5px;line-height:1.45;margin-top:2px}
-.hdrrow{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;margin-bottom:10px}
-
-.kstrip{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px;margin-bottom:14px}
-.ktile{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-card);padding:13px 15px;
- display:flex;align-items:center;gap:12px;box-shadow:var(--shadow-card)}
-.kicon{width:34px;height:34px;border-radius:9px;background:var(--blue-wash);color:var(--blue);flex:0 0 auto;
- display:flex;align-items:center;justify-content:center;font-size:16px}
-.ktile .kl{flex:1;min-width:0}
-.ktile .kn{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--mut)}
-.ktile .ks{font-size:10px;color:var(--mut);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ktile .kv{font-size:21px;font-weight:800;letter-spacing:-.02em;white-space:nowrap}
-
+.hsub{font-size:10.5px;color:var(--mut);padding:0 18px 10px;display:flex;gap:7px;align-items:center;flex-wrap:wrap}
 .chip{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:700;border-radius:14px;padding:2px 8px;white-space:nowrap}
 .chip.good{background:var(--good-wash);color:var(--good-text)}
 .chip.warn{background:var(--warn-wash);color:var(--warn-text)}
 .chip.crit{background:var(--crit-wash);color:var(--crit-text)}
 .chip.info{background:var(--blue-wash);color:var(--blue)}
 .chip.mut{background:var(--grid);color:var(--ink2)}
+.chip.pur{background:var(--purple-wash);color:var(--purple)}
 
-.twrap{overflow:auto;position:relative;max-height:560px;border-radius:9px}
+/* ---------- shell: slicer rail + main ---------- */
+.shell{display:grid;grid-template-columns:252px 1fr;gap:14px;padding:14px 18px 34px;align-items:start}
+@media(max-width:1100px){.shell{grid-template-columns:1fr}}
+.rail{position:sticky;top:74px;display:flex;flex-direction:column;gap:10px;max-height:calc(100vh - 92px);overflow:auto;padding-right:2px}
+.slicer{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-card);box-shadow:var(--shadow-card);overflow:hidden}
+.slicer>h3{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#fff;
+ background:var(--navy);padding:7px 11px;display:flex;align-items:center;gap:6px}
+.slicer>h3 .n{margin-left:auto;background:rgba(255,255,255,.2);border-radius:10px;padding:0 6px;font-size:9.5px}
+.slicer .body{padding:9px 11px}
+.slist{max-height:184px;overflow:auto}
+.opt{display:flex;align-items:center;gap:7px;padding:3px 2px;font-size:11px;cursor:pointer;border-radius:5px}
+.opt:hover{background:var(--blue-wash)}
+.opt input{accent-color:var(--blue);flex:0 0 auto;margin:0}
+.opt .t{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.opt .c{color:var(--mut);font-size:9.5px}
+.opt.on .t{font-weight:700;color:var(--blue)}
+.dpair{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.dpair label{font-size:9px;color:var(--mut);font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.railtop{display:flex;gap:6px;align-items:center}
+.railtop .reset{color:var(--blue);font-weight:700;font-size:10.5px}
+
+/* ---------- cards ---------- */
+.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-card);padding:15px 17px;
+ grid-column:span 12;min-width:0;box-shadow:var(--shadow-card)}
+.sp6{grid-column:span 6}
+@media(max-width:1400px){.sp6{grid-column:span 12}}
+.card h2{font-size:13.5px;font-weight:700;letter-spacing:-.01em}
+.card .hint{color:var(--mut);font-size:10.5px;margin-top:2px}
+.hdrrow{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.fchips{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px}
+.fchip{display:inline-flex;align-items:center;gap:6px;background:var(--blue-wash);color:var(--blue);border:1px solid var(--blue);
+ border-radius:999px;padding:2px 9px;font-size:10px;font-weight:700;cursor:pointer}
+.fchip:hover{background:var(--blue);color:#fff}
+
+/* ---------- table: dark header, banded rows ---------- */
+.twrap{overflow:auto;position:relative;max-height:600px;border-radius:10px;border:1px solid var(--line2)}
 table{width:100%;border-collapse:collapse;font-size:11.5px}
-th{position:sticky;top:0;z-index:2;background:var(--surface);font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;
- color:var(--mut);font-weight:700;text-align:left;padding:8px 9px;border-bottom:1px solid var(--line2);white-space:nowrap}
-th.num,td.num{text-align:right}
-td{padding:8px 9px;border-bottom:1px solid var(--line);vertical-align:top}
-tr:hover td{background:var(--blue-wash)}
+th{position:sticky;top:0;z-index:2;background:var(--navy);color:#fff;font-size:9.5px;text-transform:uppercase;
+ letter-spacing:.05em;font-weight:700;text-align:left;padding:9px 10px;white-space:nowrap}
+td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+tbody tr:nth-child(even) td{background:rgba(0,45,98,.022)}
+:root[data-theme="dark"] tbody tr:nth-child(even) td{background:rgba(255,255,255,.03)}
+tbody tr:hover td{background:var(--blue-wash)}
 .dim{color:var(--mut)}
 .who{font-weight:700}
 .mono{font-variant-numeric:tabular-nums}
-.empty{padding:24px 8px;text-align:center;color:var(--mut);font-size:11.5px}
+.empty{padding:26px 8px;text-align:center;color:var(--mut);font-size:11.5px}
 
-/* charts: bars are clickable, Power-BI style cross-filtering */
-.vbar{cursor:pointer}
-.vbar:hover{opacity:.82}
-.vbar.sel{stroke:var(--ink);stroke-width:1.5}
+/* charts */
+.vbar{cursor:pointer;transition:opacity .12s}
+.vbar:hover{opacity:.75}
+.vbar.sel{stroke:var(--ink);stroke-width:1.6}
 svg text{fill:var(--mut);font-family:inherit}
-.arow{display:grid;grid-template-columns:minmax(110px,1.3fr) 54px minmax(60px,1fr);gap:9px;align-items:center;padding:4px 0;cursor:pointer}
-.arow:hover .an{color:var(--blue)}
-.arow.sel .an{color:var(--blue);font-weight:800}
-.arow .an{font-size:11px;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.arow .av{font-size:10.5px;text-align:right;font-weight:700}
-.bar{position:relative;height:9px;background:var(--grid);border-radius:3px;overflow:hidden}
-.bar i{position:absolute;left:0;top:0;bottom:0;background:var(--blue);border-radius:3px}
+.axt{font-size:9.5px;font-weight:700;fill:var(--mut)}
 #tip{position:fixed;z-index:400;background:var(--navy);color:#fff;border-radius:7px;padding:7px 10px;font-size:10.5px;
- pointer-events:none;box-shadow:var(--shadow-lift);display:none;max-width:320px;line-height:1.45}
+ pointer-events:none;box-shadow:var(--shadow-lift);display:none;max-width:330px;line-height:1.45}
 :root[data-theme="dark"] #tip{background:#eef3fa;color:#0a1220}
 </style>
 </head>
 <body>
-<div class="hdr"><div class="wrap"><div class="hdrtop">
-  <div class="brand">
-    <img src="__LOGO__" alt="KP Group">
-    <div>
-      <div class="eyebrow">User updates report</div>
-      <h1 id="h-title">NTPC Bikaner Block 8 · 200 MW</h1>
-      <div class="hmeta" id="h-meta"></div>
-    </div>
-  </div>
-  <div class="hbtns">
+<div class="hdr">
+  <div class="brand"><img src="__LOGO__" alt="KP Group"></div>
+  <div class="pbadge" id="h-badge">NTPC Block 8</div>
+  <h1>User Updates Report</h1>
+  <div class="hkpi">
+    <div class="hcard"><div class="v" id="k-upd">—</div><div class="l">Updates</div></div>
+    <div class="hcard"><div class="v" id="k-last">—</div><div class="l">Last update date</div></div>
+    <div class="hcard"><div class="v" id="k-users">—</div><div class="l">Users</div></div>
+    <div class="hcard"><div class="v" id="k-acts">—</div><div class="l">Activities</div></div>
+    <select id="f-loc" title="Location"><option value="">All locations</option></select>
     <button class="btn dark" id="btn-csv">&#8681; Export CSV</button>
     <button class="btn pri" id="btn-refresh">&#8635; Refresh</button>
     <div class="thm" id="thm"><button data-t="auto">Auto</button><button data-t="light">Light</button><button data-t="dark">Dark</button></div>
   </div>
-</div></div></div>
+</div>
+<div class="hsub" id="h-meta"></div>
 
-<div class="wrap">
-  <div class="fbar" id="fbar">
-    <select id="f-actor"><option value="">All users</option></select>
-    <select id="f-action"><option value="">All update types</option></select>
-    <select id="f-status"><option value="">All activity statuses</option></select>
-    <select id="f-dept"><option value="">All departments</option></select>
-    <select id="f-pkg"><option value="">All packages</option></select>
-    <select id="f-atype"><option value="">All activity types</option></select>
-    <label>From <input type="date" id="f-d1"></label>
-    <label>To <input type="date" id="f-d2"></label>
-    <input type="search" id="f-q" placeholder="Search activity or history…">
-    <button class="reset" id="f-reset">Reset</button>
-    <span class="fnote" id="f-count"></span>
-  </div>
-  <div class="fchips" id="fchips"></div>
-  <div id="kpi"></div>
-  <div class="grid" id="page"></div>
+<div class="shell">
+  <aside class="rail" id="rail"></aside>
+  <main>
+    <div class="fchips" id="fchips"></div>
+    <div class="grid" id="page"></div>
+  </main>
 </div>
 <div id="tip"></div>
 
@@ -169,208 +169,210 @@ const MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","De
 function dp(ts){if(!ts)return null;return {y:+ts.slice(0,4),m:+ts.slice(5,7),d:+ts.slice(8,10),H:+ts.slice(11,13),Mi:+ts.slice(14,16)}}
 const dshow=ts=>{const p=dp(ts);return p?`${String(p.d).padStart(2,"0")}-${MON[p.m-1]}-${String(p.y).slice(2)}`:"—"};
 const dtshow=ts=>{const p=dp(ts);return p?`${dshow(ts)} ${String(p.H).padStart(2,"0")}:${String(p.Mi).padStart(2,"0")}`:"—"};
-const ACTION={import:"Schedule import",status:"Status update",note:"Note added",assign:"Task reassigned",
-  ownerchg:"Owner changed",fieldchg:"Field / date changed",resched:"Rescheduled",bulk:"Bulk completed",
-  forced:"Forced ready",pct:"Progress update",constraint:"Constraint",actionitem:"Action item",other:"Other update"};
+/* History Category, in the reference report's vocabulary */
+const ACTION={import:"Task Imported",status:"Status Update",note:"Note Added",assign:"Task Assigned",
+  ownerchg:"Task Reassigned",fieldchg:"Start Date Changed",resched:"Rescheduled",bulk:"Bulk Completed",
+  forced:"Forced Ready",pct:"Progress Update",constraint:"Constraint",actionitem:"Action Item",other:"Other Update"};
 const aLabel=k=>ACTION[k]||k;
-const STONE={"Complete":"good","Started":"info","Ready":"good","Forced Ready":"warn","Warning":"warn",
-  "Not Ready":"crit","Not Committed":"mut","Stopped":"crit"};
+const STONE={"Complete":"good","Started":"pur","Ready":"good","Forced Ready":"warn","Warning":"warn",
+  "Not Ready":"crit","Not Committed":"mut","Stopped":"crit","Quality Checked":"good","Rejected at QC":"crit"};
+const RAMP=["var(--b1)","var(--b2)","var(--b3)","var(--b4)","var(--b5)","var(--b6)"];
+const ramp=i=>RAMP[Math.min(i,RAMP.length-1)];
 function showTip(e,html){const t=document.getElementById("tip");t.innerHTML=html;t.style.display="block";
   const w=t.offsetWidth,h=t.offsetHeight;let x=e.clientX+13,y=e.clientY+13;
   if(x+w>innerWidth-8)x=e.clientX-w-13; if(y+h>innerHeight-8)y=e.clientY-h-13;
   t.style.left=x+"px";t.style.top=y+"px"}
 function hideTip(){const t=document.getElementById("tip");if(t)t.style.display="none"}
 
-/* ---------- filter state ---------- */
-const F={actor:"",action:"",status:"",dept:"",pkg:"",atype:"",d1:"",d2:"",q:""};
-let page=0;
-function rows(){
-  const q=F.q.toLowerCase();
-  return EV.filter(r=>{
-    if(F.actor && r[C.actor]!==F.actor)return false;
-    if(F.action && r[C.action]!==F.action)return false;
-    if(F.status && r[C.status]!==F.status)return false;
-    if(F.dept && r[C.dept]!==F.dept)return false;
-    if(F.pkg && r[C.pkg]!==F.pkg)return false;
-    if(F.atype && r[C.atype]!==F.atype)return false;
-    const day=(r[C.ts]||"").slice(0,10);
-    if(F.d1 && day && day<F.d1)return false;
-    if(F.d2 && day && day>F.d2)return false;
-    if(q && !(String(r[C.task]).toLowerCase().includes(q)||String(r[C.detail]).toLowerCase().includes(q)))return false;
-    return true});
-}
-const uniq=i=>[...new Set(EV.map(r=>r[i]).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b)));
-function count(rs,i){const g={};rs.forEach(r=>{const k=r[i]||"— not set";g[k]=(g[k]||0)+1});
-  return Object.entries(g).map(([k,n])=>({k,n})).sort((a,b)=>b.n-a.n)}
-const dayList=rs=>[...new Set(rs.map(r=>(r[C.ts]||"").slice(0,10)).filter(Boolean))];
-const nAct=rs=>new Set(rs.map(r=>r[C.tid])).size;
-function setF(k,v){F[k]=(F[k]===v?"":v);page=0;render()}
+/* first person to touch each activity - the reference's "First HistoryOwerns" */
+const FIRST={};
+EV.slice().sort((a,b)=>String(a[C.ts]).localeCompare(String(b[C.ts]))).forEach(r=>{
+  if(FIRST[r[C.tid]]===undefined)FIRST[r[C.tid]]=r[C.actor]});
 
-/* ---------- vertical bar chart (click a bar to filter) ---------- */
-function vbars(items,opt){
-  const {id,fkey,unit,short}=opt;
-  if(!items.length)return `<div class="empty">Nothing to chart for this selection.</div>`;
-  const n=items.length, W=Math.max(560,n*64), H=232, pl=38, pr=10, pt=22, pb=58;
-  const iw=W-pl-pr, ih=H-pt-pb, max=Math.max(1,...items.map(x=>x.n)), step=iw/n, bw=Math.min(42,step*0.62);
-  let s=`<div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:${Math.min(W,860)}px;height:auto" id="${id}">`;
-  for(let t=0;t<=3;t++){const y=pt+ih*(1-t/3);
-    s+=`<line x1="${pl}" x2="${W-pr}" y1="${y}" y2="${y}" stroke="var(--grid)"/>
-        <text x="${pl-6}" y="${y+3}" font-size="9" text-anchor="end">${Math.round(max*t/3)}</text>`}
-  items.forEach((x,i)=>{
-    const h=ih*x.n/max, cx=pl+step*i+step/2, y=pt+ih-h;
-    const sel=fkey&&F[fkey]===x.k;
-    s+=`<rect class="vbar${sel?" sel":""}" data-v="${esc(x.k)}" x="${cx-bw/2}" y="${y}" width="${bw}" height="${Math.max(1,h)}" rx="3"
-         fill="${sel?"var(--s2)":"var(--s1)"}"/>`;
-    s+=`<text x="${cx}" y="${y-6}" font-size="9.5" font-weight="700" text-anchor="middle" style="fill:var(--ink)">${fmt(x.n)}</text>`;
-    const lbl=short?short(x.k):String(x.k);
-    s+=`<text x="${cx}" y="${H-pb+16}" font-size="9" text-anchor="end" transform="rotate(-38 ${cx} ${H-pb+16})">${esc(lbl.length>22?lbl.slice(0,21)+"…":lbl)}</text>`});
-  s+=`</svg></div>`;
-  setTimeout(()=>{document.querySelectorAll(`#${id} .vbar`).forEach(el=>{
-    el.addEventListener("mousemove",e=>showTip(e,`<b>${esc(el.dataset.v)}</b><br>${fmt(items.find(x=>String(x.k)===el.dataset.v).n)} ${unit||"updates"}${fkey?" — click to filter":""}`));
-    el.addEventListener("mouseleave",hideTip);
-    if(fkey)el.addEventListener("click",()=>{hideTip();setF(fkey,el.dataset.v)})})},0);
-  return s;
+/* ---------- filter state: multi-select sets, like Power BI slicers ---------- */
+const S={day:new Set(),actor:new Set(),action:new Set(),trade:new Set(),status:new Set()};
+const F={d1:"",d2:"",loc:"",q:""};
+let page=0;
+function keep(r,skip){
+  const day=(r[C.ts]||"").slice(0,10);
+  if(F.d1&&day&&day<F.d1)return false;
+  if(F.d2&&day&&day>F.d2)return false;
+  if(F.loc&&(r[C.loc]||"")!==F.loc)return false;
+  if(F.q){const q=F.q.toLowerCase();
+    if(!(String(r[C.task]).toLowerCase().includes(q)||String(r[C.detail]).toLowerCase().includes(q)))return false}
+  if(skip!=="day"&&S.day.size&&!S.day.has(day))return false;
+  if(skip!=="actor"&&S.actor.size&&!S.actor.has(r[C.actor]))return false;
+  if(skip!=="action"&&S.action.size&&!S.action.has(r[C.action]))return false;
+  if(skip!=="trade"&&S.trade.size&&!S.trade.has(r[C.trade]||"— not set"))return false;
+  if(skip!=="status"&&S.status.size&&!S.status.has(r[C.status]||"— not set"))return false;
+  return true;
 }
-/* ---------- daily timeline (click a day to filter to it) ---------- */
-function timeline(rs,id){
-  const g={};rs.forEach(r=>{const d=(r[C.ts]||"").slice(0,10);if(d)g[d]=(g[d]||0)+1});
-  const ks=Object.keys(g).sort();
-  if(!ks.length)return `<div class="empty">No dated updates in this selection.</div>`;
-  const all=[];{const a=new Date(ks[0]+"T00:00:00"),b=new Date(ks[ks.length-1]+"T00:00:00");
-    while(a<=b){all.push(a.toISOString().slice(0,10));a.setDate(a.getDate()+1)}}
-  const W=980,H=210,pl=36,pr=8,pt=20,pb=34,iw=W-pl-pr,ih=H-pt-pb;
-  const max=Math.max(1,...all.map(d=>g[d]||0)),step=iw/all.length,bw=Math.max(3,step*0.7);
-  let s=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" id="${id}">`;
-  for(let t=0;t<=3;t++){const y=pt+ih*(1-t/3);
+const rows=()=>EV.filter(r=>keep(r));
+/* a slicer's own selection is ignored when counting its options, so they never vanish */
+function optCounts(field,skip){
+  const g={};EV.forEach(r=>{if(!keep(r,skip))return;
+    const k=field==="day"?(r[C.ts]||"").slice(0,10):(r[C[field]]||"— not set");
+    if(k)g[k]=(g[k]||0)+1});
+  return g;
+}
+function toggle(setName,v){S[setName].has(v)?S[setName].delete(v):S[setName].add(v);page=0;render()}
+
+/* ---------- slicer rail ---------- */
+function slicer(title,setName,opts,order){
+  const sel=S[setName];
+  const items=Object.entries(opts).sort(order||((a,b)=>b[1]-a[1]));
+  return `<div class="slicer"><h3>${title}${sel.size?`<span class="n">${sel.size}</span>`:""}</h3>
+    <div class="body"><div class="slist">`+
+    (items.length?items.map(([k,n])=>`<label class="opt ${sel.has(k)?"on":""}">
+        <input type="checkbox" data-set="${setName}" data-v="${esc(k)}" ${sel.has(k)?"checked":""}>
+        <span class="t" title="${esc(k)}">${esc(k)}</span><span class="c">${fmt(n)}</span></label>`).join("")
+      :`<div class="dim" style="font-size:10.5px;padding:4px 2px">nothing in this selection</div>`)+
+    `</div></div></div>`;
+}
+function renderRail(){
+  const anyF=S.day.size||S.actor.size||S.action.size||S.trade.size||S.status.size||F.d1||F.d2||F.loc||F.q;
+  let h=`<div class="slicer"><h3>History date</h3><div class="body">
+      <div class="dpair"><div><label>From</label><input type="date" id="f-d1" value="${F.d1}"></div>
+      <div><label>To</label><input type="date" id="f-d2" value="${F.d2}"></div></div>
+      <div style="margin-top:8px"><input type="search" id="f-q" placeholder="Search activity or history…" value="${esc(F.q)}"></div>
+      ${anyF?`<div class="railtop" style="margin-top:8px"><button class="reset" id="f-reset">Clear all filters</button></div>`:""}
+    </div></div>`;
+  h+=slicer("List of history date","day",optCounts("day","day"),(a,b)=>b[0].localeCompare(a[0]));
+  h+=slicer("Owners (updated by)","actor",optCounts("actor","actor"));
+  h+=slicer("History category","action",optCounts("action","action"));
+  h+=slicer("Trade","trade",optCounts("trade","trade"));
+  h+=slicer("Activity status","status",optCounts("status","status"));
+  const rail=document.getElementById("rail");rail.innerHTML=h;
+  rail.querySelectorAll('input[data-set="action"]').forEach(el=>{
+    const t=el.parentElement.querySelector(".t");t.textContent=aLabel(el.dataset.v);t.title=aLabel(el.dataset.v)});
+  rail.querySelectorAll('input[data-set="day"]').forEach(el=>{
+    const t=el.parentElement.querySelector(".t");t.textContent=dshow(el.dataset.v+"T00:00:00");t.title=el.dataset.v});
+  rail.querySelectorAll("input[data-set]").forEach(el=>
+    el.addEventListener("change",()=>toggle(el.dataset.set,el.dataset.v)));
+  document.getElementById("f-d1").addEventListener("change",e=>{F.d1=e.target.value;page=0;render()});
+  document.getElementById("f-d2").addEventListener("change",e=>{F.d2=e.target.value;page=0;render()});
+  const q=document.getElementById("f-q");let tm=null;
+  q.addEventListener("input",()=>{clearTimeout(tm);tm=setTimeout(()=>{F.q=q.value;page=0;render();
+    const el=document.getElementById("f-q");if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}},260)});
+  const rs=document.getElementById("f-reset");
+  if(rs)rs.addEventListener("click",()=>{Object.keys(S).forEach(k=>S[k].clear());
+    F.d1="";F.d2="";F.loc="";F.q="";page=0;render()});
+}
+
+/* ---------- vertical bars with axis titles, as in the reference ---------- */
+function vbars(items,o){
+  if(!items.length)return `<div class="empty">Nothing to chart for this selection.</div>`;
+  const n=items.length,W=Math.max(620,n*58),H=288,pl=54,pr=12,pt=26,pb=96;
+  const iw=W-pl-pr,ih=H-pt-pb,max=Math.max(1,...items.map(x=>x.n)),step=iw/n,bw=Math.min(38,step*0.6);
+  let s=`<div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:${Math.min(W,880)}px;height:auto" id="${o.id}">`;
+  for(let t=0;t<=4;t++){const y=pt+ih*(1-t/4);
     s+=`<line x1="${pl}" x2="${W-pr}" y1="${y}" y2="${y}" stroke="var(--grid)"/>
-        <text x="${pl-5}" y="${y+3}" font-size="9" text-anchor="end">${Math.round(max*t/3)}</text>`}
-  all.forEach((d,i)=>{
-    const n=g[d]||0,h=ih*n/max,cx=pl+step*i+step/2,sel=F.d1===d&&F.d2===d;
-    if(n)s+=`<rect class="vbar${sel?" sel":""}" data-v="${d}" x="${cx-bw/2}" y="${pt+ih-h}" width="${bw}" height="${Math.max(1,h)}" rx="2"
-      fill="${sel?"var(--s2)":"var(--s1)"}"/>`;
-    const p=dp(d+"T00:00:00");
-    if(all.length<=26||i%Math.ceil(all.length/14)===0)
-      s+=`<text x="${cx}" y="${H-12}" font-size="8.5" text-anchor="middle">${String(p.d).padStart(2,"0")} ${MON[p.m-1]}</text>`});
-  s+=`</svg>`;
-  setTimeout(()=>{document.querySelectorAll(`#${id} .vbar`).forEach(el=>{
-    const d=el.dataset.v;
-    el.addEventListener("mousemove",e=>showTip(e,`<b>${dshow(d+"T00:00:00")}</b><br>${fmt(g[d])} update${g[d]===1?"":"s"} — click to see just this day`));
+        <text x="${pl-7}" y="${y+3}" font-size="9" text-anchor="end">${fmt(Math.round(max*t/4))}</text>`}
+  s+=`<text class="axt" transform="rotate(-90 15 ${pt+ih/2})" x="15" y="${pt+ih/2}" text-anchor="middle">${esc(o.yTitle)}</text>`;
+  items.forEach((x,i)=>{
+    const h=ih*x.n/max,cx=pl+step*i+step/2,y=pt+ih-h,sel=S[o.set]&&S[o.set].has(x.k);
+    s+=`<rect class="vbar${sel?" sel":""}" data-v="${esc(x.k)}" x="${cx-bw/2}" y="${y}" width="${bw}" height="${Math.max(1.5,h)}" rx="3" fill="${ramp(i)}"/>`;
+    s+=`<text x="${cx}" y="${y-6}" font-size="9.5" font-weight="800" text-anchor="middle" style="fill:var(--ink)">${fmt(x.n)}</text>`;
+    const lbl=String(x.k);
+    s+=`<text x="${cx}" y="${pt+ih+11}" font-size="9" text-anchor="end" transform="rotate(-40 ${cx} ${pt+ih+11})">${esc(lbl.length>20?lbl.slice(0,19)+"…":lbl)}</text>`});
+  s+=`<text class="axt" x="${pl+iw/2}" y="${H-5}" text-anchor="middle">${esc(o.xTitle)}</text>`;
+  s+=`</svg></div>`;
+  setTimeout(()=>{document.querySelectorAll(`#${o.id} .vbar`).forEach(el=>{
+    const it=items.find(x=>String(x.k)===el.dataset.v);
+    el.addEventListener("mousemove",e=>showTip(e,`<b>${esc(el.dataset.v)}</b><br>${fmt(it?it.n:0)} ${o.unit} — click to filter`));
     el.addEventListener("mouseleave",hideTip);
-    el.addEventListener("click",()=>{hideTip();
-      if(F.d1===d&&F.d2===d){F.d1="";F.d2=""}else{F.d1=d;F.d2=d}page=0;render()})})},0);
+    el.addEventListener("click",()=>{hideTip();toggle(o.set,el.dataset.v)})})},0);
   return s;
 }
 
 /* ---------- render ---------- */
-function ktile(icon,name,sub,val){
-  return `<div class="ktile"><div class="kicon">${icon}</div><div class="kl"><div class="kn">${name}</div>
-    <div class="ks">${sub||""}</div></div><div class="kv">${val}</div></div>`}
 function card(cls,title,hint,body,extra){
   return `<div class="card ${cls}"><div class="hdrrow"><div><h2>${title}</h2>${hint?`<div class="hint">${hint}</div>`:""}</div>${extra||""}</div>${body}</div>`}
-function fillSel(id,vals,cur,first,label){
-  document.getElementById(id).innerHTML=`<option value="">${first}</option>`+vals.map(v=>
-    `<option value="${esc(v)}" title="${esc(label?label(v):v)}" ${v===cur?"selected":""}>${esc(String(label?label(v):v).slice(0,38))}</option>`).join("");
-}
 function render(){
-  // filter controls
-  fillSel("f-actor",uniq(C.actor),F.actor,"All users");
-  fillSel("f-action",[...new Set(EV.map(r=>r[C.action]))].sort((a,b)=>aLabel(a).localeCompare(aLabel(b))),F.action,"All update types",aLabel);
-  fillSel("f-status",uniq(C.status),F.status,"All activity statuses");
-  fillSel("f-dept",uniq(C.dept),F.dept,"All departments");
-  fillSel("f-pkg",uniq(C.pkg),F.pkg,"All packages");
-  fillSel("f-atype",uniq(C.atype),F.atype,"All activity types");
-  document.getElementById("f-d1").value=F.d1;document.getElementById("f-d2").value=F.d2;
-  document.getElementById("f-q").value=F.q;
-
+  renderRail();
   const rs=rows();
-  const users=count(rs,C.actor), acts=count(rs,C.action);
-  const perUserDays=users.map(u=>({k:u.k,n:dayList(rs.filter(r=>r[C.actor]===u.k)).length}))
-                          .sort((a,b)=>b.n-a.n);
+  const byUser=(()=>{const g={};rs.forEach(r=>{g[r[C.actor]]=(g[r[C.actor]]||0)+1});
+    return Object.entries(g).map(([k,n])=>({k,n})).sort((a,b)=>b.n-a.n)})();
+  const dayPer=byUser.map(u=>({k:u.k,
+    n:new Set(rs.filter(r=>r[C.actor]===u.k).map(r=>(r[C.ts]||"").slice(0,10)).filter(Boolean)).size}))
+    .sort((a,b)=>b.n-a.n);
   const last=rs.map(r=>r[C.ts]).filter(Boolean).sort().slice(-1)[0]||"";
 
-  document.getElementById("f-count").textContent=
-    `${fmt(rs.length)} update${rs.length===1?"":"s"} · ${fmt(users.length)} users · ${fmt(nAct(rs))} activities`;
+  document.getElementById("k-upd").textContent=fmt(rs.length);
+  document.getElementById("k-last").textContent=last?dshow(last):"—";
+  document.getElementById("k-users").textContent=fmt(byUser.length);
+  document.getElementById("k-acts").textContent=fmt(new Set(rs.map(r=>r[C.tid])).size);
 
-  // active filter chips
-  const LBL={actor:"User",action:"Update type",status:"Status",dept:"Department",pkg:"Package",atype:"Activity type",
-             d1:"From",d2:"To",q:"Search"};
-  const chips=Object.keys(F).filter(k=>F[k]).map(k=>
-    `<span class="fchip" data-clr="${k}">${LBL[k]}: ${esc(k==="action"?aLabel(F[k]):F[k])} ✕</span>`).join("");
-  document.getElementById("fchips").innerHTML=chips;
+  const locs=[...new Set(EV.map(r=>r[C.loc]).filter(Boolean))].sort();
+  const ls=document.getElementById("f-loc");
+  ls.innerHTML=`<option value="">All locations${locs.length?"":" (none set)"}</option>`+
+    locs.map(v=>`<option value="${esc(v)}" ${F.loc===v?"selected":""}>${esc(v)}</option>`).join("");
+  ls.disabled=!locs.length;
 
-  document.getElementById("kpi").innerHTML=`<div class="kstrip">
-    ${ktile("&#9998;","Updates","in the current selection",fmt(rs.length))}
-    ${ktile("&#128101;","Users who updated","distinct people",fmt(users.length))}
-    ${ktile("&#128203;","Activities updated","distinct activities touched",fmt(nAct(rs)))}
-    ${ktile("&#128197;","Last update",last?dtshow(last):"—",last?dshow(last):"—")}
-  </div>`;
+  const parts=[];
+  const LBL={day:"Date",actor:"Owner",action:"Category",trade:"Trade",status:"Status"};
+  Object.keys(S).forEach(k=>S[k].forEach(v=>parts.push(
+    `<span class="fchip" data-un="${k}" data-v="${esc(v)}">${LBL[k]}: ${esc(k==="action"?aLabel(v):k==="day"?dshow(v+"T00:00:00"):v)} ✕</span>`)));
+  ["d1","d2","loc","q"].forEach(k=>{if(F[k])parts.push(
+    `<span class="fchip" data-clr="${k}">${({d1:"From",d2:"To",loc:"Location",q:"Search"})[k]}: ${esc(F[k])} ✕</span>`)});
+  document.getElementById("fchips").innerHTML=parts.join("");
 
   let h="";
-  h+=card("sp6","No of updates made by users","click a bar to filter the whole page to that user",
-    vbars(users,{id:"ch-users",fkey:"actor"}));
-  h+=card("sp6","No of days users made updates","distinct calendar days each person was active",
-    vbars(perUserDays,{id:"ch-days",fkey:"actor",unit:"active days"}));
-  h+=card("sp8","Updates over the timeline","one bar per calendar day · click a day to see only that day",
-    timeline(rs,"ch-time"));
-  h+=card("sp4","Type of action taken","click a row to filter",
-    acts.length?acts.map(a=>`<div class="arow ${F.action===a.k?"sel":""}" data-act="${esc(a.k)}">
-        <div class="an" title="${esc(aLabel(a.k))}">${esc(aLabel(a.k))}</div>
-        <div class="av">${fmt(a.n)}</div>
-        <div class="bar"><i style="width:${100*a.n/Math.max(1,acts[0].n)}%"></i></div></div>`).join("")
-      :`<div class="empty">Nothing to show.</div>`);
+  h+=card("sp6","No of Updates made by Users","click a bar to filter the page to that person",
+    vbars(byUser,{id:"ch-u",set:"actor",unit:"updates",yTitle:"Count",xTitle:"History owner"}));
+  h+=card("sp6","No of Days users made updates","distinct calendar days each person was active",
+    vbars(dayPer,{id:"ch-d",set:"actor",unit:"active days",yTitle:"Count of date range",xTitle:"History owner"}));
 
-  // the log table, columns as in the reference report
   const sorted=rs.slice().sort((a,b)=>String(b[C.ts]).localeCompare(String(a[C.ts])));
   const per=150,pages=Math.max(1,Math.ceil(sorted.length/per));
   if(page>=pages)page=0;
   const slice=sorted.slice(page*per,(page+1)*per);
   h+=card("sp12",`Update log <span class="dim" style="font-weight:400">(${fmt(sorted.length)})</span>`,
     "who updated which activity, when, and exactly what VisiLean recorded",
-    slice.length?`<div class="twrap"><table>
-      <tr><th>ID</th><th>Activity</th><th>Status</th><th>Update type</th><th>Updated by</th><th>Date &amp; time</th><th>History</th></tr>`+
+    slice.length?`<div class="twrap"><table><thead><tr><th>ID</th><th>Activity name</th><th>Status</th>
+      <th>First history owner</th><th>Updated by</th><th>History datetime</th><th>Category</th><th>History</th>
+      <th>Trade</th><th>Location</th></tr></thead><tbody>`+
       slice.map(r=>`<tr><td class="dim mono">${esc(r[C.tid])}</td>
-        <td><b>${esc(r[C.task])}</b><div class="dim" style="font-size:9.5px">${esc(r[C.pkg]||r[C.dept]||"")}</div></td>
+        <td><b>${esc(r[C.task])}</b>${r[C.pkg]?`<div class="dim" style="font-size:9.5px">${esc(r[C.pkg])}</div>`:""}</td>
         <td><span class="chip ${STONE[r[C.status]]||"mut"}">${esc(r[C.status]||"—")}</span></td>
-        <td class="dim">${esc(aLabel(r[C.action]))}</td>
+        <td class="dim">${esc(FIRST[r[C.tid]]||"—")}</td>
         <td class="who">${esc(r[C.actor])}</td>
         <td class="dim mono" style="white-space:nowrap">${dtshow(r[C.ts])}</td>
-        <td class="dim" style="min-width:320px">${esc(String(r[C.detail]).slice(0,300))}${String(r[C.detail]).length>300?"…":""}</td></tr>`).join("")
-      +`</table></div>`:`<div class="empty">No updates match the current selection.</div>`,
+        <td class="dim">${esc(aLabel(r[C.action]))}</td>
+        <td class="dim" style="min-width:300px">${esc(String(r[C.detail]).slice(0,300))}${String(r[C.detail]).length>300?"…":""}</td>
+        <td class="dim">${esc(r[C.trade]||"—")}</td>
+        <td class="dim">${esc(r[C.loc]||"—")}</td></tr>`).join("")+
+      `</tbody></table></div>`:`<div class="empty">No updates match the current selection.</div>`,
     pages>1?`<div style="display:flex;gap:6px;align-items:center">
       <button class="btn" id="pg-prev" ${page===0?"disabled":""}>&#8592; Prev</button>
-      <span class="fnote">page ${page+1} of ${pages}</span>
+      <span class="dim" style="font-size:10.5px">page ${page+1} of ${pages}</span>
       <button class="btn" id="pg-next" ${page>=pages-1?"disabled":""}>Next &#8594;</button></div>`:"");
   document.getElementById("page").innerHTML=h;
 
-  document.querySelectorAll("[data-act]").forEach(el=>el.onclick=()=>setF("action",el.dataset.act));
+  document.querySelectorAll("[data-un]").forEach(el=>el.onclick=()=>toggle(el.dataset.un,el.dataset.v));
   document.querySelectorAll("[data-clr]").forEach(el=>el.onclick=()=>{F[el.dataset.clr]="";page=0;render()});
   const p=document.getElementById("pg-prev"),n=document.getElementById("pg-next");
   if(p)p.onclick=()=>{if(page>0){page--;render()}};
   if(n)n.onclick=()=>{page++;render()};
 }
 
-/* ---------- header + controls ---------- */
-document.getElementById("h-title").textContent=M.projectShort||M.project;
-{const ex=(M.excluded||[]).length?`<span class="chip mut" title="${esc((M.excluded||[]).join(', '))} — the VisiLean administrator (bulk MPP imports and owner reassignment). Excluded so this reads as the site teams' own updating.">admin account excluded</span>`:"";
+/* ---------- header meta + controls ---------- */
+document.getElementById("h-badge").textContent=(M.projectShort||M.project||"").replace(/\s*·.*$/,"");
+{const ex=(M.excluded||[]).length?`<span class="chip mut" title="${esc((M.excluded||[]).join(', '))} — the VisiLean administrator (bulk MPP imports and owner reassignment), excluded so this reads as the site teams' own updating.">admin account excluded</span>`:"";
  document.getElementById("h-meta").innerHTML=
-  `${esc(M.client||"")} · LIVE from VisiLean · <span style="color:var(--blue);font-weight:600">last data change ${esc(M.generatedAt||"")}</span>`
-  +` <span class="chip mut">${fmt(M.events)} updates</span>`
-  +` <span class="chip mut">${esc(dshow(M.firstEvent+"T00:00:00"))} → ${esc(dshow(M.lastEvent+"T00:00:00"))}</span> ${ex}`;}
+  `${esc(M.projectShort||"")} · ${esc(M.client||"")} · LIVE from VisiLean · <span style="color:var(--blue);font-weight:600">last data change ${esc(M.generatedAt||"")}</span>`
+  +` <span class="chip mut">${fmt(M.events)} updates in the trail</span>`
+  +` <span class="chip mut">${esc(dshow(M.firstEvent+"T00:00:00"))} → ${esc(dshow(M.lastEvent+"T00:00:00"))}</span> ${ex}`
+  +((M.locFilled===0)?` <span class="chip warn" title="VisiLean carries no location on any updated activity in this project, so the Location column and filter stay empty until the team sets it.">no location set in VisiLean</span>`:"");}
 
-["actor","action","status","dept","pkg","atype"].forEach(k=>
-  document.getElementById("f-"+k).addEventListener("change",e=>{F[k]=e.target.value;page=0;render()}));
-document.getElementById("f-d1").addEventListener("change",e=>{F.d1=e.target.value;page=0;render()});
-document.getElementById("f-d2").addEventListener("change",e=>{F.d2=e.target.value;page=0;render()});
-{let t=null;const q=document.getElementById("f-q");
- q.addEventListener("input",()=>{clearTimeout(t);t=setTimeout(()=>{F.q=q.value;page=0;render();
-   const el=document.getElementById("f-q");if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}},250)})}
-document.getElementById("f-reset").addEventListener("click",()=>{
-  Object.keys(F).forEach(k=>F[k]="");page=0;render()});
+document.getElementById("f-loc").addEventListener("change",e=>{F.loc=e.target.value;page=0;render()});
 document.getElementById("btn-csv").addEventListener("click",()=>{
-  const head=["ID","Activity","Status","Update type","Updated by","Date & time","Department","Activity type","Package","Ownership","History"];
+  const head=["ID","Activity name","Status","First history owner","Updated by","History datetime","Category",
+              "History","Trade","Location","Department","Activity type","Package","Ownership"];
   const q=s=>`"${String(s==null?"":s).replace(/"/g,'""')}"`;
-  const csv=[head.map(q).join(",")].concat(rows().map(r=>[r[C.tid],r[C.task],r[C.status],aLabel(r[C.action]),
-    r[C.actor],dtshow(r[C.ts]),r[C.dept],r[C.atype],r[C.pkg],r[C.ownship],r[C.detail]].map(q).join(","))).join("\r\n");
+  const csv=[head.map(q).join(",")].concat(rows().map(r=>[r[C.tid],r[C.task],r[C.status],FIRST[r[C.tid]]||"",
+    r[C.actor],dtshow(r[C.ts]),aLabel(r[C.action]),r[C.detail],r[C.trade],r[C.loc],r[C.dept],r[C.atype],
+    r[C.pkg],r[C.ownship]].map(q).join(","))).join("\r\n");
   const a=document.createElement("a");
   a.href=URL.createObjectURL(new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8"}));
   a.download="ntpc-user-updates-"+(M.lastEvent||"")+".csv";document.body.appendChild(a);a.click();a.remove()});
