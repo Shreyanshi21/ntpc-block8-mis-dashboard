@@ -59,9 +59,10 @@ IST = timezone(timedelta(hours=5, minutes=30))
 # events were one bulk import sweep) and then reassigns owners and dates. Counting that
 # as "adoption" drowned out the site teams' own updating, so KP asked (07-Sep) for it to
 # come out. Clear this set to put an account back in.
-EXCLUDE_ACTORS = {"shreyanshi jaiswal", "monika sen"}
-# monika sen owns no task on this project and VisiLean records no department for her, so KP
-# asked (09-Sep-2026) for her out of the picture rather than carried with a hand-set one.
+EXCLUDE_ACTORS = {"shreyanshi jaiswal"}
+# Excluding anyone here removes them from BOTH reports, since the two share this data file.
+# monika sen is hidden from the User Updates Report only, so that lives in
+# updates_template.html (HIDE_ACTORS) rather than here - KP asked for it there alone.
 
 FEEDS = {
     "task": ("VL_TOKEN_ADOPT_TASK", ""),

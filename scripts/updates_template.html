@@ -210,7 +210,13 @@ const fixEnc=s=>String(s==null?"":s).replace(/â€”/g,"—").replace(/â€�
   .replace(/â€™/g,"’").replace(/â€œ/g,"“").replace(/â€\u009d/g,"”")
   .replace(/Â(?=[\u00A0-\u00BF])/g,"");
 ["project","projectShort","client","source"].forEach(k=>{if(typeof M[k]==="string")M[k]=fixEnc(M[k])});
-const EV = DATA.events;
+/* Hidden from THIS report only - the adoption report shares the same data file and still
+   shows them. Everything downstream derives from EV, so one filter covers the KPIs, the
+   slicers, both charts, the week summary and the log. (KP, 09-Sep-2026: monika sen.) */
+const HIDE_ACTORS=new Set(["monika sen"]);
+const EV = DATA.events.filter(r=>!HIDE_ACTORS.has(String(r[C.actor]||"").trim().toLowerCase()));
+const HIDDEN_PRESENT=new Set(DATA.events.map(r=>String(r[C.actor]||"").trim().toLowerCase())
+  .filter(a=>HIDE_ACTORS.has(a))).size;          // so the roster count stays honest below
 
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const fmt=n=>Number(n||0).toLocaleString();
@@ -461,7 +467,7 @@ function weekSummary(){
     .sort((a,b)=>String(b.last).localeCompare(String(a.last)));   // most recently quiet first
   const wlbl=`${dshow(a+"T00:00:00")} – ${dshow(b+"T00:00:00")}`;
   const clean=!(S.actor.size||S.action.size||S.trade.size||S.status.size||F.loc||F.q);
-  const never=Math.max(0,(M.rosterSize||0)-known.length);
+  const never=Math.max(0,(M.rosterSize||0)-HIDDEN_PRESENT-known.length);   // hidden users are on the roster but not in this report
   const dlt=(n,o,unit)=>{const d=n-o;if(!prv.length)return `<span class="chip mut" style="margin-left:5px">first week in the trail</span>`;
     return `<span class="chip ${d>0?"good":d<0?"crit":"mut"}" style="margin-left:5px">${d>0?"▲":d<0?"▼":"="} ${fmt(Math.abs(d))} ${unit} vs previous week</span>`};
   const tile=(v,l,s,fil)=>`<div class="wtile${fil?"":" flat"}"${fil?' data-wkf="1" title="filter the whole page to this week"':""}>
