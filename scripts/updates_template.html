@@ -139,8 +139,8 @@ tbody tr:hover td{background:var(--blue-wash)}
 .empty{padding:26px 8px;text-align:center;color:var(--mut);font-size:11.5px}
 
 /* ---------- summary of the week ---------- */
-.wtop{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
-@media(max-width:1000px){.wtop{grid-template-columns:repeat(2,1fr)}}
+.wtop{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+@media(max-width:1000px){.wtop{grid-template-columns:1fr}}
 .wtile{border:1px solid var(--line2);border-radius:11px;padding:10px 13px;background:var(--page);cursor:pointer;transition:.12s}
 .wtile:hover{border-color:var(--blue);background:var(--blue-wash)}
 .wtile.flat,.wtile.flat:hover{cursor:default;border-color:var(--line2);background:var(--page)}
@@ -157,9 +157,11 @@ tbody tr:hover td{background:var(--blue-wash)}
 .urow .rk{font-size:10px;font-weight:800;color:var(--mut);text-align:right}
 .urow .nm{font-size:11.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .urow .n{font-size:11.5px;font-weight:800;text-align:right;font-variant-numeric:tabular-nums}
+.urow .dept{margin-left:7px;font-size:10px;font-weight:600;color:var(--mut)}
+.urow .last{font-size:10px;color:var(--mut);text-align:right;font-variant-numeric:tabular-nums}
+.urow .rk.dot{color:var(--b3)}
 .mbar{height:7px;border-radius:4px;background:var(--grid);overflow:hidden}
 .mbar i{display:block;height:100%;border-radius:4px}
-.silent{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-top:11px}
 
 /* charts */
 .vbar{cursor:pointer;transition:opacity .12s}
@@ -202,6 +204,12 @@ svg text{fill:var(--mut);font-family:inherit}
 <script>
 const DATA = __DATA__;
 const M = DATA.meta, C = {}; DATA.cols.forEach((c,i)=>C[c]=i);
+/* UTF-8 read back as ANSI turns "·" into "Â·" and the dashes and quotes into "â€..."
+   sequences; repair the few strings that reach the header rather than show the mojibake */
+const fixEnc=s=>String(s==null?"":s).replace(/â€”/g,"—").replace(/â€“/g,"–")
+  .replace(/â€™/g,"’").replace(/â€œ/g,"“").replace(/â€\u009d/g,"”")
+  .replace(/Â(?=[\u00A0-\u00BF])/g,"");
+["project","projectShort","client","source"].forEach(k=>{if(typeof M[k]==="string")M[k]=fixEnc(M[k])});
 const EV = DATA.events;
 
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -385,6 +393,23 @@ function vbars(items,o){
    number reads as "went quiet", not "outside the chosen dates" - which is why the
    universe is built with keep(r,"date"), ignoring the date filters but honouring the
    Trade / Category / Status / Owner slicers. */
+/* The department beside a name is VisiLean's "Owner." custom field - the department that
+   owns the activity (Quality, Procurement, Design & Engineering, Project, SCM, F&A ...).
+   It sits on the activity rather than the person, and most people update across several,
+   so credit each person with the one they update most and keep the full split in the
+   tooltip. Where "Owner." is blank the feed falls back to the task's assignee, so a value
+   that is somebody's name is skipped - a person is not a department. */
+const PEOPLE=new Set(EV.map(r=>String(r[C.actor]||"").trim().toLowerCase()).filter(Boolean));
+const DEPT=(()=>{const g={};
+  EV.forEach(r=>{const d=String(r[C.owner]||"").trim();
+    if(!d||PEOPLE.has(d.toLowerCase()))return;
+    const a=r[C.actor];g[a]=g[a]||{};g[a][d]=(g[a][d]||0)+1});
+  const out={};Object.entries(g).forEach(([a,v])=>{
+    const ds=Object.entries(v).sort((x,y)=>y[1]-x[1]);
+    out[a]={label:ds[0][0],title:`Owner. on the activities ${a} updates: `+ds.map(([k,n])=>`${k} (${n})`).join(" · ")}});
+  return out})();
+const deptOf=a=>DEPT[a]||{label:"department not set",title:'VisiLean carries no "Owner." on the activities this person updates'};
+
 let WK="";
 const dAdd=(d,n)=>{const x=new Date(d+"T12:00:00Z");x.setUTCDate(x.getUTCDate()+n);return x.toISOString().slice(0,10)};
 const dMon=d=>dAdd(d,-((new Date(d+"T12:00:00Z").getUTCDay()+6)%7));
@@ -404,7 +429,10 @@ function weekSummary(){
   const dys=u=>new Set(cur.filter(r=>r[C.actor]===u).map(r=>(r[C.ts]||"").slice(0,10))).size;
   const rank=act.map(u=>({k:u,n:gc[u],d:dys(u)})).sort((x,y)=>y.n-x.n||x.k.localeCompare(y.k));
   const mx=Math.max(1,...rank.map(x=>x.n));
-  const top=rank.slice(0,5),bot=rank.slice(-5).reverse();      // weakest first
+  const top=rank.slice(0,5);
+  const idleRows=idle.map(u=>{const rs=univ.filter(r=>r[C.actor]===u);
+      return {k:u,tot:rs.length,last:rs.map(r=>r[C.ts]).filter(Boolean).sort().slice(-1)[0]||""}})
+    .sort((a,b)=>String(b.last).localeCompare(String(a.last)));   // most recently quiet first
   const wlbl=`${dshow(a+"T00:00:00")} – ${dshow(b+"T00:00:00")}`;
   const clean=!(S.actor.size||S.action.size||S.trade.size||S.status.size||F.loc||F.q);
   const never=Math.max(0,(M.rosterSize||0)-known.length);
@@ -412,29 +440,32 @@ function weekSummary(){
     return `<span class="chip ${d>0?"good":d<0?"crit":"mut"}" style="margin-left:5px">${d>0?"▲":d<0?"▼":"="} ${fmt(Math.abs(d))} ${unit} vs previous week</span>`};
   const tile=(v,l,s,fil)=>`<div class="wtile${fil?"":" flat"}"${fil?' data-wkf="1" title="filter the whole page to this week"':""}>
     <div class="v">${v}</div><div class="l">${l}</div><div class="s">${s}</div></div>`;
+  const nameCell=k=>{const d=deptOf(k);
+    return `<div class="nm">${esc(k)}<span class="dept" title="${esc(d.title)}">${esc(d.label)}</span></div>`};
   const ulist=(arr,col,rk)=>arr.length?arr.map((x,i)=>`<div class="urow${S.actor.has(x.k)?" on":""}" data-un="actor" data-v="${esc(x.k)}"
       title="${esc(x.k)} — ${fmt(x.n)} update${x.n===1?"":"s"} on ${x.d} day${x.d===1?"":"s"} this week · click to filter the page to this person">
-      <div class="rk">${rk(i)}</div><div class="nm">${esc(x.k)}</div>
+      <div class="rk">${rk(i)}</div>${nameCell(x.k)}
       <div class="mbar"><i style="width:${Math.max(4,100*x.n/mx).toFixed(1)}%;background:${col}"></i></div>
       <div class="n">${fmt(x.n)}</div></div>`).join("")
     :`<div class="dim" style="font-size:10.5px;padding:8px 2px">nobody updated in this week</div>`;
+  /* the people who went quiet, most recently active first, with the department they work in */
+  const ilist=arr=>arr.length?arr.map(x=>`<div class="urow${S.actor.has(x.k)?" on":""}" data-un="actor" data-v="${esc(x.k)}"
+      title="${esc(x.k)} — no update this week · ${fmt(x.tot)} update${x.tot===1?"":"s"} in the trail${x.last?`, last on ${dshow(x.last)}`:""} · click to filter the page to this person">
+      <div class="rk dot">•</div>${nameCell(x.k)}
+      <div class="last">${x.last?dshow(x.last):"never"}</div>
+      <div class="n">${fmt(x.tot)}</div></div>`).join("")
+    :`<div class="dim" style="font-size:10.5px;padding:8px 2px">everyone updated in this week</div>`;
   const body=`<div class="wtop">
       ${tile(fmt(act.length),"Active users this week",
         `of ${fmt(known.length)} who have ever updated on this project${dlt(act.length,Object.keys(gp).length,"users")}`,1)}
       ${tile(fmt(idle.length),"Inactive users this week",
         (idle.length?`no update between ${wlbl}`:`everyone updated in this week`)+
         (clean&&never>0?` · ${never} more on the VisiLean roster have never updated at all`:""),0)}
-      ${tile(fmt(cur.length),"Updates in the week",dlt(cur.length,prv.length,"updates"),1)}
-      ${tile(fmt(new Set(cur.map(r=>r[C.tid])).size),"Activities touched",
-        `distinct activities updated · ${fmt(new Set(cur.map(r=>(r[C.ts]||"").slice(0,10))).size)} of 7 days had activity`,1)}
     </div>
-    ${idle.length?`<div class="silent"><span class="lbl" style="margin:0">Silent this week</span>
-      ${idle.map(u=>`<span class="chip mut" title="${esc(u)} made no update between ${wlbl}">${esc(u)}</span>`).join("")}</div>`:""}
     <div class="wcols">
       <div><div class="lbl">Top 5 users · most updates this week</div>${ulist(top,"var(--b2)",i=>i+1)}</div>
-      <div><div class="lbl">Bottom 5 users · fewest updates this week${rank.length<10?
-        ` <span class="dim" style="font-weight:400;text-transform:none;letter-spacing:0">— only ${rank.length} active, so these overlap the top 5</span>`:""}</div>
-        ${ulist(bot,"var(--b4)",i=>rank.length-i)}</div>
+      <div><div class="lbl">Inactive users this week · department, last update, updates in the trail</div>
+        ${ilist(idleRows)}</div>
     </div>`;
   const pick=`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
     <select id="wk-sel" title="pick the week">${wks.slice().reverse().map(w=>
