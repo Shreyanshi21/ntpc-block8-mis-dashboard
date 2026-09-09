@@ -204,6 +204,12 @@ svg text{fill:var(--mut);font-family:inherit}
 <script>
 const DATA = __DATA__;
 const M = DATA.meta, C = {}; DATA.cols.forEach((c,i)=>C[c]=i);
+/* UTF-8 read back as ANSI turns "·" into "Â·" and the dashes and quotes into "â€..."
+   sequences; repair the few strings that reach the header rather than show the mojibake */
+const fixEnc=s=>String(s==null?"":s).replace(/â€”/g,"—").replace(/â€“/g,"–")
+  .replace(/â€™/g,"’").replace(/â€œ/g,"“").replace(/â€\u009d/g,"”")
+  .replace(/Â(?=[\u00A0-\u00BF])/g,"");
+["project","projectShort","client","source"].forEach(k=>{if(typeof M[k]==="string")M[k]=fixEnc(M[k])});
 const EV = DATA.events;
 
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -387,23 +393,22 @@ function vbars(items,o){
    number reads as "went quiet", not "outside the chosen dates" - which is why the
    universe is built with keep(r,"date"), ignoring the date filters but honouring the
    Trade / Category / Status / Owner slicers. */
-/* The department beside a name: VisiLean records Department on the activity, not on the
-   person, and most people touch several. So credit each person with the department they
-   update most and keep the full split in the tooltip. Two users have no department on any
-   of their activities - for them show their VisiLean ownership instead, and say so. */
+/* The department beside a name is VisiLean's "Owner." custom field - the department that
+   owns the activity (Quality, Procurement, Design & Engineering, Project, SCM, F&A ...).
+   It sits on the activity rather than the person, and most people update across several,
+   so credit each person with the one they update most and keep the full split in the
+   tooltip. Where "Owner." is blank the feed falls back to the task's assignee, so a value
+   that is somebody's name is skipped - a person is not a department. */
+const PEOPLE=new Set(EV.map(r=>String(r[C.actor]||"").trim().toLowerCase()).filter(Boolean));
 const DEPT=(()=>{const g={};
-  EV.forEach(r=>{const a=r[C.actor];g[a]=g[a]||{d:{},o:{}};
-    if(r[C.dept])g[a].d[r[C.dept]]=(g[a].d[r[C.dept]]||0)+1;
-    if(r[C.ownship])g[a].o[r[C.ownship]]=(g[a].o[r[C.ownship]]||0)+1});
+  EV.forEach(r=>{const d=String(r[C.owner]||"").trim();
+    if(!d||PEOPLE.has(d.toLowerCase()))return;
+    const a=r[C.actor];g[a]=g[a]||{};g[a][d]=(g[a][d]||0)+1});
   const out={};Object.entries(g).forEach(([a,v])=>{
-    const ds=Object.entries(v.d).sort((x,y)=>y[1]-x[1]),os=Object.entries(v.o).sort((x,y)=>y[1]-x[1]);
-    out[a]=ds.length
-      ?{label:ds[0][0].replace(/^\d+\s+/,""),title:"Updates activities in: "+ds.map(([k,n])=>`${k} (${n})`).join(" · ")}
-      :{label:os.length?os[0][0]:"department not set",
-        title:os.length?`VisiLean carries no Department on this person's activities - showing their ownership instead (${os.map(([k])=>k).join(", ")})`
-                       :"VisiLean carries no Department on this person's activities"}});
+    const ds=Object.entries(v).sort((x,y)=>y[1]-x[1]);
+    out[a]={label:ds[0][0],title:`Owner. on the activities ${a} updates: `+ds.map(([k,n])=>`${k} (${n})`).join(" · ")}});
   return out})();
-const deptOf=a=>DEPT[a]||{label:"department not set",title:"VisiLean carries no Department on this person's activities"};
+const deptOf=a=>DEPT[a]||{label:"department not set",title:'VisiLean carries no "Owner." on the activities this person updates'};
 
 let WK="";
 const dAdd=(d,n)=>{const x=new Date(d+"T12:00:00Z");x.setUTCDate(x.getUTCDate()+n);return x.toISOString().slice(0,10)};
