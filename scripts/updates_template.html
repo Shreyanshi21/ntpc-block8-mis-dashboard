@@ -399,28 +399,31 @@ function vbars(items,o){
    so credit each person with the one they update most and keep the full split in the
    tooltip. Where "Owner." is blank the feed falls back to the task's assignee, so a value
    that is somebody's name is skipped - a person is not a department. */
+/* The department beside a name is the one VisiLean records for the user: on the plain
+   type=task feed `owner` is the user and `organisation` is that user's department, and the
+   builder passes that mapping through as meta.deptByUser. It is a recorded fact, not an
+   inference - which matters, because the department that owns the activities somebody
+   updates is often not their own (Fenil Rana is in Project and updates Procurement's work).
+   A user who owns no task has no entry, so for them fall back to the departments that own
+   the activities they update, and say so in the tooltip. */
+const USER_DEPT={};Object.entries(M.deptByUser||{}).forEach(([k,v])=>{USER_DEPT[String(k).trim().toLowerCase()]=v});
 const PEOPLE=new Set(EV.map(r=>String(r[C.actor]||"").trim().toLowerCase()).filter(Boolean));
-/* People whose own department is not the one they update most. VisiLean has no department
-   field on a user, so where the activity split reads wrong, KP's answer is recorded here -
-   one line per person. Fenil Rana is in Project even though most activities he updates are
-   owned by Procurement (KP, 09-Sep-2026). */
-const DEPT_OVERRIDE={"fenil rana":"Project"};
-const ovr=a=>DEPT_OVERRIDE[String(a||"").trim().toLowerCase()];
-const DEPT=(()=>{const g={};
+const ACT_DEPT=(()=>{const g={};
   EV.forEach(r=>{const d=String(r[C.owner]||"").trim();
-    if(!d||PEOPLE.has(d.toLowerCase()))return;
+    if(!d||PEOPLE.has(d.toLowerCase()))return;                 // a person is not a department
     const a=r[C.actor];g[a]=g[a]||{};g[a][d]=(g[a][d]||0)+1});
   const out={};Object.entries(g).forEach(([a,v])=>{
-    const ds=Object.entries(v).sort((x,y)=>y[1]-x[1]),o=ovr(a);
-    out[a]=o
-      ?{label:o,title:`${a} works in ${o} · updates activities owned by: `+ds.map(([k,n])=>`${k} (${n})`).join(" · ")}
-      :{label:ds[0][0],title:`Owner. on the activities ${a} updates: `+ds.map(([k,n])=>`${k} (${n})`).join(" · ")}});
-  Object.keys(DEPT_OVERRIDE).forEach(k=>{                      // keep a correction even with no matching trail
-    if(!Object.keys(out).some(a=>a.trim().toLowerCase()===k))
-      out[k]={label:DEPT_OVERRIDE[k],title:`works in ${DEPT_OVERRIDE[k]}`}});
+    const ds=Object.entries(v).sort((x,y)=>y[1]-x[1]);
+    out[a]={label:ds[0][0],split:ds.map(([k,n])=>`${k} (${n})`).join(" · ")}});
   return out})();
-const deptOf=a=>DEPT[a]||(ovr(a)?{label:ovr(a),title:`works in ${ovr(a)}`}
-  :{label:"department not set",title:'VisiLean carries no "Owner." on the activities this person updates'});
+function deptOf(a){
+  const rec=USER_DEPT[String(a||"").trim().toLowerCase()],inf=ACT_DEPT[a];
+  if(rec)return{label:rec,title:`${a} — department recorded in VisiLean: ${rec}`
+    +(inf?` · updates activities owned by ${inf.split}`:"")};
+  if(inf)return{label:inf.label,
+    title:`VisiLean has no task owned by ${a}, so this is taken from the activities they update: ${inf.split}`};
+  return{label:"department not set",title:"VisiLean records no department for this user"};
+}
 
 let WK="";
 const dAdd=(d,n)=>{const x=new Date(d+"T12:00:00Z");x.setUTCDate(x.getUTCDate()+n);return x.toISOString().slice(0,10)};

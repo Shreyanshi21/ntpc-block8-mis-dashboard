@@ -145,6 +145,21 @@ for k, (n, c) in cand.items():
     if k not in owners and c >= 3:          # credited at least three times = a real actor
         roster.append(n)
 roster = sorted(set(roster))   # parsing vocabulary - keeps excluded names so their events are still recognised (and then dropped)
+
+# Department of each user. On the plain type=task feed VisiLean carries the user in `owner`
+# and that user's department in `organisation` (KP, 09-Sep-2026), so this is the recorded
+# answer rather than something inferred from which activities a person happens to update.
+# One entry per user; a user who owns no task simply has none.
+_by_user = {}
+for r in FEED["task"]:
+    who = " ".join(str(r.get("owner") or "").split())
+    org = " ".join(str(r.get("organisation") or "").split())
+    if who and org:
+        _by_user.setdefault(who, {})
+        _by_user[who][org] = _by_user[who].get(org, 0) + 1
+dept_by_user = {who: max(orgs.items(), key=lambda kv: kv[1])[0] for who, orgs in _by_user.items()}
+print("departments from the task feed (%d users): %s"
+      % (len(dept_by_user), ", ".join("%s=%s" % kv for kv in sorted(dept_by_user.items()))))
 ROSTER_RE = re.compile("(" + "|".join(re.escape(n) for n in sorted(roster, key=len, reverse=True)) + ")")
 print("roster (%d): %s" % (len(roster), ", ".join(roster)))
 
@@ -260,6 +275,7 @@ meta = {
     "tasks": len({e[3] for e in events}),
     "actors": len(actors),
     "rosterSize": len([n for n in roster if n.lower() not in EXCLUDE_ACTORS]),
+    "deptByUser": dept_by_user,
     "tasksInProject": len(FEED["task"]),
     "locFilled": sum(1 for e in events if e[7]),
     "firstEvent": lo.strftime("%Y-%m-%d") if lo else "",
