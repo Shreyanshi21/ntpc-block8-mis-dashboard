@@ -452,16 +452,8 @@ function weekSummary(){
   const known=[...new Set(univ.map(r=>r[C.actor]))];
   const act=known.filter(u=>gc[u]),idle=known.filter(u=>!gc[u]).sort();
   const dys=u=>new Set(cur.filter(r=>r[C.actor]===u).map(r=>(r[C.ts]||"").slice(0,10))).size;
-  const rank=act.map(u=>({k:u,n:gc[u],d:dys(u)})).sort((x,y)=>y.n-x.n||x.k.localeCompare(y.k));
-  /* Top 5 is over the whole trail, deliberately not the selected week - in a quiet week the
-     week-scoped list showed a single name and said nothing about who carries the updating.
-     It still honours the Owner / Category / Trade / Status slicers, through univ. */
-  const gAll={};univ.forEach(r=>{gAll[r[C.actor]]=(gAll[r[C.actor]]||0)+1});
-  const daysAll=u=>new Set(univ.filter(r=>r[C.actor]===u).map(r=>(r[C.ts]||"").slice(0,10)).filter(Boolean)).size;
-  const rankAll=Object.keys(gAll).map(u=>({k:u,n:gAll[u],d:daysAll(u)}))
-    .sort((x,y)=>y.n-x.n||x.k.localeCompare(y.k));
-  const mx=Math.max(1,...rankAll.map(x=>x.n));
-  const top=rankAll.slice(0,5);
+  /* who did update this week, busiest first - the mirror of the inactive list beside it */
+  const actRows=act.map(u=>({k:u,n:gc[u],d:dys(u)})).sort((x,y)=>y.n-x.n||x.k.localeCompare(y.k));
   const idleRows=idle.map(u=>{const rs=univ.filter(r=>r[C.actor]===u);
       return {k:u,tot:rs.length,last:rs.map(r=>r[C.ts]).filter(Boolean).sort().slice(-1)[0]||""}})
     .sort((a,b)=>String(b.last).localeCompare(String(a.last)));   // most recently quiet first
@@ -474,12 +466,12 @@ function weekSummary(){
     <div class="v">${v}</div><div class="l">${l}</div><div class="s">${s}</div></div>`;
   const nameCell=k=>{const d=deptOf(k);
     return `<div class="nm">${esc(k)}<span class="dept" title="${esc(d.title)}">${esc(d.label)}</span></div>`};
-  const ulist=(arr,col,rk)=>arr.length?arr.map((x,i)=>`<div class="urow${S.actor.has(x.k)?" on":""}" data-un="actor" data-v="${esc(x.k)}"
-      title="${esc(x.k)} — ${fmt(x.n)} update${x.n===1?"":"s"} on ${x.d} day${x.d===1?"":"s"} in the trail · click to filter the page to this person">
-      <div class="rk">${rk(i)}</div>${nameCell(x.k)}
-      <div class="mbar"><i style="width:${Math.max(4,100*x.n/mx).toFixed(1)}%;background:${col}"></i></div>
+  const alist=arr=>arr.length?arr.map(x=>`<div class="urow${S.actor.has(x.k)?" on":""}" data-un="actor" data-v="${esc(x.k)}"
+      title="${esc(x.k)} — ${fmt(x.n)} update${x.n===1?"":"s"} on ${x.d} of this week's days · click to filter the page to this person">
+      <div class="rk dot">•</div>${nameCell(x.k)}
+      <div class="last">${x.d} day${x.d===1?"":"s"}</div>
       <div class="n">${fmt(x.n)}</div></div>`).join("")
-    :`<div class="dim" style="font-size:10.5px;padding:8px 2px">nobody has updated in this selection</div>`;
+    :`<div class="dim" style="font-size:10.5px;padding:8px 2px">nobody updated in this week</div>`;
   /* the people who went quiet, most recently active first, with the department they work in */
   const ilist=arr=>arr.length?arr.map(x=>`<div class="urow${S.actor.has(x.k)?" on":""}" data-un="actor" data-v="${esc(x.k)}"
       title="${esc(x.k)} — no update this week · ${fmt(x.tot)} update${x.tot===1?"":"s"} in the trail${x.last?`, last on ${dshow(x.last)}`:""} · click to filter the page to this person">
@@ -495,7 +487,7 @@ function weekSummary(){
         (clean&&never>0?` · ${never} more on the VisiLean roster have never updated at all`:""),0)}
     </div>
     <div class="wcols">
-      <div><div class="lbl">Top 5 users · most updates in the trail <span class="dim" style="font-weight:400;text-transform:none;letter-spacing:0">— all dates, not just this week</span></div>${ulist(top,"var(--b2)",i=>i+1)}</div>
+      <div><div class="lbl">Active users this week · department, days active, updates this week</div>${alist(actRows)}</div>
       <div><div class="lbl">Inactive users this week · department, last update, updates in the trail</div>
         ${ilist(idleRows)}</div>
     </div>`;
