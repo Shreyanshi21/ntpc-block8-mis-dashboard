@@ -484,7 +484,7 @@ function weekSummary(){
         `of ${fmt(known.length)} who have ever updated on this project${dlt(act.length,Object.keys(gp).length,"users")}`,1)}
       ${tile(fmt(idle.length),"Inactive users this week",
         (idle.length?`no update between ${wlbl}`:`everyone updated in this week`)+
-        (clean&&never>0?` · ${never} more on the VisiLean roster have never updated at all`:""),0)}
+        (clean&&never>0?` · ${never} more have never updated at all, listed below`:""),0)}
     </div>
     <div class="wcols">
       <div><div class="lbl">Active users this week · department, days active, updates this week</div>${alist(actRows)}</div>
@@ -498,6 +498,28 @@ function weekSummary(){
   return card("sp12",`Summary of the week <span class="dim" style="font-weight:400">(${wlbl})</span>`,
     "Mon–Sun · active vs inactive users, and who did the most and the least · click any tile or name to drill in",
     body,pick);
+}
+
+/* ---------- assigned work but never updated ----------
+   People the schedule gives activities to who have never once updated in VisiLean. They
+   cannot show up anywhere else on this page - it is built from the audit trail and they
+   have no rows in it - yet an assignee who has never opened VisiLean is the plainest
+   adoption gap there is, so name them with what they are holding. Deliberately not
+   week-scoped: "never" means never. */
+function neverUpdatedCard(){
+  const acted=new Set(EV.map(r=>String(r[C.actor]||"").trim().toLowerCase()));
+  const never=(M.assignees||[]).filter(a=>!acted.has(String(a.name||"").trim().toLowerCase())
+    && !HIDE_ACTORS.has(String(a.name||"").trim().toLowerCase()));
+  if(!never.length)return "";
+  const tot=never.reduce((s,a)=>s+(a.tasks||0),0),mx=Math.max(1,...never.map(a=>a.tasks||0));
+  return card("sp12",`Assigned work but never updated <span class="dim" style="font-weight:400">(${never.length} user${never.length===1?"":"s"})</span>`,
+    "activities are assigned to them in VisiLean, yet the trail holds no update from them at all — not this week, not ever",
+    never.map(a=>`<div class="urow" style="cursor:default" title="${esc(a.name)} holds ${fmt(a.tasks)} activities and has never updated in VisiLean">
+        <div class="rk dot" style="color:var(--crit)">•</div>
+        <div class="nm">${esc(a.name)}${a.dept?`<span class="dept">${esc(a.dept)}</span>`:""}</div>
+        <div class="mbar"><i style="width:${Math.max(4,100*(a.tasks||0)/mx).toFixed(1)}%;background:var(--crit)"></i></div>
+        <div class="n">${fmt(a.tasks)}</div></div>`).join(""),
+    `<span class="chip crit">${fmt(tot)} activities with nobody updating them</span>`);
 }
 
 /* ---------- render ---------- */
@@ -541,6 +563,7 @@ function render(){
     usersOverTime(rs,"ch-au"),
     peakDay?`<span class="chip info">peak ${dayUsers[peakDay].size} users on ${dshow(peakDay+"T00:00:00")}</span>`:"");
   h+=weekSummary();
+  h+=neverUpdatedCard();
   h+=card("sp6","No of Updates made by Users","click a bar to filter the page to that person",
     vbars(byUser,{id:"ch-u",set:"actor",unit:"updates",yTitle:"Count",xTitle:"History owner"}));
   h+=card("sp6","No of Days users made updates","distinct calendar days each person was active",

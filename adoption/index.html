@@ -533,28 +533,9 @@ function tabOverview(rows){
 }
 
 /* ---------- TAB: people ---------- */
-/* Users the schedule assigns work to who have never updated anything. They cannot appear
-   anywhere else in this report - it is built from the audit trail, and they have no rows in
-   it - yet an assignee who has never opened VisiLean is the clearest adoption gap there is,
-   so they are named here with what they have been given. */
-function neverUpdated(){
-  const acted=new Set(EV.map(r=>String(r[C.actor]||"").trim().toLowerCase()));
-  return (M.assignees||[]).filter(a=>!acted.has(String(a.name||"").trim().toLowerCase()));
-}
 function tabPeople(rows){
   const users=groupCount(rows,C.actor);
   let h=`<div class="grid">`;
-  const never=neverUpdated();
-  if(never.length){
-    const tot=never.reduce((s,a)=>s+(a.tasks||0),0),mx=Math.max(1,...never.map(a=>a.tasks||0));
-    h+=card("sp12",`Assigned work but never updated <span class="dim" style="font-weight:400">(${never.length} user${never.length===1?"":"s"})</span>`,
-      "activities are assigned to them in VisiLean, yet the audit trail holds no update from them at all",
-      never.map(a=>`<div class="brow"><div class="bn" title="${esc(a.name)}${a.dept?" · "+esc(a.dept):""}">${esc(a.name)}${
-          a.dept?` <span class="dim" style="font-size:10px">${esc(a.dept)}</span>`:""}</div>
-        <div class="bv">${fmt(a.tasks)} <span class="dim">activities assigned</span></div>
-        <div class="bar"><i style="width:${100*(a.tasks||0)/mx}%;background:var(--crit)"></i></div></div>`).join(""),
-      `<span class="chip crit">${fmt(tot)} activities with nobody updating them</span>`);
-  }
   h+=card("sp6","Updates by user","who is carrying the updating · click a number",
     users.map(x=>{const rs=rows.filter(r=>r[C.actor]===x.k),max=users[0].n;
       return `<div class="brow"><div class="bn" title="${esc(x.k)}">${esc(x.k)}</div>
