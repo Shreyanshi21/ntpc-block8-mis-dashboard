@@ -563,12 +563,13 @@ function render(){
 
 /* ---------- header meta + controls ---------- */
 document.getElementById("h-badge").textContent=(M.projectShort||M.project||"").replace(/\s*·.*$/,"");
-{const ex=(M.excluded||[]).length?`<span class="chip mut" title="${esc((M.excluded||[]).join(', '))} — the VisiLean administrator (bulk MPP imports and owner reassignment), excluded so this reads as the site teams' own updating.">admin account excluded</span>`:"";
- document.getElementById("h-meta").innerHTML=
+/* when this copy of the page was fetched - the moment Refresh reloaded it */
+const LOADED=new Date();
+const clock=d=>`${String(d.getDate()).padStart(2,"0")}-${MON[d.getMonth()]}-${String(d.getFullYear()).slice(2)}`
+  +` ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}:${String(d.getSeconds()).padStart(2,"0")}`;
+document.getElementById("h-meta").innerHTML=
   `${esc(M.projectShort||"")} · ${esc(M.client||"")} · LIVE from VisiLean · <span style="color:var(--blue);font-weight:600">last data change ${esc(M.generatedAt||"")}</span>`
-  +` <span class="chip mut">${fmt(M.events)} updates in the trail</span>`
-  +` <span class="chip mut">${esc(dshow(M.firstEvent+"T00:00:00"))} → ${esc(dshow(M.lastEvent+"T00:00:00"))}</span> ${ex}`
-  +((M.locFilled===0)?` <span class="chip warn" title="VisiLean carries no location on any updated activity in this project, so the Location column and filter stay empty until the team sets it.">no location set in VisiLean</span>`:"");}
+  +` · <span id="h-refreshed" title="when this page was last fetched from the server">refreshed ${clock(LOADED)}</span>`;
 
 document.getElementById("f-loc").addEventListener("change",e=>{F.loc=e.target.value;page=0;render()});
 document.getElementById("btn-csv").addEventListener("click",()=>{
@@ -581,7 +582,13 @@ document.getElementById("btn-csv").addEventListener("click",()=>{
   const a=document.createElement("a");
   a.href=URL.createObjectURL(new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8"}));
   a.download="ntpc-user-updates-"+(M.lastEvent||"")+".csv";document.body.appendChild(a);a.click();a.remove()});
-document.getElementById("btn-refresh").addEventListener("click",()=>location.replace(location.pathname+"?r="+Date.now()));
+document.getElementById("btn-refresh").addEventListener("click",e=>{
+  const b=e.currentTarget,r=document.getElementById("h-refreshed");
+  b.disabled=true;b.textContent="↻ Refreshing…";
+  if(r){r.textContent="refreshing…";r.style.color="var(--blue)";r.style.fontWeight="600"}
+  // the query string defeats the page cache, so this fetches the published build right now
+  location.replace(location.pathname+"?r="+Date.now());
+});
 
 function applyTheme(t){
   document.querySelectorAll("#thm button").forEach(b=>b.classList.toggle("on",b.dataset.t===t));
