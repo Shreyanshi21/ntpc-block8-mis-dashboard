@@ -162,6 +162,19 @@ for r in FEED["task"]:
         _by_user[who][org] = _by_user[who].get(org, 0) + 1
 dept_by_user = {who: max(orgs.items(), key=lambda kv: kv[1])[0] for who, orgs in _by_user.items()}
 
+# Everyone the schedule assigns work to, with how much. A user can own hundreds of
+# activities and never once open VisiLean - Santosh Singh owns 3,214 and has never updated
+# - and that absence is the adoption finding, so the reports need the assignee list and not
+# just the people the audit trail happens to mention.
+_tasks_owned = {}
+for r in FEED["task"]:
+    who = " ".join(str(r.get("owner") or "").split())
+    if who:
+        _tasks_owned[who] = _tasks_owned.get(who, 0) + 1
+assignees = [{"name": who, "tasks": n, "dept": dept_by_user.get(who, "")}
+             for who, n in sorted(_tasks_owned.items(), key=lambda kv: -kv[1])
+             if who.lower() not in EXCLUDE_ACTORS]
+
 # Departments for users VisiLean has no record for, because they own no task on this
 # project. Add "name": "Department - ORG" here and the report shows it as KP's answer
 # rather than VisiLean's; the task feed always wins where it has an entry.
@@ -286,6 +299,7 @@ meta = {
     "actors": len(actors),
     "rosterSize": len([n for n in roster if n.lower() not in EXCLUDE_ACTORS]),
     "deptByUser": dept_by_user,
+    "assignees": assignees,
     "deptManual": dept_manual,
     "tasksInProject": len(FEED["task"]),
     "locFilled": sum(1 for e in events if e[7]),
