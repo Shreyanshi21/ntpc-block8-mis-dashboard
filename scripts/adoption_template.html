@@ -700,7 +700,7 @@ function render(){
 
 /* ---------- header + controls ---------- */
 document.getElementById("h-title").textContent=M.projectShort||M.project;
-{const ex=(M.excluded||[]).length?`<span class="chip mut" title="${esc((M.excluded||[]).join(', '))} — the VisiLean administrator for this project: bulk MPP imports plus owner/date reassignment. Excluded so the report reflects the site teams' own updating.">admin account excluded</span>`:"";
+{const ex=(M.excluded||[]).length?`<span class="chip mut" title="${esc((M.excluded||[]).join(', '))} — the VisiLean administrator for this project: bulk MPP imports plus owner/date reassignment. Excluded so the report reflects the site teams' own updating.">${(M.excluded||[]).length>1?`${(M.excluded||[]).length} accounts excluded`:"admin account excluded"}</span>`:"";
  document.getElementById("h-meta").innerHTML=
   `${esc(M.client||"")} · LIVE from VisiLean · <span style="color:var(--blue);font-weight:600">last data change ${esc(M.generatedAt||"")}</span>`
   +` <span class="chip mut">${fmt(M.events)} updates</span>`

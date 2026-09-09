@@ -59,7 +59,9 @@ IST = timezone(timedelta(hours=5, minutes=30))
 # events were one bulk import sweep) and then reassigns owners and dates. Counting that
 # as "adoption" drowned out the site teams' own updating, so KP asked (07-Sep) for it to
 # come out. Clear this set to put an account back in.
-EXCLUDE_ACTORS = {"shreyanshi jaiswal"}
+EXCLUDE_ACTORS = {"shreyanshi jaiswal", "monika sen"}
+# monika sen owns no task on this project and VisiLean records no department for her, so KP
+# asked (09-Sep-2026) for her out of the picture rather than carried with a hand-set one.
 
 FEEDS = {
     "task": ("VL_TOKEN_ADOPT_TASK", ""),
@@ -158,6 +160,13 @@ for r in FEED["task"]:
         _by_user.setdefault(who, {})
         _by_user[who][org] = _by_user[who].get(org, 0) + 1
 dept_by_user = {who: max(orgs.items(), key=lambda kv: kv[1])[0] for who, orgs in _by_user.items()}
+
+# Departments for users VisiLean has no record for, because they own no task on this
+# project. Add "name": "Department - ORG" here and the report shows it as KP's answer
+# rather than VisiLean's; the task feed always wins where it has an entry.
+DEPT_MANUAL = {}
+dept_manual = {k: v for k, v in DEPT_MANUAL.items()
+               if not any(k.lower() == w.lower() for w in dept_by_user)}
 print("departments from the task feed (%d users): %s"
       % (len(dept_by_user), ", ".join("%s=%s" % kv for kv in sorted(dept_by_user.items()))))
 ROSTER_RE = re.compile("(" + "|".join(re.escape(n) for n in sorted(roster, key=len, reverse=True)) + ")")
@@ -276,6 +285,7 @@ meta = {
     "actors": len(actors),
     "rosterSize": len([n for n in roster if n.lower() not in EXCLUDE_ACTORS]),
     "deptByUser": dept_by_user,
+    "deptManual": dept_manual,
     "tasksInProject": len(FEED["task"]),
     "locFilled": sum(1 for e in events if e[7]),
     "firstEvent": lo.strftime("%Y-%m-%d") if lo else "",

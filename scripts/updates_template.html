@@ -407,6 +407,8 @@ function vbars(items,o){
    A user who owns no task has no entry, so for them fall back to the departments that own
    the activities they update, and say so in the tooltip. */
 const USER_DEPT={};Object.entries(M.deptByUser||{}).forEach(([k,v])=>{USER_DEPT[String(k).trim().toLowerCase()]=v});
+/* KP's answer for a user VisiLean has no task for - reported as KP's, not VisiLean's */
+const KP_DEPT={};Object.entries(M.deptManual||{}).forEach(([k,v])=>{KP_DEPT[String(k).trim().toLowerCase()]=v});
 const PEOPLE=new Set(EV.map(r=>String(r[C.actor]||"").trim().toLowerCase()).filter(Boolean));
 const ACT_DEPT=(()=>{const g={};
   EV.forEach(r=>{const d=String(r[C.owner]||"").trim();
@@ -417,9 +419,11 @@ const ACT_DEPT=(()=>{const g={};
     out[a]={label:ds[0][0],split:ds.map(([k,n])=>`${k} (${n})`).join(" · ")}});
   return out})();
 function deptOf(a){
-  const rec=USER_DEPT[String(a||"").trim().toLowerCase()],inf=ACT_DEPT[a];
-  if(rec)return{label:rec,title:`${a} — department recorded in VisiLean: ${rec}`
-    +(inf?` · updates activities owned by ${inf.split}`:"")};
+  const key=String(a||"").trim().toLowerCase();
+  const rec=USER_DEPT[key],kp=KP_DEPT[key],inf=ACT_DEPT[a];
+  const also=inf?` · updates activities owned by ${inf.split}`:"";
+  if(rec)return{label:rec,title:`${a} — department recorded in VisiLean: ${rec}`+also};
+  if(kp) return{label:kp, title:`${a} — department per KP: ${kp} · VisiLean has no task owned by them, so it is set in the report`+also};
   if(inf)return{label:inf.label,
     title:`VisiLean has no task owned by ${a}, so this is taken from the activities they update: ${inf.split}`};
   return{label:"department not set",title:"VisiLean records no department for this user"};
