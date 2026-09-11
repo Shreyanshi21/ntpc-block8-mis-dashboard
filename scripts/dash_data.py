@@ -92,6 +92,12 @@ WEEKLY_OFF = set(_cal.get("weeklyOff", [6]))          # python weekday(): Monday
 # a project with no baseline set in VisiLean reads its planned dates AS the baseline
 BASELINE_PLANNED = (CFG.get("baselineMode", "visilean") == "planned")
 NULL_LEVELS = {re.sub(r"[^a-z0-9]", "", str(x).lower()) for x in (CFG.get("nullLevels") or [])}
+# Some projects carry no "Level N" custom fields at all - the WBS lives only in the
+# task hierarchy. levelsFromChain reads the levels off the parent chain instead
+# (root first); levelsFromChainDrop skips the leading names that are the project
+# itself, so Level 1 lands on the same grouping the Level fields would have held.
+CHAIN_LEVELS = bool(CFG.get("levelsFromChain"))
+CHAIN_DROP = int(CFG.get("levelsFromChainDrop", 1))
 wdates = []
 d = START
 while len(wdates) < 1200:
@@ -119,6 +125,21 @@ milestones_raw = []
 NA_SKIPPED = []
 NA_UIDS = set()
 GUID = {t.get("guid"): t for t in TASKS if t.get("guid")}
+
+def chain_names(t):
+    """Parent names from the project root down to this task's parent."""
+    out, seen, cur = [], set(), t
+    while True:
+        g = cur.get("parentGUID")
+        if not g or g in seen:
+            break
+        seen.add(g)
+        p = GUID.get(g)
+        if p is None:
+            break
+        out.append((p.get("taskName") or "").strip())
+        cur = p
+    return list(reversed(out))
 
 # Rows created directly in VisiLean - the drawing revisions R0/R1/R2 - carry no custom
 # fields, so they have no Levels, no Department and no Package, and every classifier
@@ -180,6 +201,8 @@ for t in TASKS:
     if inherited_from and not t.get("parent"):
         INHERITED.append((str(t.get("taskId") or ""), str(t.get("taskName") or ""), inherited_from))
     L = [cf.get(f"Level {i}", "") or "" for i in range(1, 8)]
+    if CHAIN_LEVELS and not any(str(v).strip() for v in L):
+        L = (chain_names(t)[CHAIN_DROP:] + [""] * 7)[:7]
     # Some schedules write a literal placeholder where a WBS level is unused (P6
     # exports "0"); treat those as empty so they never become a package or section.
     if NULL_LEVELS: L = ["" if norm(v) in NULL_LEVELS else v for v in L]

@@ -1,0 +1,75 @@
+name: Refresh Adani S7 dashboard from VisiLean
+
+# Same worker pattern as refresh-v2.yml (see the comments there): GitHub drops most
+# scheduled events, so the schedule only has to START a run and the run itself then
+# refreshes every 5 minutes for just under 6 hours.
+
+on:
+  schedule:
+    - cron: "22,52 * * * *"
+  workflow_dispatch:
+    inputs:
+      once:
+        description: "Refresh once and exit (no loop)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-adanis7
+  cancel-in-progress: true      # a newly started worker replaces the running one
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350        # stay under the 6h hard limit
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Refresh loop (every 5 minutes)
+        env:
+          # per-project tokens; the builder also accepts the plain VL_TOKEN_* names
+          VL_TOKEN_TASK_ADANIS7: ${{ secrets.VL_TOKEN_TASK_ADANIS7 }}
+          VL_TOKEN_HISTORY_ADANIS7: ${{ secrets.VL_TOKEN_HISTORY_ADANIS7 }}
+          VL_TOKEN_CONSTRAINTS_ADANIS7: ${{ secrets.VL_TOKEN_CONSTRAINTS_ADANIS7 }}
+          ONCE: ${{ inputs.once }}
+        run: |
+          set -uo pipefail
+          git config user.name  "visilean-bot"
+          git config user.email "support@visilean.com"
+
+          END=$(( $(date +%s) + 340*60 ))   # leave headroom before the job timeout
+          n=0
+          while : ; do
+            n=$((n+1))
+            echo "::group::cycle $n  $(date -u '+%H:%M:%S UTC')"
+
+            if python scripts/dash_data.py adanis7 && python scripts/build_dash.py adanis7 ; then
+              if git diff --quiet -- adani-s7/.datahash ; then
+                echo "no data change"
+              else
+                git add adani-s7/index.html adani-s7/meta.json adani-s7/.datahash
+                git commit -m "adanis7 auto-refresh $(TZ=Asia/Kolkata date '+%d-%b %H:%M IST')" || true
+                # another worker may have pushed while we were building
+                for try in 1 2 3 ; do
+                  git pull --rebase --autostash -q && git push -q && { echo "published"; break; }
+                  echo "push retry $try"; sleep 5
+                done
+              fi
+            else
+              # a bad cycle must not kill the worker - the next one recovers
+              echo "cycle failed (VisiLean unreachable or build error) - continuing"
+              git checkout -- adani-s7 2>/dev/null || true
+            fi
+            echo "::endgroup::"
+
+            if [ "${ONCE:-false}" = "true" ]; then echo "once-mode: done"; break; fi
+            if [ "$(date +%s)" -ge "$END" ]; then echo "worker window finished after $n cycles"; break; fi
+            sleep 300
+          done

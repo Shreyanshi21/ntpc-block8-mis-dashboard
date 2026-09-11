@@ -2,8 +2,12 @@
 # VisiLean's task feed returns prerequisites empty, so the schedule file is the only
 # place the links exist. Endpoints are written as ACTIVITY CODES (task_code), which is
 # what VisiLean carries as externalId - dash_data.py resolves them to uids.
-import json, collections, sys
+import json, collections, sys, os
+# Defaults keep the original Adani S6a behaviour; pass <xer> <out> for another project.
 XER = r"C:\Users\shreyanshi.jaiswal\OneDrive - VisiLean India Private Limited\Documents\KPI Claude\Adani S6a\FY26-P18 S6a 07.09.2026.xer"
+OUT = "adani_relations.json"
+if len(sys.argv) > 1: XER = sys.argv[1]
+if len(sys.argv) > 2: OUT = sys.argv[2]
 rows = collections.defaultdict(list); fields = {}; cur = None
 for line in open(XER, encoding="cp1252", errors="replace"):
     p = line.rstrip("\r\n").split("\t")
@@ -33,5 +37,5 @@ for r in rows["TASKPRED"]:
 print("links:", len(out), "| skipped (endpoint not in TASK):", skipped)
 print("by type:", dict(kinds))
 print("with a lag:", sum(1 for x in out if x[3]))
-json.dump(out, open("adani_relations.json","w",encoding="utf-8"), separators=(",",":"))
+json.dump(out, open(os.path.join(os.path.dirname(os.path.abspath(__file__)), OUT) if not os.path.isabs(OUT) else OUT, "w", encoding="utf-8"), separators=(",",":"))
 print("sample:", out[:3])
