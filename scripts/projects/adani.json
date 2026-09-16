@@ -389,5 +389,230 @@
   "acceptTitle": "Engineering drawings — document count",
   "acceptHint": "every engineering deliverable in this view - this schedule has no separate Final Acceptance step, each activity is the drawing itself - completed vs what the baseline says should be complete today",
   "acceptByTitle": "Engineering drawings by group",
-  "acceptGroupLabel": "Drawing group"
+  "acceptGroupLabel": "Drawing group",
+  "siteModel": {
+    "_comment": "Site model for the 3D plant view. Footprints are derived from the R2 overall array layout PDF (51YY-KPIG-ARY-BES-DE-L-0001): each sheet was georeferenced from its surveyed E/N callouts (residual <= 0.01 m) and the drawn array geometry was assigned to the nearest ICR. Metres, origin at the south-west corner of the plant.",
+    "units": "m",
+    "extent": [
+      4354.5,
+      1120.7
+    ],
+    "origin": {
+      "E": 543714.6,
+      "N": 2661803.8,
+      "crs": "UTM (drawing survey grid)"
+    },
+    "blocks": [
+      {
+        "area": "Block-01",
+        "x": 0.0,
+        "y": 0.0,
+        "w": 261.4,
+        "d": 277.5,
+        "icr": [
+          126.3,
+          245.8
+        ]
+      },
+      {
+        "area": "Block-02",
+        "x": 0.0,
+        "y": 375.0,
+        "w": 220.2,
+        "d": 224.9,
+        "icr": [
+          112.5,
+          404.7
+        ]
+      },
+      {
+        "area": "Block-03",
+        "x": 360.8,
+        "y": 37.5,
+        "w": 274.4,
+        "d": 337.5,
+        "icr": [
+          496.6,
+          261.4
+        ]
+      },
+      {
+        "area": "Block-04",
+        "x": 325.4,
+        "y": 487.5,
+        "w": 271.5,
+        "d": 157.4,
+        "icr": [
+          450.0,
+          599.4
+        ]
+      },
+      {
+        "area": "Block-05",
+        "x": 749.7,
+        "y": 67.5,
+        "w": 289.5,
+        "d": 292.5,
+        "icr": [
+          911.7,
+          229.6
+        ]
+      },
+      {
+        "area": "Block-06",
+        "x": 841.4,
+        "y": 472.5,
+        "w": 253.5,
+        "d": 164.9,
+        "icr": [
+          977.9,
+          609.0
+        ]
+      },
+      {
+        "area": "Block-07",
+        "x": 1144.4,
+        "y": 90.0,
+        "w": 315.4,
+        "d": 247.4,
+        "icr": [
+          1260.4,
+          168.3
+        ]
+      },
+      {
+        "area": "Block-08",
+        "x": 1229.7,
+        "y": 420.0,
+        "w": 324.9,
+        "d": 217.4,
+        "icr": [
+          1334.1,
+          613.3
+        ]
+      },
+      {
+        "area": "Block-09",
+        "x": 1672.0,
+        "y": 157.4,
+        "w": 334.6,
+        "d": 277.5,
+        "icr": [
+          1814.6,
+          350.7
+        ]
+      },
+      {
+        "area": "Block-10",
+        "x": 1693.1,
+        "y": 517.4,
+        "w": 217.9,
+        "d": 120.0,
+        "icr": [
+          1792.2,
+          605.3
+        ]
+      },
+      {
+        "area": "Block-11",
+        "x": 2123.0,
+        "y": 172.2,
+        "w": 370.4,
+        "d": 270.2,
+        "icr": [
+          2308.3,
+          344.0
+        ]
+      },
+      {
+        "area": "Block-12",
+        "x": 2079.3,
+        "y": 509.9,
+        "w": 261.9,
+        "d": 127.5,
+        "icr": [
+          2217.8,
+          606.5
+        ]
+      },
+      {
+        "area": "Block-13",
+        "x": 2638.3,
+        "y": 209.9,
+        "w": 348.8,
+        "d": 240.0,
+        "icr": [
+          2812.1,
+          334.5
+        ]
+      },
+      {
+        "area": "Block-14",
+        "x": 2541.6,
+        "y": 494.9,
+        "w": 274.3,
+        "d": 150.0,
+        "icr": [
+          2690.5,
+          606.1
+        ]
+      },
+      {
+        "area": "Block-15",
+        "x": 3106.4,
+        "y": 249.8,
+        "w": 320.3,
+        "d": 200.1,
+        "icr": [
+          3229.2,
+          334.5
+        ]
+      },
+      {
+        "area": "Block-16",
+        "x": 3322.6,
+        "y": 457.4,
+        "w": 265.7,
+        "d": 202.5,
+        "icr": [
+          3442.1,
+          621.5
+        ]
+      },
+      {
+        "area": "Block-17",
+        "x": 3706.2,
+        "y": 888.2,
+        "w": 274.4,
+        "d": 232.5,
+        "icr": [
+          3843.3,
+          1004.5
+        ],
+        "approx": true
+      },
+      {
+        "area": "Block-18",
+        "x": 3650.4,
+        "y": 314.9,
+        "w": 335.3,
+        "d": 367.5,
+        "icr": [
+          3840.9,
+          473.7
+        ]
+      },
+      {
+        "area": "Block-19",
+        "x": 4106.2,
+        "y": 382.5,
+        "w": 248.3,
+        "d": 270.0,
+        "icr": [
+          4255.4,
+          597.2
+        ]
+      }
+    ]
+  }
 }
