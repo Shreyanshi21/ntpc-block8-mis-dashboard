@@ -428,7 +428,16 @@ html{zoom:1.3}
 /* the site model is an aerial view with its own daylight palette; in dark mode it is
    dimmed rather than inverted, so a 4.9 km plant does not glare out of a dark page */
 .site3d{border-radius:6px}
-[data-theme=dark] .site3d{filter:brightness(.78) saturate(1.06) contrast(1.04)}
+[data-theme=dark] .site3d,[data-theme=dark] .glbox{filter:brightness(.78) saturate(1.06) contrast(1.04)}
+/* the WebGL site model is layered over the SVG one, taking its size from it so the card
+   keeps the same shape either way. The canvas only becomes visible once the scene has
+   actually built (.gl-on), so a browser without WebGL, a blocked CDN or any error in the
+   scene simply leaves the SVG drawing showing. Printing always uses the SVG. */
+.glwrap{position:relative}
+.glbox{position:absolute;inset:0;opacity:0;pointer-events:none;border-radius:6px;overflow:hidden;transition:opacity .35s}
+.glbox.gl-on{opacity:1;pointer-events:auto}
+.glbox.gl-on ~ svg{visibility:hidden}
+@media print{.glbox{display:none!important}.glbox.gl-on ~ svg{visibility:visible!important}}
 [data-theme=dark] .chip.vlc{color:#4ecb6a}[data-theme=dark] .chip.vls{color:#b08fe0}
 [data-theme=dark] .chip.vlnr{color:#ff8a7a}[data-theme=dark] .chip.vlnc{color:#e0c545}[data-theme=dark] .chip.vlw{color:#ffb84d}
 .vleg{display:inline-flex;gap:5px;align-items:center;font-size:9.5px;color:var(--mut);flex-wrap:wrap}
@@ -2863,6 +2872,7 @@ function site3d(rows,idp){
       el.addEventListener("mousemove",e=>showTip(e,el.dataset.tip));
       el.addEventListener("mouseleave",hideTip);
     });},0);
+  setTimeout(()=>siteGLInit(rows,idp),0);
   const chipSel=sel?`${chip("blue","Filtered: "+esc(sel))} <a href="#" onclick="state.f.area='';render();return false" style="color:var(--blue);font-size:10px;font-weight:600">× clear</a>`:"";
   return `<div class="legend" style="margin-bottom:4px">
       <span><span class="sw" style="background:#24507f"></span>arrays built (tint + installed rows = actual %)</span>
@@ -2871,9 +2881,357 @@ function site3d(rows,idp){
       <span><span class="sw" style="background:#d9534f"></span>behind plan</span>
       <span><span class="sw" style="background:#3567d6"></span>plot boundary</span>
       <span><span class="sw" style="background:#1fa8bd"></span>TL corridor</span>
-      <span class="dim">${(S.extent[0]/1000).toFixed(1)} km × ${(S.extent[1]/1000).toFixed(1)} km · ${PITCH} m row pitch · ${(S.wtg||[]).length} WTG · click a block to filter</span></div>
-    ${chipSel?`<div style="margin-bottom:4px">${chipSel}</div>`:""}${g}`;
+      <span class="dim">${(S.extent[0]/1000).toFixed(1)} km × ${(S.extent[1]/1000).toFixed(1)} km · ${PITCH} m row pitch · ${(S.wtg||[]).length} WTG · drag to orbit, scroll to zoom, double-click to reset · click a block to filter</span></div>
+    ${chipSel?`<div style="margin-bottom:4px">${chipSel}</div>`:""}<div class="glwrap"><div class="glbox" id="${idp}-gl"></div>${g}</div>`;
 }
+// ---------- realistic 3D site (WebGL) ----------
+// The SVG above is the drawing; this is the site. Same geometry - the block outlines,
+// roads, corridors, boundary, turbines and BESS traced off the issued array layout -
+// rebuilt as a lit scene you can orbit: graded pads on scrub ground, fixed-tilt tables
+// at the real 7.5 m pitch, made-up roads, the 5.2 MW turbines at hub height and the
+// PSS10 battery yard.
+//
+// Progressive enhancement, not a replacement. The SVG stays in the DOM and is what
+// prints; the canvas is built over it only once WebGL is there and three.js has loaded,
+// and a failure at any step just leaves the SVG showing. three.js comes from a CDN
+// rather than inlined, so NTPC and SJVN - which carry no site model - pay nothing.
+const THREE_SRC = "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js";
+let _threeP = null;
+function loadThree(){
+  if(window.THREE) return Promise.resolve(true);
+  if(_threeP) return _threeP;
+  _threeP = new Promise(res=>{
+    let done=false; const fin=v=>{if(!done){done=true;res(v)}};
+    const s=document.createElement("script");
+    s.src=THREE_SRC; s.async=true; s.crossOrigin="anonymous";
+    s.onload=()=>fin(!!window.THREE); s.onerror=()=>fin(false);
+    document.head.appendChild(s);
+    setTimeout(()=>fin(!!window.THREE), 12000);
+  });
+  return _threeP;
+}
+function hasWebGL(){
+  try{const c=document.createElement("canvas");
+      return !!(c.getContext("webgl")||c.getContext("experimental-webgl"))}catch(e){return false}
+}
+// a little procedural texture beats a flat colour for ground and gravel, and costs nothing
+function noiseTex(base, blobs, n, size){
+  const c=document.createElement("canvas"); c.width=c.height=size||256;
+  const x=c.getContext("2d"); x.fillStyle=base; x.fillRect(0,0,c.width,c.height);
+  for(let i=0;i<(n||900);i++){
+    const r=3+Math.random()*24;
+    x.globalAlpha=0.05+Math.random()*0.20;
+    x.fillStyle=blobs[(Math.random()*blobs.length)|0];
+    x.beginPath(); x.ellipse(Math.random()*c.width, Math.random()*c.height, r, r*(0.5+Math.random()), Math.random()*3.14, 0, 6.29); x.fill();
+  }
+  x.globalAlpha=1;
+  const t=new THREE.CanvasTexture(c);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping;
+  return t;
+}
+let GL=null;                                  // one live scene at a time
+let GLCAM=null;                               // survives the re-render a filter click causes
+function disposeGL(){
+  if(!GL) return;
+  cancelAnimationFrame(GL.raf);
+  if(GL.ro) GL.ro.disconnect();
+  GL.scene.traverse(o=>{
+    if(o.geometry) o.geometry.dispose();
+    const ms=o.material?(Array.isArray(o.material)?o.material:[o.material]):[];
+    ms.forEach(m=>{
+      Object.keys(m).forEach(k=>{const v=m[k]; if(v&&v.isTexture) v.dispose()});
+      m.dispose();
+    });
+  });
+  GL.renderer.dispose();
+  const el=GL.renderer.domElement;
+  if(el.parentNode) el.parentNode.removeChild(el);
+  GL=null;
+}
+async function siteGLInit(rows, idp){
+  const S=CFG.siteModel, box=document.getElementById(idp+"-gl");
+  if(!S||!box||_printBusy||!hasWebGL()) return;
+  if(!await loadThree()) return;
+  if(!document.body.contains(box)) return;     // the page moved on while we were loading
+  disposeGL();
+  try{ buildGL(rows, idp, box, S) }
+  catch(e){ console.warn("site 3D unavailable:", e); disposeGL(); box.classList.remove("gl-on") }
+}
+function buildGL(rows, idp, box, S){
+  const T=THREE;
+  if(!box.clientWidth || !box.clientHeight) return;
+  box.innerHTML="";
+  const W=S.extent[0], D=S.extent[1];
+  const PITCH=(S.row&&S.row.pitch)||7.5, TL=(S.row&&S.row.tableLen)||32.3, TW=(S.row&&S.row.tableWid)||4.8;
+  const PAD=1.8, TILT=22*Math.PI/180;
+  const Z=y=>D-y;                              // model y is north; north runs into -z
+  const byArea={}; rows.forEach(r=>{const a=String(r[C.area]||"");(byArea[a]=byArea[a]||[]).push(r)});
+
+  const scene=new T.Scene();
+  scene.fog=new T.Fog(0xc3d5e6, W*1.15, W*3.4);
+  const renderer=new T.WebGLRenderer({antialias:true, powerPreference:"high-performance"});
+  renderer.setPixelRatio(Math.min(devicePixelRatio||1, 1.75));
+  renderer.shadowMap.enabled=true; renderer.shadowMap.type=T.PCFSoftShadowMap;
+  renderer.setSize(box.clientWidth, box.clientHeight, false);
+  renderer.domElement.style.cssText="width:100%;height:100%;display:block;border-radius:6px;cursor:grab;touch-action:none";
+  box.appendChild(renderer.domElement);
+
+  // ---- sky ---------------------------------------------------------------
+  scene.add(new T.Mesh(new T.SphereGeometry(W*2.4, 24, 16), new T.ShaderMaterial({
+    side:T.BackSide, depthWrite:false,
+    uniforms:{top:{value:new T.Color(0x2f6cb0)}, bot:{value:new T.Color(0xcfe0ee)}},
+    vertexShader:"varying float h;void main(){h=normalize(position).y;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}",
+    fragmentShader:"uniform vec3 top;uniform vec3 bot;varying float h;void main(){gl_FragColor=vec4(mix(bot,top,clamp(h*2.1+0.05,0.0,1.0)),1.0);}"
+  })));
+
+  // ---- light -------------------------------------------------------------
+  scene.add(new T.HemisphereLight(0xcadcf0, 0x5d5c3f, 0.72));
+  const sun=new T.DirectionalLight(0xfff2d6, 1.25);
+  sun.position.set(-W*0.30, W*0.40, -D*1.1);
+  sun.castShadow=true;
+  const ext=Math.max(W,D)*0.70, sc=sun.shadow.camera;
+  sc.left=-ext; sc.right=ext; sc.top=ext; sc.bottom=-ext; sc.near=W*0.04; sc.far=W*2.4;
+  sun.shadow.mapSize.set(2048,2048); sun.shadow.bias=-0.0009;
+  sun.target.position.set(W/2, 0, Z(D/2));
+  scene.add(sun); scene.add(sun.target); sun.target.updateMatrixWorld();
+
+  // ---- ground ------------------------------------------------------------
+  const gt=noiseTex("#7d8b57", ["#93a069","#6a7848","#a79c76","#5d6b3e","#8a9860"], 1200, 256);
+  const GW=W*4.0, GD=D*16;
+  gt.repeat.set(GW/130, GD/130);
+  const ground=new T.Mesh(new T.PlaneGeometry(GW, GD), new T.MeshLambertMaterial({map:gt}));
+  ground.rotation.x=-Math.PI/2; ground.position.set(W/2, 0, Z(D/2)); ground.receiveShadow=true;
+  scene.add(ground);
+
+  // ---- pads, panels, pile lines ------------------------------------------
+  // UVs off ExtrudeGeometry are in world metres, so repeat is 1/tile-size
+  const padTex=noiseTex("#bcb193", ["#cbc0a0","#a99e82","#d4caab"], 800, 128);
+  padTex.repeat.set(1/22, 1/22);
+  const blocks=[];
+  const tables=[], piles=[];
+  S.blocks.forEach(b=>{
+    const rr=byArea[b.area]||[];
+    const act=rr.length?actPctAt(rr,SW):0, pln=rr.length?planPct(rr,SW):0;
+    const shape=new T.Shape(b.poly.map(q=>new T.Vector2(q[0], Z(q[1]))));
+    const geo=new T.ExtrudeGeometry(shape, {depth:PAD, bevelEnabled:false});
+    geo.rotateX(-Math.PI/2);                   // the shape is drawn in XY; stand it up in XZ
+    // materials are per block so selecting one can fade the rest
+    const m=new T.Mesh(geo, [new T.MeshLambertMaterial({map:padTex, transparent:true}),
+                             new T.MeshLambertMaterial({color:0x9c9378, transparent:true})]);
+    m.castShadow=true; m.receiveShadow=true;
+    m.userData={area:b.area, act:act, pln:pln, n:rr.length, ha:b.areaM2/10000, approx:!!b.approx};
+    scene.add(m); blocks.push(m);
+
+    const ys=b.poly.map(q=>q[1]), y0=Math.min(...ys), y1=Math.max(...ys);
+    const nrow=Math.max(1, Math.floor((y1-y0)/PITCH));
+    const built=Math.round(nrow*Math.min(100,act)/100);
+    for(let i=0;i<nrow;i++){
+      const y=y0+(i+0.5)*PITCH;
+      spansAt(b.poly, y).forEach(sp=>{
+        const run=sp[1]-sp[0], nt=Math.max(1, Math.floor(run/(TL+2.5))), step=run/nt;
+        for(let k=0;k<nt;k++) (i<built?tables:piles).push([sp[0]+step*(k+0.5), Z(y)]);
+      });
+    }
+  });
+  // fixed-tilt tables - FT-2Px28 on the drawing - pitched off their north edge
+  if(tables.length){
+    const im=new T.InstancedMesh(new T.BoxGeometry(TL*0.97, 0.16, TW),
+      new T.MeshPhongMaterial({color:0x1b3f6d, shininess:80, specular:0x6389ba}), tables.length);
+    im.receiveShadow=true;
+    const d=new T.Object3D();
+    tables.forEach((p,i)=>{d.position.set(p[0], PAD+1.9, p[1]); d.rotation.set(TILT,0,0); d.updateMatrix(); im.setMatrixAt(i,d.matrix)});
+    im.instanceMatrix.needsUpdate=true; scene.add(im);
+  }
+  // tables still to come are drawn too, in bare galvanised grey with no glass: the plant
+  // reads as a plant at any stage, and the progress is the blue sweeping across it
+  if(piles.length){
+    const im=new T.InstancedMesh(new T.BoxGeometry(TL*0.97, 0.13, TW),
+      new T.MeshLambertMaterial({color:0x9aa1a8}), piles.length);
+    im.receiveShadow=true;
+    const d=new T.Object3D();
+    piles.forEach((p,i)=>{d.position.set(p[0], PAD+1.9, p[1]); d.rotation.set(TILT,0,0); d.updateMatrix(); im.setMatrixAt(i,d.matrix)});
+    im.instanceMatrix.needsUpdate=true; scene.add(im);
+  }
+
+  // ---- roads, corridors, boundary ----------------------------------------
+  const ribbon=(lines, width, y, colour)=>{
+    if(!lines||!lines.length) return;
+    const pos=[], idx=[]; let n=0;
+    lines.forEach(l=>{
+      for(let i=0;i+1<l.length;i++){
+        const a=l[i], b=l[i+1], dx=b[0]-a[0], dy=b[1]-a[1], L=Math.hypot(dx,dy);
+        if(L<1) continue;
+        const nx=-dy/L*width/2, ny=dx/L*width/2;
+        pos.push(a[0]+nx,y,Z(a[1]+ny), a[0]-nx,y,Z(a[1]-ny), b[0]+nx,y,Z(b[1]+ny), b[0]-nx,y,Z(b[1]-ny));
+        idx.push(n,n+1,n+2, n+1,n+3,n+2); n+=4;
+      }
+    });
+    if(!n) return;
+    const g=new T.BufferGeometry();
+    g.setAttribute("position", new T.Float32BufferAttribute(pos,3));
+    g.setIndex(idx); g.computeVertexNormals();
+    const m=new T.Mesh(g, new T.MeshLambertMaterial({color:colour, side:T.DoubleSide}));
+    m.receiveShadow=true; scene.add(m);
+  };
+  const L=S.lines||{};
+  ribbon(L.road,    9.0, 0.30, 0x6e6961);
+  ribbon(L.wtgroad, 7.0, 0.26, 0x8a8377);
+  ribbon(L.tl33,   15.0, 0.16, 0x8fa8ad);
+  ribbon(L.tl400,  11.0, 0.16, 0x8fa8ad);
+  ribbon(L.cluster, 4.5, 0.36, 0x8a5a1e);
+  ribbon(L.nogo,    4.5, 0.36, 0xcf4a46);
+  ribbon(L.bnd,     5.5, 0.40, 0x2f62d8);
+
+  // ---- turbines ----------------------------------------------------------
+  const HUB=S.wtgHubM||120, ROT=(S.wtgRotorM||160)/2;
+  const white=new T.MeshLambertMaterial({color:0xecf0f5});
+  const rotors=[];
+  (S.wtg||[]).forEach(w=>{
+    const grp=new T.Group(); grp.position.set(w[0], 0, Z(w[1]));
+    const tw=new T.Mesh(new T.CylinderGeometry(2.0, 4.2, HUB, 14), white);
+    tw.position.y=HUB/2; tw.castShadow=true; grp.add(tw);
+    const nac=new T.Mesh(new T.BoxGeometry(6, 5, 12), white);
+    nac.position.set(0, HUB+2.6, 0); nac.castShadow=true; grp.add(nac);
+    const hub=new T.Group(); hub.position.set(0, HUB+2.6, -6.5);
+    for(let k=0;k<3;k++){
+      const bl=new T.Mesh(new T.BoxGeometry(2.6, ROT*0.95, 0.55), white);
+      bl.position.y=ROT*0.48; bl.castShadow=true;
+      const arm=new T.Group(); arm.rotation.z=k*2*Math.PI/3; arm.add(bl); hub.add(arm);
+    }
+    hub.add(new T.Mesh(new T.SphereGeometry(2.4, 10, 8), white));
+    grp.add(hub); rotors.push(hub); scene.add(grp);
+  });
+
+  // ---- BESS yard ---------------------------------------------------------
+  if(S.bessArea){
+    const B=S.bessArea, bw=B[2]-B[0], bd=B[3]-B[1];
+    const pad=new T.Mesh(new T.BoxGeometry(bw, PAD, bd), new T.MeshLambertMaterial({map:padTex}));
+    pad.position.set((B[0]+B[2])/2, PAD/2, Z((B[1]+B[3])/2)); pad.receiveShadow=true; scene.add(pad);
+    const nrow=Math.max(3, Math.round(bd/58));
+    const im=new T.InstancedMesh(new T.BoxGeometry(bw-34, 3.2, 12.2),
+      new T.MeshLambertMaterial({color:0x53616f}), nrow);
+    im.castShadow=true; im.receiveShadow=true;
+    const d=new T.Object3D();
+    for(let i=0;i<nrow;i++){
+      d.position.set((B[0]+B[2])/2, PAD+1.6, Z(B[1]+22+i*((bd-38)/nrow)));
+      d.updateMatrix(); im.setMatrixAt(i,d.matrix);
+    }
+    im.instanceMatrix.needsUpdate=true; scene.add(im);
+  }
+
+  // ---- camera and orbit --------------------------------------------------
+  const cam=new T.PerspectiveCamera(48, box.clientWidth/box.clientHeight, 5, W*6);
+  const HOME={r:W*0.27, t:-0.34, p:1.15, y:90};
+  const HOMET=new T.Vector3(W*0.34, HOME.y, Z(D*0.52));
+  const target=HOMET.clone();
+  let radius=HOME.r, theta=HOME.t, phi=HOME.p;   // spherical about the target
+  if(GLCAM){radius=GLCAM.r; theta=GLCAM.t; phi=GLCAM.p; target.copy(GLCAM.g)}
+  const place=()=>{
+    cam.position.set(target.x+radius*Math.sin(phi)*Math.sin(theta),
+                     target.y+radius*Math.cos(phi),
+                     target.z+radius*Math.sin(phi)*Math.cos(theta));
+    cam.lookAt(target);
+    GLCAM={r:radius, t:theta, p:phi, g:target.clone()};
+  };
+  place();
+  const el=renderer.domElement;
+  let drag=null, moved=0;
+  el.addEventListener("pointerdown",e=>{drag={x:e.clientX,y:e.clientY,b:e.button};moved=0;
+    try{el.setPointerCapture(e.pointerId)}catch(_){} el.style.cursor="grabbing"});
+  el.addEventListener("pointerup",e=>{const was=drag; drag=null; el.style.cursor="grab";
+    if(was&&moved<6) pick(e)});
+  el.addEventListener("pointerleave",()=>{drag=null; hideTip()});
+  el.addEventListener("pointermove",e=>{
+    if(!drag){ hover(e); return }
+    const dx=e.clientX-drag.x, dy=e.clientY-drag.y; drag.x=e.clientX; drag.y=e.clientY;
+    moved+=Math.abs(dx)+Math.abs(dy);
+    if(drag.b===2||e.shiftKey){
+      const k=radius*0.0012;
+      target.x-=dx*k*Math.cos(theta)+dy*k*Math.sin(theta);
+      target.z+=dx*k*Math.sin(theta)-dy*k*Math.cos(theta);
+    }else{
+      theta-=dx*0.006; phi=Math.max(0.14, Math.min(1.36, phi-dy*0.005));
+    }
+    place();
+  });
+  el.addEventListener("wheel",e=>{e.preventDefault();
+    radius=Math.max(W*0.10, Math.min(W*1.9, radius*(1+Math.sign(e.deltaY)*0.12))); place()},{passive:false});
+  el.addEventListener("contextmenu",e=>e.preventDefault());
+  el.addEventListener("dblclick",()=>{radius=HOME.r; theta=HOME.t; phi=HOME.p;
+    target.copy(HOMET); place()});
+
+  const ray=new T.Raycaster(), ndc=new T.Vector2();
+  const hitAt=e=>{
+    const r=el.getBoundingClientRect();
+    ndc.x=((e.clientX-r.left)/r.width)*2-1; ndc.y=-((e.clientY-r.top)/r.height)*2+1;
+    ray.setFromCamera(ndc, cam);
+    const i=ray.intersectObjects(blocks, false);
+    return i.length?i[0].object:null;
+  };
+  const hover=e=>{
+    const o=hitAt(e);
+    if(!o){hideTip(); el.style.cursor="grab"; return}
+    const u=o.userData; el.style.cursor="pointer";
+    showTip(e, `${esc(u.area)}${u.approx?" (outline approximate)":""}<br>Actual <b>${fmt1(u.act)}%</b> · plan ${fmt1(u.pln)}%<br>${u.n} activities · ${u.ha.toFixed(1)} ha`);
+  };
+  const pick=e=>{const o=hitAt(e); if(!o) return;
+    const a=o.userData.area; hideTip(); state.f.area=(state.f.area===a?"":a); render()};
+
+  // ---- labels as HTML over the canvas, so the type stays crisp -----------
+  const lay=document.createElement("div");
+  lay.style.cssText="position:absolute;inset:0;pointer-events:none;overflow:hidden";
+  box.appendChild(lay);
+  const bb=new T.Box3(), c3=new T.Vector3();
+  const tags=blocks.map(m=>{
+    const u=m.userData, d=document.createElement("div"), ahead=u.act>=u.pln-0.05;
+    d.style.cssText="position:absolute;transform:translate(-50%,-50%);font:700 10px/1.25 inherit;text-align:center;white-space:nowrap;color:#fff;background:rgba(14,24,38,.74);padding:2px 6px;border-radius:5px;box-shadow:0 1px 3px rgba(0,0,0,.35)";
+    d.innerHTML=`${esc(u.area.replace("Block-","ICR-"))} <span style="color:${ahead?"#6ee59d":"#ff9b93"}">${fmt1(u.act)}%</span>`;
+    lay.appendChild(d);
+    bb.setFromObject(m); bb.getCenter(c3);
+    return {d, p:new T.Vector3(c3.x, PAD+8, c3.z), area:u.area};
+  });
+
+  // ---- loop --------------------------------------------------------------
+  let lastSel=null;
+  const v=new T.Vector3();
+  const tick=()=>{
+    GL.raf=requestAnimationFrame(tick);
+    if((fit=(fit+1)%12)===0) refit();
+    rotors.forEach((h,i)=>{h.rotation.z+=0.0042+(i%3)*0.0008});
+    const sel=state.f.area||"";
+    if(sel!==lastSel){
+      lastSel=sel;
+      blocks.forEach(m=>{const on=!sel||sel===m.userData.area;
+        m.material.forEach(x=>{x.opacity=on?1:0.35; x.depthWrite=on})});
+    }
+    renderer.render(scene, cam);
+    const r=el.getBoundingClientRect();
+    tags.forEach(t=>{
+      v.copy(t.p).project(cam);
+      const vis=v.z<1 && Math.abs(v.x)<0.98 && Math.abs(v.y)<0.94 && (!sel||sel===t.area);
+      t.d.style.display=vis?"block":"none";
+      if(vis){
+        t.d.style.left=((v.x*0.5+0.5)*r.width)+"px";
+        t.d.style.top=((-v.y*0.5+0.5)*r.height)+"px";
+        const far=cam.position.distanceTo(t.p);
+        t.d.style.opacity=far>W*0.85?0:far>W*0.5?1-(far-W*0.5)/(W*0.35):1;
+      }
+    });
+  };
+  let fit=0;
+  const refit=()=>{
+    const w=box.clientWidth, h=box.clientHeight;
+    if(!w||!h) return;
+    const pr=renderer.getPixelRatio();
+    if(Math.abs(el.width-Math.round(w*pr))<2 && Math.abs(el.height-Math.round(h*pr))<2) return;
+    cam.aspect=w/h; cam.updateProjectionMatrix(); renderer.setSize(w,h,false);
+  };
+  GL={renderer, scene, raf:0, ro:null};
+  refit();
+  box.classList.add("gl-on");
+  tick();
+}
+
 // ---------- pages ----------
 function card(cls,title,hint,body,extraHdr){return `<div class="card ${cls}"><div class="hdrrow"><div><h2>${title}</h2><div class="hint">${hint}</div></div>${extraHdr||""}</div>${body}</div>`}
 const unitToggle=()=>`<div class="toggle2"><button id="u-pct" class="${state.unit==="%"?"on":""}">%</button><button id="u-mw" class="${state.unit==="MW"?"on":""}">MW</button></div>`;
