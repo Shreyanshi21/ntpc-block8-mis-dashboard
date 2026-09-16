@@ -425,6 +425,10 @@ html{zoom:1.3}
 .chip.vlnr{background:rgba(255,90,70,.15);color:#e04b3a}
 .chip.vlnc{background:rgba(230,198,25,.22);color:#8a7500}
 .chip.vlw{background:rgba(245,166,35,.16);color:#b57508}
+/* the site model is an aerial view with its own daylight palette; in dark mode it is
+   dimmed rather than inverted, so a 4.9 km plant does not glare out of a dark page */
+.site3d{border-radius:6px}
+[data-theme=dark] .site3d{filter:brightness(.78) saturate(1.06) contrast(1.04)}
 [data-theme=dark] .chip.vlc{color:#4ecb6a}[data-theme=dark] .chip.vls{color:#b08fe0}
 [data-theme=dark] .chip.vlnr{color:#ff8a7a}[data-theme=dark] .chip.vlnc{color:#e0c545}[data-theme=dark] .chip.vlw{color:#ffb84d}
 .vleg{display:inline-flex;gap:5px;align-items:center;font-size:9.5px;color:var(--mut);flex-wrap:wrap}
@@ -2660,84 +2664,170 @@ const SPEC_PO=()=>({key:"po",steps:CFG.poStep,unit:"packages",groupLabel:"Packag
   byTitle:"PO Placement by package",
   byHint:"the same four counts per package · largest shortfall first"});
 // ---------- 3D site model ----------
-// An isometric model of the plant, built from the block footprints the project
-// config carries (scripts/projects/<key>.json -> siteModel). Those came out of the
-// issued array-layout drawing: every sheet was georeferenced from its surveyed E/N
-// callouts, so a block sits where it sits on site, at its real size. Each block is
-// extruded by its own progress, so the skyline IS the progress picture, and clicking
-// one filters the dashboard to that block exactly as the scorecard tiles do.
-// Projection is a flattened isometric: a 4.3 km strip stays legible in a card.
-const ISO_X=0.866, ISO_Y=0.30, ISO_Z=1.0;
-function isoPt(x,y,z){ return [(x-y)*ISO_X, (x+y)*ISO_Y - (z||0)*ISO_Z]; }
-// grey at nothing done, through the dashboard blue, to green when complete
-function siteColour(pct,done){
-  if(done||pct>=99.5) return ["#2e9e57","#227a42","#1b6335"];
-  if(pct<0.5)         return ["#c9d3e0","#aeb9c9","#9aa6b6"];
-  const t=Math.min(1,pct/100);
-  const mix=(a,b)=>Math.round(a+(b-a)*t);
-  const r=mix(120,0), g=mix(180,163), b=mix(215,224);
-  const d=(f)=>`rgb(${Math.round(r*f)},${Math.round(g*f)},${Math.round(b*f)})`;
-  return [`rgb(${r},${g},${b})`, d(0.78), d(0.62)];
+// A model of the plant built from the issued array layout, not a diagram of it.
+// scripts/projects/<key>.json -> siteModel carries the geometry read off the drawing's
+// own CAD layers: the ICR block outlines, the plant and turbine roads, the 33kV and
+// 400kV corridors, the Khavda park and MW-cluster boundaries, the no-go areas, the
+// turbine positions and the BESS area, all georeferenced from the sheet's surveyed
+// E/N callouts. Row pitch (7.5 m), table size and row direction come off the pile grid
+// on the detail sheets, so the arrays are laid out the way they are actually built.
+//
+// Progress is shown the way it happens on site: a block is built row by row, so the
+// completed share of a block is drawn as finished panels and the rest as the bare
+// graded pad with its pile lines still showing. Height is kept honest - a PV table is
+// a few metres tall and a turbine is 200 m, so the skyline is the site's, not a bar
+// chart's. Clicking a block filters the dashboard to it, as the scorecard tiles do.
+const CAM_A=16*Math.PI/180, CAM_E=30*Math.PI/180;
+const CSA=Math.sin(CAM_A), CCA=Math.cos(CAM_A), CSE=Math.sin(CAM_E), CCE=Math.cos(CAM_E);
+// plan (x east, y north, z up) -> screen. North recedes, so the east end is nearest.
+function prj(x,y,z){ return [x*CCA+y*CSA, (x*CSA-y*CCA)*CSE-(z||0)*CCE]; }
+function depth(x,y){ return x*CSA-y*CCA; }
+// bare graded earth to array blue. Actual % is raised to 0.6 so the difference between
+// a block at 3% and one at 11% is visible - early in a job every block is near zero and
+// a linear ramp would paint the whole plant the same colour.
+function padTint(pct){
+  const t=Math.pow(Math.max(0,Math.min(100,pct))/100,0.6);
+  const m=(a,b)=>Math.round(a+(b-a)*t);
+  return `rgb(${m(196,42)},${m(187,88)},${m(163,143)})`;
+}
+// horizontal slice through a block outline - gives the x spans a tracker row can fill
+function spansAt(poly,y){
+  const xs=[];
+  for(let i=0;i<poly.length;i++){
+    const a=poly[i], b=poly[(i+1)%poly.length];
+    if((a[1]<=y&&b[1]>y)||(b[1]<=y&&a[1]>y)) xs.push(a[0]+(y-a[1])/(b[1]-a[1])*(b[0]-a[0]));
+  }
+  xs.sort((p,q)=>p-q);
+  const out=[];
+  for(let i=0;i+1<xs.length;i+=2) if(xs[i+1]-xs[i]>6) out.push([xs[i],xs[i+1]]);
+  return out;
 }
 function site3d(rows,idp){
   const S=CFG.siteModel; if(!S||!S.blocks||!S.blocks.length) return "";
   const byArea={}; rows.forEach(r=>{const a=String(r[C.area]||"");(byArea[a]=byArea[a]||[]).push(r)});
-  const Z0=26, ZP=1.9;                       // base slab, then height per % complete
+  const PITCH=(S.row&&S.row.pitch)||7.5, TW=(S.row&&S.row.tableWid)||4.8;
+  const PAD=3.0;                                   // the graded pad the arrays sit on
+  const HUB=S.wtgHubM||120, ROT=(S.wtgRotorM||160)/2;
   const items=S.blocks.map(b=>{
     const rr=byArea[b.area]||[];
     const a=rr.length?actPctAt(rr,SW):0, p=rr.length?planPct(rr,SW):0;
-    return {b, rr, a, p, h:Z0+a*ZP, done:rr.length>0&&rr.every(isDone)};
+    const xs=b.poly.map(q=>q[0]), ys=b.poly.map(q=>q[1]);
+    return {b,rr,a,p,done:rr.length>0&&rr.every(isDone),
+            x0:Math.min(...xs),x1:Math.max(...xs),y0:Math.min(...ys),y1:Math.max(...ys)};
   });
-  // painter's algorithm: far blocks first, so near ones overlap them correctly
-  items.sort((u,v)=>(u.b.x+u.b.y)-(v.b.x+v.b.y));
-  // the ground pad hugs the blocks (a 70 m verge) rather than the full survey extent,
-  // so the strip stays tight and the pad is never cut off by the viewBox
-  const GV=70;
-  const gx0=Math.min(...S.blocks.map(b=>b.x))-GV, gx1=Math.max(...S.blocks.map(b=>b.x+b.w))+GV;
-  const gy0=Math.min(...S.blocks.map(b=>b.y))-GV, gy1=Math.max(...S.blocks.map(b=>b.y+b.d))+GV;
+  // ---- frame ---------------------------------------------------------------
   const pts=[];
-  S.blocks.forEach(b=>{[[b.x,b.y],[b.x+b.w,b.y],[b.x,b.y+b.d],[b.x+b.w,b.y+b.d]].forEach(q=>{
-    pts.push(isoPt(q[0],q[1],0)); pts.push(isoPt(q[0],q[1],Z0+100*ZP));})});
-  [[gx0,gy0],[gx1,gy0],[gx1,gy1],[gx0,gy1]].forEach(q=>pts.push(isoPt(q[0],q[1],0)));
-  const xs=pts.map(q=>q[0]), ys=pts.map(q=>q[1]);
-  const PAD=40, minX=Math.min(...xs)-PAD, maxX=Math.max(...xs)+PAD;
-  const minY=Math.min(...ys)-PAD, maxY=Math.max(...ys)+PAD;
+  const push=(x,y,z)=>pts.push(prj(x,y,z));
+  S.blocks.forEach(b=>b.poly.forEach(q=>{push(q[0],q[1],0);push(q[0],q[1],PAD+6)}));
+  (S.wtg||[]).forEach(w=>{push(w[0],w[1],HUB+ROT);push(w[0]-ROT,w[1],0);push(w[0]+ROT,w[1],0)});
+  Object.values(S.lines||{}).forEach(ls=>ls.forEach(l=>l.forEach(q=>push(q[0],q[1],0))));
+  if(S.bessArea){const B=S.bessArea;[[B[0],B[1]],[B[2],B[1]],[B[2],B[3]],[B[0],B[3]]].forEach(q=>{push(q[0],q[1],0);push(q[0],q[1],14)})}
+  const M=36, minX=Math.min(...pts.map(q=>q[0]))-M, maxX=Math.max(...pts.map(q=>q[0]))+M;
+  const minY=Math.min(...pts.map(q=>q[1]))-M, maxY=Math.max(...pts.map(q=>q[1]))+M;
   const W=Math.round(maxX-minX), H=Math.round(maxY-minY);
-  // the SVG scales to the card, so type has to be sized in viewBox units or a 5 km
-  // strip renders its labels at 5px - this keeps them around 12px on a full-width card
-  const FS=Math.max(19,Math.round(W/115));
-  const K=Math.max(1,W/1400);            // same idea for the hairlines
+  // type and hairlines are sized in viewBox units - a 4.9 km strip scales to a quarter
+  const FS=Math.max(18,Math.round(W/128)), K=Math.max(1,W/1500);
   const X=v=>(v-minX).toFixed(1), Y=v=>(v-minY).toFixed(1);
-  const poly=(qs)=>qs.map(q=>`${X(q[0])},${Y(q[1])}`).join(" ");
-  let g=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" id="${idp}-svg">`;
-  // ground
-  const gnd=[[gx0,gy0],[gx1,gy0],[gx1,gy1],[gx0,gy1]].map(q=>isoPt(q[0],q[1],0));
-  g+=`<polygon points="${poly(gnd)}" fill="var(--page)" stroke="var(--line2)" stroke-width="${(2*K).toFixed(1)}"/>`;
-  items.forEach((it,i)=>{
-    const b=it.b, h=it.h, [top,right,front]=siteColour(it.a,it.done);
-    const T=[[b.x,b.y],[b.x+b.w,b.y],[b.x+b.w,b.y+b.d],[b.x,b.y+b.d]].map(q=>isoPt(q[0],q[1],h));
-    const fA=[isoPt(b.x,b.y+b.d,0),isoPt(b.x+b.w,b.y+b.d,0),isoPt(b.x+b.w,b.y+b.d,h),isoPt(b.x,b.y+b.d,h)];
-    const fB=[isoPt(b.x+b.w,b.y,0),isoPt(b.x+b.w,b.y+b.d,0),isoPt(b.x+b.w,b.y+b.d,h),isoPt(b.x+b.w,b.y,h)];
-    const tip=`${esc(b.area)}${b.approx?" (position approximate)":""}<br>Actual <b>${fmt1(it.a)}%</b> · plan ${fmt1(it.p)}%<br>`
-      +`${it.rr.length} activities · ${Math.round(b.w)} × ${Math.round(b.d)} m`;
-    g+=`<g class="siteblk" data-area="${esc(b.area)}" data-tip="${esc(tip)}" style="cursor:pointer">`;
-    g+=`<polygon points="${poly(fA)}" fill="${front}"/><polygon points="${poly(fB)}" fill="${right}"/>`;
-    g+=`<polygon points="${poly(T)}" fill="${top}" stroke="rgba(0,0,0,.20)" stroke-width="${K.toFixed(1)}"/>`;
-    // PV rows on the roof, so a block reads as an array rather than a plain slab
-    const nrow=Math.max(3,Math.min(9,Math.round(b.d/45)));
-    for(let k=1;k<nrow;k++){const yy=b.y+b.d*k/nrow;
-      const s=isoPt(b.x+4,yy,h), e=isoPt(b.x+b.w-4,yy,h);
-      g+=`<line x1="${X(s[0])}" y1="${Y(s[1])}" x2="${X(e[0])}" y2="${Y(e[1])}" stroke="rgba(255,255,255,.35)" stroke-width="${(1.2*K).toFixed(1)}"/>`;}
-    // the plan level, as a line ruled across the block face
-    if(it.p>0.5){const ph=Z0+Math.min(100,it.p)*ZP;
-      const s=isoPt(b.x,b.y+b.d,ph), e=isoPt(b.x+b.w,b.y+b.d,ph);
-      g+=`<line x1="${X(s[0])}" y1="${Y(s[1])}" x2="${X(e[0])}" y2="${Y(e[1])}" stroke="var(--s-plan)" stroke-width="${(2.2*K).toFixed(1)}" stroke-dasharray="${(5*K).toFixed(0)} ${(3*K).toFixed(0)}"/>`;}
-    // X()/Y() hand back strings, so the two label offsets are done in numbers first -
-    // "+16" on a string would concatenate and stack the percentage on the name
-    const c=isoPt(b.x+b.w/2,b.y+b.d/2,h), cx=X(c[0]), cy=+Y(c[1]);
-    g+=`<text x="${cx}" y="${(cy-FS*0.12).toFixed(1)}" text-anchor="middle" font-size="${FS}" font-weight="800" style="fill:var(--ink);pointer-events:none">${esc(b.area.replace("Block-","B"))}</text>`;
-    g+=`<text x="${cx}" y="${(cy+FS*0.86).toFixed(1)}" text-anchor="middle" font-size="${Math.round(FS*0.82)}" font-weight="700" style="fill:var(--ink2);pointer-events:none">${fmt1(it.a)}%</text>`;
-    g+=`</g>`;
+  const P=(x,y,z)=>{const q=prj(x,y,z); return X(q[0])+","+Y(q[1])};
+  const poly=qs=>qs.map(q=>P(q[0],q[1],q[2]||0)).join(" ");
+  const sel=state.f.area;
+  let g=`<svg viewBox="0 0 ${W} ${H}" class="site3d" style="width:100%;height:auto;display:block" id="${idp}-svg">`;
+  g+=`<defs><linearGradient id="${idp}-sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#cfd9e6"/><stop offset="1" stop-color="#eceadf"/></linearGradient>
+    <linearGradient id="${idp}-gnd" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#ddd6c4"/><stop offset="1" stop-color="#cdc4ad"/></linearGradient></defs>`;
+  g+=`<rect x="0" y="0" width="${W}" height="${H}" fill="url(#${idp}-sky)"/>`;
+  // ---- ground --------------------------------------------------------------
+  {const E=S.extent, o=140;
+   g+=`<polygon points="${poly([[-o,-o],[E[0]+o,-o],[E[0]+o,E[1]+o],[-o,E[1]+o]])}" fill="url(#${idp}-gnd)"/>`;}
+  // ---- lines off the drawing, flat on the ground ---------------------------
+  const drawLines=(k,col,w,dash)=>{
+    let ls=(S.lines||{})[k]; if(!ls||!ls.length) return "";
+    ls=ls.filter(l=>{let L=0;for(let i=1;i<l.length;i++)L+=Math.hypot(l[i][0]-l[i-1][0],l[i][1]-l[i-1][1]);return L>=25});
+    if(!ls.length) return "";
+    const d=ls.map(l=>"M"+l.map(q=>P(q[0],q[1],0).replace(","," ")).join("L")).join("");
+    return `<path d="${d}" fill="none" stroke="${col}" stroke-width="${(w*K).toFixed(1)}"${dash?` stroke-dasharray="${dash.split(" ").map(v=>(+v*K).toFixed(0)).join(" ")}"`:""} stroke-linecap="round" stroke-linejoin="round" opacity=".9"/>`;
+  };
+  g+=drawLines("wtgroad","#bdb6a4",3.2,"");
+  g+=drawLines("road","#a79f8b",4.6,"");
+  g+=drawLines("road","#cfc7b2",2.2,"");            // the crown, so roads read as made-up
+  g+=drawLines("nogo","#d9534f",2.0,"14 10");
+  g+=drawLines("cluster","#9a6420",2.2,"");
+  g+=drawLines("tl33","#1fa8bd",3.0,"");
+  g+=drawLines("tl400","#1fa8bd",2.4,"");
+  g+=drawLines("bnd","#3567d6",2.6,"26 14");
+  // ---- everything with height, painted far to near -------------------------
+  const scene=[];
+  items.forEach(it=>scene.push({d:depth((it.x0+it.x1)/2,(it.y0+it.y1)/2),t:"blk",it}));
+  (S.wtg||[]).forEach(w=>scene.push({d:depth(w[0],w[1]),t:"wtg",w}));
+  if(S.bessArea){const B=S.bessArea; scene.push({d:depth((B[0]+B[2])/2,(B[1]+B[3])/2),t:"bess",B})}
+  scene.sort((u,v)=>u.d-v.d);
+  const dim=a=>sel&&sel!==a?' opacity=".35"':"";
+  scene.forEach(o=>{
+    if(o.t==="blk"){
+      const it=o.it, b=it.b, ahead=it.a>=it.p-0.05;
+      const tip=`${esc(b.area)}${b.approx?" (outline approximate)":""}<br>Actual <b>${fmt1(it.a)}%</b> · plan ${fmt1(it.p)}%<br>`
+        +`${it.rr.length} activities · ${(b.areaM2/10000).toFixed(1)} ha`;
+      g+=`<g class="siteblk" data-area="${esc(b.area)}" data-tip="${esc(tip)}" style="cursor:pointer"${dim(b.area)}>`;
+      // graded pad, with its south and east faces so the block has thickness
+      const ring=b.poly;
+      g+=`<polygon points="${poly(ring.map(q=>[q[0]+9,q[1]-7,0]))}" fill="#7a7260" opacity=".22"/>`;
+      g+=`<polygon points="${poly(ring.map(q=>[q[0],q[1],0]))}" fill="#9d937c" opacity=".55"/>`;
+      for(let i=0;i<ring.length;i++){
+        const a1=ring[i], b1=ring[(i+1)%ring.length];
+        if(depth(a1[0],a1[1])+depth(b1[0],b1[1]) < depth((it.x0+it.x1)/2,(it.y0+it.y1)/2)*2) continue;
+        g+=`<polygon points="${poly([[a1[0],a1[1],0],[b1[0],b1[1],0],[b1[0],b1[1],PAD],[a1[0],a1[1],PAD]])}" fill="#8d8368"/>`;
+      }
+      g+=`<polygon points="${poly(ring.map(q=>[q[0],q[1],PAD]))}" fill="${padTint(it.a)}" stroke="rgba(0,0,0,.18)" stroke-width="${K.toFixed(1)}"/>`;
+      // tracker rows, south to north so nearer rows overlap the ones behind
+      const n=Math.max(1,Math.floor((it.y1-it.y0)/PITCH));
+      const built=Math.round(n*Math.min(100,it.a)/100);
+      for(let i=0;i<n;i++){
+        const y=it.y0+(i+0.5)*PITCH;
+        const isOn=i<built;                      // building sweeps south to north
+        spansAt(ring,y).forEach(sp=>{
+          if(isOn){
+            g+=`<polygon points="${poly([[sp[0],y,1.1],[sp[1],y,1.1],[sp[1],y+TW,3.1],[sp[0],y+TW,3.1]])}" fill="${it.done?"#1d4a86":"#23558f"}"/>`;
+            g+=`<line x1="${X(prj(sp[0],y+TW,3.1)[0])}" y1="${Y(prj(sp[0],y+TW,3.1)[1])}" x2="${X(prj(sp[1],y+TW,3.1)[0])}" y2="${Y(prj(sp[1],y+TW,3.1)[1])}" stroke="#6fa8dc" stroke-width="${(0.7*K).toFixed(1)}" opacity=".75"/>`;
+            g+=`<polygon points="${poly([[sp[0],y,1.1],[sp[1],y,1.1],[sp[1],y,0],[sp[0],y,0]])}" fill="#1a2c44" opacity=".5"/>`;
+
+          }else{
+            g+=`<line x1="${X(prj(sp[0],y+TW/2,PAD)[0])}" y1="${Y(prj(sp[0],y+TW/2,PAD)[1])}" x2="${X(prj(sp[1],y+TW/2,PAD)[0])}" y2="${Y(prj(sp[1],y+TW/2,PAD)[1])}" stroke="#000" opacity=".16" stroke-width="${(0.9*K).toFixed(1)}"/>`;
+          }
+        });
+      }
+      g+=`<polygon points="${poly(ring.map(q=>[q[0],q[1],PAD]))}" fill="none" stroke="${ahead?"#2e9e57":"#d9534f"}" stroke-width="${(2.2*K).toFixed(1)}"/>`;
+      let cx=0,cy=0; ring.forEach(q=>{cx+=q[0];cy+=q[1]}); cx/=ring.length; cy/=ring.length;
+      const lp=prj(cx,cy,PAD+10), lx=X(lp[0]), ly=+Y(lp[1]);
+      g+=`<text x="${lx}" y="${ly.toFixed(1)}" text-anchor="middle" font-size="${FS}" font-weight="800" style="fill:#1d2733;pointer-events:none;paint-order:stroke;stroke:rgba(255,255,255,.7);stroke-width:${(3*K).toFixed(1)}">${esc(b.area.replace("Block-","ICR-"))}</text>`;
+      g+=`<text x="${lx}" y="${(ly+FS*0.92).toFixed(1)}" text-anchor="middle" font-size="${Math.round(FS*0.86)}" font-weight="700" style="fill:${ahead?"#15653a":"#a6332f"};pointer-events:none;paint-order:stroke;stroke:rgba(255,255,255,.7);stroke-width:${(3*K).toFixed(1)}">${fmt1(it.a)}%</text>`;
+      g+=`</g>`;
+    }else if(o.t==="wtg"){
+      const w=o.w, x=w[0], y=w[1];
+      const base=prj(x,y,0), hub=prj(x,y,HUB);
+      g+=`<ellipse cx="${X(base[0])}" cy="${Y(base[1])}" rx="${(ROT*0.20).toFixed(1)}" ry="${(ROT*0.20*CSE).toFixed(1)}" fill="#000" opacity=".10"/>`;
+      g+=`<polygon points="${X(base[0]-ROT*0.030)},${Y(base[1])} ${X(base[0]+ROT*0.030)},${Y(base[1])} ${X(hub[0]+ROT*0.014)},${Y(hub[1])} ${X(hub[0]-ROT*0.014)},${Y(hub[1])}" fill="#e6e9ee" stroke="#b9c0c9" stroke-width="${(0.7*K).toFixed(1)}"/>`;
+      for(let k=0;k<3;k++){
+        const th=k*2*Math.PI/3-Math.PI/2;
+        const cth=Math.cos(th), sth=Math.sin(th)*0.94;
+        const tipx=hub[0]+cth*ROT, tipy=hub[1]+sth*ROT;
+        const rx=hub[0]+cth*ROT*0.12, ry=hub[1]+sth*ROT*0.12;       // blade root
+        const nx=-sth*ROT*0.05, ny=cth*ROT*0.05;
+        g+=`<polygon points="${X(rx+nx)},${Y(ry+ny)} ${X(tipx)},${Y(tipy)} ${X(rx-nx*0.5)},${Y(ry-ny*0.5)}" fill="#f4f7fa" stroke="#b8c0cb" stroke-width="${(0.6*K).toFixed(1)}" stroke-linejoin="round"/>`;
+      }
+      g+=`<circle cx="${X(hub[0])}" cy="${Y(hub[1])}" r="${(ROT*0.055).toFixed(1)}" fill="#dfe4ea" stroke="#aeb6c0" stroke-width="${(0.6*K).toFixed(1)}"/>`;
+    }else{
+      const B=o.B, HB=12;
+      g+=`<polygon points="${poly([[B[0],B[1],0],[B[2],B[1],0],[B[2],B[3],0],[B[0],B[3],0]])}" fill="#b9b3a0" stroke="#2e9e57" stroke-width="${(2*K).toFixed(1)}" stroke-dasharray="${(16*K).toFixed(0)} ${(10*K).toFixed(0)}"/>`;
+      const nrow=Math.max(3,Math.round((B[3]-B[1])/60));
+      for(let i=0;i<nrow;i++){
+        const y0=B[1]+18+i*((B[3]-B[1]-30)/nrow), y1=y0+((B[3]-B[1]-30)/nrow)*0.55;
+        g+=`<polygon points="${poly([[B[0]+16,y0,HB],[B[2]-16,y0,HB],[B[2]-16,y1,HB],[B[0]+16,y1,HB]])}" fill="#5d6b7a"/>`;
+        g+=`<polygon points="${poly([[B[0]+16,y0,0],[B[2]-16,y0,0],[B[2]-16,y0,HB],[B[0]+16,y0,HB]])}" fill="#3f4b58"/>`;
+      }
+      const lp=prj((B[0]+B[2])/2,B[3]+30,HB+18);
+      g+=`<text x="${X(lp[0])}" y="${Y(lp[1])}" text-anchor="middle" font-size="${Math.round(FS*0.84)}" font-weight="700" style="fill:#2e6b46;pointer-events:none">${esc(S.bessLabel||"BESS")}</text>`;
+    }
   });
   g+=`</svg>`;
   setTimeout(()=>{
@@ -2747,14 +2837,16 @@ function site3d(rows,idp){
       el.addEventListener("mousemove",e=>showTip(e,el.dataset.tip));
       el.addEventListener("mouseleave",hideTip);
     });},0);
-  const sel=state.f.area?`${chip("blue","Filtered: "+esc(state.f.area))} <a href="#" onclick="state.f.area='';render();return false" style="color:var(--blue);font-size:10px;font-weight:600">× clear</a>`:"";
+  const chipSel=sel?`${chip("blue","Filtered: "+esc(sel))} <a href="#" onclick="state.f.area='';render();return false" style="color:var(--blue);font-size:10px;font-weight:600">× clear</a>`:"";
   return `<div class="legend" style="margin-bottom:4px">
-      <span><span class="sw" style="background:#c9d3e0"></span>not started</span>
-      <span><span class="sw" style="background:#00a3e0"></span>in progress — height = actual %</span>
-      <span><span class="sw" style="background:#2e9e57"></span>complete</span>
-      <span><span class="sw" style="background:var(--s-plan)"></span>plan level (dashed)</span>
-      <span class="dim">${S.extent[0]>=1000?(S.extent[0]/1000).toFixed(1)+" km":Math.round(S.extent[0])+" m"} × ${Math.round(S.extent[1])} m · click a block to filter</span></div>
-    ${sel?`<div style="margin-bottom:4px">${sel}</div>`:""}${g}`;
+      <span><span class="sw" style="background:#24507f"></span>arrays built (tint + installed rows = actual %)</span>
+      <span><span class="sw" style="background:#c4bba3"></span>graded pad, piles only</span>
+      <span><span class="sw" style="background:#2e9e57"></span>at or ahead of plan</span>
+      <span><span class="sw" style="background:#d9534f"></span>behind plan</span>
+      <span><span class="sw" style="background:#3567d6"></span>plot boundary</span>
+      <span><span class="sw" style="background:#1fa8bd"></span>TL corridor</span>
+      <span class="dim">${(S.extent[0]/1000).toFixed(1)} km × ${(S.extent[1]/1000).toFixed(1)} km · ${PITCH} m row pitch · ${(S.wtg||[]).length} WTG · click a block to filter</span></div>
+    ${chipSel?`<div style="margin-bottom:4px">${chipSel}</div>`:""}${g}`;
 }
 // ---------- pages ----------
 function card(cls,title,hint,body,extraHdr){return `<div class="card ${cls}"><div class="hdrrow"><div><h2>${title}</h2><div class="hint">${hint}</div></div>${extraHdr||""}</div>${body}</div>`}
