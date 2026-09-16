@@ -2881,7 +2881,7 @@ function site3d(rows,idp){
       <span><span class="sw" style="background:#d9534f"></span>behind plan</span>
       <span><span class="sw" style="background:#3567d6"></span>plot boundary</span>
       <span><span class="sw" style="background:#1fa8bd"></span>TL corridor</span>
-      <span class="dim">${(S.extent[0]/1000).toFixed(1)} km × ${(S.extent[1]/1000).toFixed(1)} km · ${PITCH} m row pitch · ${(S.wtg||[]).length} WTG · drag to orbit, scroll to zoom, double-click to reset · click a block to filter</span></div>
+      <span class="dim">${(S.extent[0]/1000).toFixed(1)} km × ${(S.extent[1]/1000).toFixed(1)} km · ${PITCH} m row pitch · ${(S.wtg||[]).length} WTG · drag to orbit, scroll to zoom in on the pointer, shift-drag to pan, double-click to reset · click a block to filter</span></div>
     ${chipSel?`<div style="margin-bottom:4px">${chipSel}</div>`:""}<div class="glwrap"><div class="glbox" id="${idp}-gl"></div>${g}</div>`;
 }
 // ---------- realistic 3D site (WebGL) ----------
@@ -2968,7 +2968,7 @@ function buildGL(rows, idp, box, S){
   const byArea={}; rows.forEach(r=>{const a=String(r[C.area]||"");(byArea[a]=byArea[a]||[]).push(r)});
 
   const scene=new T.Scene();
-  scene.fog=new T.Fog(0xc3d5e6, W*1.15, W*3.4);
+  scene.fog=new T.Fog(0xc3d5e6, W*1.9, W*6.0);   // only the true horizon, never the plant
   const renderer=new T.WebGLRenderer({antialias:true, powerPreference:"high-performance"});
   renderer.setPixelRatio(Math.min(devicePixelRatio||1, 1.75));
   renderer.shadowMap.enabled=true; renderer.shadowMap.type=T.PCFSoftShadowMap;
@@ -3057,25 +3057,28 @@ function buildGL(rows, idp, box, S){
       });
     }
   });
-  // fixed-tilt tables - FT-2Px28 on the drawing - pitched off their north edge
-  if(tables.length){
-    const im=new T.InstancedMesh(new T.BoxGeometry(TL*0.97, 0.16, TW),
-      new T.MeshPhongMaterial({color:0x1b3f6d, shininess:80, specular:0x6389ba}), tables.length);
+  // Fixed-tilt tables - FT-2Px28 on the drawing - pitched off their north edge. Given a
+  // real thickness and stood on a pier rather than laid flat, so each one reads as an
+  // object with a lit top and a shaded underside instead of a coloured smear.
+  const TH=PAD+2.3;                              // table centre above ground
+  const table=(pts, colour, lit)=>{
+    if(!pts.length) return;
+    const mat = lit ? new T.MeshPhongMaterial({color:colour, shininess:95, specular:0x86a9d8})
+                    : new T.MeshPhongMaterial({color:colour, shininess:26, specular:0x2f3a4a});
+    const im=new T.InstancedMesh(new T.BoxGeometry(TL*0.97, 0.42, TW), mat, pts.length);
     im.receiveShadow=true;
     const d=new T.Object3D();
-    tables.forEach((p,i)=>{d.position.set(p[0], PAD+1.9, p[1]); d.rotation.set(TILT,0,0); d.updateMatrix(); im.setMatrixAt(i,d.matrix)});
+    pts.forEach((p,i)=>{d.position.set(p[0], TH, p[1]); d.rotation.set(TILT,0,0); d.updateMatrix(); im.setMatrixAt(i,d.matrix)});
     im.instanceMatrix.needsUpdate=true; scene.add(im);
-  }
-  // tables still to come are drawn too, in bare galvanised grey with no glass: the plant
-  // reads as a plant at any stage, and the progress is the blue sweeping across it
-  if(piles.length){
-    const im=new T.InstancedMesh(new T.BoxGeometry(TL*0.97, 0.13, TW),
-      new T.MeshLambertMaterial({color:0x9aa1a8}), piles.length);
-    im.receiveShadow=true;
-    const d=new T.Object3D();
-    piles.forEach((p,i)=>{d.position.set(p[0], PAD+1.9, p[1]); d.rotation.set(TILT,0,0); d.updateMatrix(); im.setMatrixAt(i,d.matrix)});
-    im.instanceMatrix.needsUpdate=true; scene.add(im);
-  }
+    // the pier under it, which is most of what makes a table look raised off the ground
+    const lg=new T.InstancedMesh(new T.BoxGeometry(0.75, TH-PAD, 0.75),
+      new T.MeshLambertMaterial({color:0x6d7580}), pts.length);
+    const q=new T.Object3D();
+    pts.forEach((p,i)=>{q.position.set(p[0], PAD+(TH-PAD)/2, p[1]); q.updateMatrix(); lg.setMatrixAt(i,q.matrix)});
+    lg.instanceMatrix.needsUpdate=true; scene.add(lg);
+  };
+  table(tables, 0x11386f, true);     // built: deep blue glass
+  table(piles,  0x2d4360, false);    // still to come: the same dark blue, unglazed and flat
 
   // ---- roads, corridors, boundary ----------------------------------------
   const ribbon=(lines, width, y, colour)=>{
@@ -3165,21 +3168,45 @@ function buildGL(rows, idp, box, S){
   el.addEventListener("pointerup",e=>{const was=drag; drag=null; el.style.cursor="grab";
     if(was&&moved<6) pick(e)});
   el.addEventListener("pointerleave",()=>{drag=null; hideTip()});
+  // keep the eye somewhere near the plant however far it is dragged
+  const clampT=()=>{
+    target.x=Math.max(-W*0.10, Math.min(W*1.10, target.x));
+    target.z=Math.max(-D*0.25, Math.min(D*1.25, target.z));
+  };
   el.addEventListener("pointermove",e=>{
     if(!drag){ hover(e); return }
     const dx=e.clientX-drag.x, dy=e.clientY-drag.y; drag.x=e.clientX; drag.y=e.clientY;
     moved+=Math.abs(dx)+Math.abs(dy);
     if(drag.b===2||e.shiftKey){
-      const k=radius*0.0012;
-      target.x-=dx*k*Math.cos(theta)+dy*k*Math.sin(theta);
-      target.z+=dx*k*Math.sin(theta)-dy*k*Math.cos(theta);
+      // drag the ground, not the camera: right is (cos t, -sin t), forward (-sin t, -cos t)
+      const k=radius*0.0016, st=Math.sin(theta), ct=Math.cos(theta);
+      target.x+=(-ct*dx+st*dy)*k; target.z+=(st*dx+ct*dy)*k; clampT();
     }else{
-      theta-=dx*0.006; phi=Math.max(0.14, Math.min(1.36, phi-dy*0.005));
+      theta-=dx*0.006; phi=Math.max(0.10, Math.min(1.40, phi-dy*0.005));
     }
     place();
   });
-  el.addEventListener("wheel",e=>{e.preventDefault();
-    radius=Math.max(W*0.10, Math.min(W*1.9, radius*(1+Math.sign(e.deltaY)*0.12))); place()},{passive:false});
+  // Zoom toward whatever is under the pointer. Pulling the radius in about a fixed target
+  // is what made it impossible to get to a particular part of the plant: you could get
+  // closer, but never closer to the thing you were looking at.
+  const GPLANE=new T.Plane(new T.Vector3(0,1,0), 0), gp=new T.Vector3();
+  const groundAt=e=>{
+    const r=el.getBoundingClientRect();
+    ndc.x=((e.clientX-r.left)/r.width)*2-1; ndc.y=-((e.clientY-r.top)/r.height)*2+1;
+    ray.setFromCamera(ndc, cam);
+    return ray.ray.intersectPlane(GPLANE, gp) ? gp : null;
+  };
+  el.addEventListener("wheel",e=>{
+    e.preventDefault();
+    const was=radius;
+    radius=Math.max(W*0.025, Math.min(W*2.2, radius*(1+Math.sign(e.deltaY)*0.12)));
+    const p=groundAt(e);
+    if(p && radius<was){
+      const t=Math.min(0.85, (1-radius/was)*2.4);
+      target.x+=(p.x-target.x)*t; target.z+=(p.z-target.z)*t; clampT();
+    }
+    place();
+  },{passive:false});
   el.addEventListener("contextmenu",e=>e.preventDefault());
   el.addEventListener("dblclick",()=>{radius=HOME.r; theta=HOME.t; phi=HOME.p;
     target.copy(HOMET); place()});
@@ -3221,12 +3248,12 @@ function buildGL(rows, idp, box, S){
     d.innerHTML=`${esc(u.area.replace("Block-","ICR-"))} <span style="color:${ahead?"#6ee59d":"#ff9b93"}">${fmt1(u.act)}%</span>`;
     lay.appendChild(d);
     const c=centroid(S.blocks[i].poly);
-    return {d, p:new T.Vector3(c[0], PAD+7, Z(c[1])), area:u.area};
+    return {d, p:new T.Vector3(c[0], PAD+3, Z(c[1])), area:u.area, m:m, occ:false};
   });
 
   // ---- loop --------------------------------------------------------------
-  let lastSel=null;
-  const v=new T.Vector3();
+  let lastSel=null, occ=0;
+  const v=new T.Vector3(), dir=new T.Vector3();
   const tick=()=>{
     GL.raf=requestAnimationFrame(tick);
     if((fit=(fit+1)%12)===0) refit();
@@ -3240,16 +3267,30 @@ function buildGL(rows, idp, box, S){
         if(k){k.material.opacity=on?1:0.3; k.material.depthWrite=on}});
     }
     renderer.render(scene, cam);
+    // A label belongs to its block, so it is pinned to that block's centroid and follows it
+    // through every orbit, pan and zoom - never faded out with distance, never dropped for
+    // being near an edge. The one reason to hide a label is that its block is genuinely
+    // behind another, which is re-tested a few times a second rather than every frame.
     const r=el.getBoundingClientRect();
+    if((occ=(occ+1)%8)===0){
+      tags.forEach(t=>{
+        dir.copy(t.p).sub(cam.position);
+        const dist=dir.length(); dir.normalize();
+        ray.set(cam.position, dir);
+        const h=ray.intersectObjects(blocks, false);
+        t.occ = !!(h.length && h[0].object!==t.m && h[0].distance < dist-3);
+      });
+    }
     tags.forEach(t=>{
       v.copy(t.p).project(cam);
-      const vis=v.z<1 && Math.abs(v.x)<0.98 && Math.abs(v.y)<0.94 && (!sel||sel===t.area);
+      const vis=v.z<1 && Math.abs(v.x)<1.25 && Math.abs(v.y)<1.25;
       t.d.style.display=vis?"block":"none";
       if(vis){
         t.d.style.left=((v.x*0.5+0.5)*r.width)+"px";
         t.d.style.top=((-v.y*0.5+0.5)*r.height)+"px";
-        const far=cam.position.distanceTo(t.p);
-        t.d.style.opacity=far>W*0.85?0:far>W*0.5?1-(far-W*0.5)/(W*0.35):1;
+        // never dropped - a block hidden behind another just steps back a little
+        t.d.style.opacity=(sel&&sel!==t.area)?0.4:(t.occ?0.45:1);
+        t.d.style.zIndex=t.occ?1:2;
       }
     });
   };
