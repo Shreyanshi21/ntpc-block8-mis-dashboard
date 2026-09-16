@@ -3003,6 +3003,23 @@ function buildGL(rows, idp, box, S){
   ground.rotation.x=-Math.PI/2; ground.position.set(W/2, 0, Z(D/2)); ground.receiveShadow=true;
   scene.add(ground);
 
+  // a vertical band standing on the edge of a pad: the block boundary, readable in
+  // perspective in a way a line painted flat on the deck is not
+  const wall=(ring, y0, h, colour)=>{
+    const pos=[], idx=[]; let n=0;
+    for(let i=0;i<ring.length;i++){
+      const a=ring[i], b=ring[(i+1)%ring.length];
+      pos.push(a[0],y0,Z(a[1]), b[0],y0,Z(b[1]), a[0],y0+h,Z(a[1]), b[0],y0+h,Z(b[1]));
+      idx.push(n,n+1,n+2, n+1,n+3,n+2); n+=4;
+    }
+    const g=new T.BufferGeometry();
+    g.setAttribute("position", new T.Float32BufferAttribute(pos,3));
+    g.setIndex(idx); g.computeVertexNormals();
+    const mat=new T.MeshLambertMaterial({color:colour, side:T.DoubleSide, transparent:true,
+                                         emissive:colour, emissiveIntensity:0.22});
+    const mesh=new T.Mesh(g, mat); mesh.castShadow=true; scene.add(mesh);
+    return mesh;
+  };
   // ---- pads, panels, pile lines ------------------------------------------
   // UVs off ExtrudeGeometry are in world metres, so repeat is 1/tile-size
   const padTex=noiseTex("#bcb193", ["#cbc0a0","#a99e82","#d4caab"], 800, 128);
@@ -3012,15 +3029,22 @@ function buildGL(rows, idp, box, S){
   S.blocks.forEach(b=>{
     const rr=byArea[b.area]||[];
     const act=rr.length?actPctAt(rr,SW):0, pln=rr.length?planPct(rr,SW):0;
+    // The shape is drawn in XY and extruded along +z, so it has to be laid down into the
+    // ground plane. Rotating -90 about X sends shape-y to -z, which mirrors every pad to
+    // the far side of the origin and leaves the slabs sitting nowhere near their own
+    // panels; +90 keeps shape-y as +z, and the translate puts the deck back at y = PAD.
     const shape=new T.Shape(b.poly.map(q=>new T.Vector2(q[0], Z(q[1]))));
     const geo=new T.ExtrudeGeometry(shape, {depth:PAD, bevelEnabled:false});
-    geo.rotateX(-Math.PI/2);                   // the shape is drawn in XY; stand it up in XZ
+    geo.rotateX(Math.PI/2); geo.translate(0, PAD, 0);
     // materials are per block so selecting one can fade the rest
     const m=new T.Mesh(geo, [new T.MeshLambertMaterial({map:padTex, transparent:true}),
                              new T.MeshLambertMaterial({color:0x9c9378, transparent:true})]);
     m.castShadow=true; m.receiveShadow=true;
     m.userData={area:b.area, act:act, pln:pln, n:rr.length, ha:b.areaM2/10000, approx:!!b.approx};
     scene.add(m); blocks.push(m);
+    // a kerb round every block, so one block is told from the next at any camera angle,
+    // and its colour is the one the rest of the dashboard uses for ahead of / behind plan
+    m.userData.kerb=wall(b.poly, PAD, 5.0, act>=pln-0.05 ? 0x2fae60 : 0xe4564f);
 
     const ys=b.poly.map(q=>q[1]), y0=Math.min(...ys), y1=Math.max(...ys);
     const nrow=Math.max(1, Math.floor((y1-y0)/PITCH));
@@ -3121,8 +3145,8 @@ function buildGL(rows, idp, box, S){
 
   // ---- camera and orbit --------------------------------------------------
   const cam=new T.PerspectiveCamera(48, box.clientWidth/box.clientHeight, 5, W*6);
-  const HOME={r:W*0.27, t:-0.34, p:1.15, y:90};
-  const HOMET=new T.Vector3(W*0.34, HOME.y, Z(D*0.52));
+  const HOME={r:W*0.30, t:-0.17, p:1.13, y:70};
+  const HOMET=new T.Vector3(W*0.50, HOME.y, Z(D*0.50));
   const target=HOMET.clone();
   let radius=HOME.r, theta=HOME.t, phi=HOME.p;   // spherical about the target
   if(GLCAM){radius=GLCAM.r; theta=GLCAM.t; phi=GLCAM.p; target.copy(GLCAM.g)}
@@ -3181,14 +3205,23 @@ function buildGL(rows, idp, box, S){
   const lay=document.createElement("div");
   lay.style.cssText="position:absolute;inset:0;pointer-events:none;overflow:hidden";
   box.appendChild(lay);
-  const bb=new T.Box3(), c3=new T.Vector3();
-  const tags=blocks.map(m=>{
+  // the area centroid sits inside the block; a bounding-box centre does not have to
+  const centroid=p=>{
+    let A=0,cx=0,cy=0;
+    for(let i=0;i<p.length;i++){
+      const q=p[i], r=p[(i+1)%p.length], f=q[0]*r[1]-r[0]*q[1];
+      A+=f; cx+=(q[0]+r[0])*f; cy+=(q[1]+r[1])*f;
+    }
+    if(Math.abs(A)<1e-6) return [p[0][0], p[0][1]];
+    return [cx/(3*A), cy/(3*A)];
+  };
+  const tags=blocks.map((m,i)=>{
     const u=m.userData, d=document.createElement("div"), ahead=u.act>=u.pln-0.05;
     d.style.cssText="position:absolute;transform:translate(-50%,-50%);font:700 10px/1.25 inherit;text-align:center;white-space:nowrap;color:#fff;background:rgba(14,24,38,.74);padding:2px 6px;border-radius:5px;box-shadow:0 1px 3px rgba(0,0,0,.35)";
     d.innerHTML=`${esc(u.area.replace("Block-","ICR-"))} <span style="color:${ahead?"#6ee59d":"#ff9b93"}">${fmt1(u.act)}%</span>`;
     lay.appendChild(d);
-    bb.setFromObject(m); bb.getCenter(c3);
-    return {d, p:new T.Vector3(c3.x, PAD+8, c3.z), area:u.area};
+    const c=centroid(S.blocks[i].poly);
+    return {d, p:new T.Vector3(c[0], PAD+7, Z(c[1])), area:u.area};
   });
 
   // ---- loop --------------------------------------------------------------
@@ -3202,7 +3235,9 @@ function buildGL(rows, idp, box, S){
     if(sel!==lastSel){
       lastSel=sel;
       blocks.forEach(m=>{const on=!sel||sel===m.userData.area;
-        m.material.forEach(x=>{x.opacity=on?1:0.35; x.depthWrite=on})});
+        m.material.forEach(x=>{x.opacity=on?1:0.35; x.depthWrite=on});
+        const k=m.userData.kerb;
+        if(k){k.material.opacity=on?1:0.3; k.material.depthWrite=on}});
     }
     renderer.render(scene, cam);
     const r=el.getBoundingClientRect();
