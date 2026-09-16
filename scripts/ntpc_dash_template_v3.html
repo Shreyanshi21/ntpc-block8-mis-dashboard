@@ -2659,6 +2659,103 @@ const SPEC_PO=()=>({key:"po",steps:CFG.poStep,unit:"packages",groupLabel:"Packag
   hint:`the “PO Placement” step, one per package · placed vs what the baseline says should be placed by ${wdate(SW,1)}`,
   byTitle:"PO Placement by package",
   byHint:"the same four counts per package · largest shortfall first"});
+// ---------- 3D site model ----------
+// An isometric model of the plant, built from the block footprints the project
+// config carries (scripts/projects/<key>.json -> siteModel). Those came out of the
+// issued array-layout drawing: every sheet was georeferenced from its surveyed E/N
+// callouts, so a block sits where it sits on site, at its real size. Each block is
+// extruded by its own progress, so the skyline IS the progress picture, and clicking
+// one filters the dashboard to that block exactly as the scorecard tiles do.
+// Projection is a flattened isometric: a 4.3 km strip stays legible in a card.
+const ISO_X=0.866, ISO_Y=0.30, ISO_Z=1.0;
+function isoPt(x,y,z){ return [(x-y)*ISO_X, (x+y)*ISO_Y - (z||0)*ISO_Z]; }
+// grey at nothing done, through the dashboard blue, to green when complete
+function siteColour(pct,done){
+  if(done||pct>=99.5) return ["#2e9e57","#227a42","#1b6335"];
+  if(pct<0.5)         return ["#c9d3e0","#aeb9c9","#9aa6b6"];
+  const t=Math.min(1,pct/100);
+  const mix=(a,b)=>Math.round(a+(b-a)*t);
+  const r=mix(120,0), g=mix(180,163), b=mix(215,224);
+  const d=(f)=>`rgb(${Math.round(r*f)},${Math.round(g*f)},${Math.round(b*f)})`;
+  return [`rgb(${r},${g},${b})`, d(0.78), d(0.62)];
+}
+function site3d(rows,idp){
+  const S=CFG.siteModel; if(!S||!S.blocks||!S.blocks.length) return "";
+  const byArea={}; rows.forEach(r=>{const a=String(r[C.area]||"");(byArea[a]=byArea[a]||[]).push(r)});
+  const Z0=26, ZP=1.9;                       // base slab, then height per % complete
+  const items=S.blocks.map(b=>{
+    const rr=byArea[b.area]||[];
+    const a=rr.length?actPctAt(rr,SW):0, p=rr.length?planPct(rr,SW):0;
+    return {b, rr, a, p, h:Z0+a*ZP, done:rr.length>0&&rr.every(isDone)};
+  });
+  // painter's algorithm: far blocks first, so near ones overlap them correctly
+  items.sort((u,v)=>(u.b.x+u.b.y)-(v.b.x+v.b.y));
+  // the ground pad hugs the blocks (a 70 m verge) rather than the full survey extent,
+  // so the strip stays tight and the pad is never cut off by the viewBox
+  const GV=70;
+  const gx0=Math.min(...S.blocks.map(b=>b.x))-GV, gx1=Math.max(...S.blocks.map(b=>b.x+b.w))+GV;
+  const gy0=Math.min(...S.blocks.map(b=>b.y))-GV, gy1=Math.max(...S.blocks.map(b=>b.y+b.d))+GV;
+  const pts=[];
+  S.blocks.forEach(b=>{[[b.x,b.y],[b.x+b.w,b.y],[b.x,b.y+b.d],[b.x+b.w,b.y+b.d]].forEach(q=>{
+    pts.push(isoPt(q[0],q[1],0)); pts.push(isoPt(q[0],q[1],Z0+100*ZP));})});
+  [[gx0,gy0],[gx1,gy0],[gx1,gy1],[gx0,gy1]].forEach(q=>pts.push(isoPt(q[0],q[1],0)));
+  const xs=pts.map(q=>q[0]), ys=pts.map(q=>q[1]);
+  const PAD=40, minX=Math.min(...xs)-PAD, maxX=Math.max(...xs)+PAD;
+  const minY=Math.min(...ys)-PAD, maxY=Math.max(...ys)+PAD;
+  const W=Math.round(maxX-minX), H=Math.round(maxY-minY);
+  // the SVG scales to the card, so type has to be sized in viewBox units or a 5 km
+  // strip renders its labels at 5px - this keeps them around 12px on a full-width card
+  const FS=Math.max(19,Math.round(W/115));
+  const K=Math.max(1,W/1400);            // same idea for the hairlines
+  const X=v=>(v-minX).toFixed(1), Y=v=>(v-minY).toFixed(1);
+  const poly=(qs)=>qs.map(q=>`${X(q[0])},${Y(q[1])}`).join(" ");
+  let g=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" id="${idp}-svg">`;
+  // ground
+  const gnd=[[gx0,gy0],[gx1,gy0],[gx1,gy1],[gx0,gy1]].map(q=>isoPt(q[0],q[1],0));
+  g+=`<polygon points="${poly(gnd)}" fill="var(--page)" stroke="var(--line2)" stroke-width="${(2*K).toFixed(1)}"/>`;
+  items.forEach((it,i)=>{
+    const b=it.b, h=it.h, [top,right,front]=siteColour(it.a,it.done);
+    const T=[[b.x,b.y],[b.x+b.w,b.y],[b.x+b.w,b.y+b.d],[b.x,b.y+b.d]].map(q=>isoPt(q[0],q[1],h));
+    const fA=[isoPt(b.x,b.y+b.d,0),isoPt(b.x+b.w,b.y+b.d,0),isoPt(b.x+b.w,b.y+b.d,h),isoPt(b.x,b.y+b.d,h)];
+    const fB=[isoPt(b.x+b.w,b.y,0),isoPt(b.x+b.w,b.y+b.d,0),isoPt(b.x+b.w,b.y+b.d,h),isoPt(b.x+b.w,b.y,h)];
+    const tip=`${esc(b.area)}${b.approx?" (position approximate)":""}<br>Actual <b>${fmt1(it.a)}%</b> · plan ${fmt1(it.p)}%<br>`
+      +`${it.rr.length} activities · ${Math.round(b.w)} × ${Math.round(b.d)} m`;
+    g+=`<g class="siteblk" data-area="${esc(b.area)}" data-tip="${esc(tip)}" style="cursor:pointer">`;
+    g+=`<polygon points="${poly(fA)}" fill="${front}"/><polygon points="${poly(fB)}" fill="${right}"/>`;
+    g+=`<polygon points="${poly(T)}" fill="${top}" stroke="rgba(0,0,0,.20)" stroke-width="${K.toFixed(1)}"/>`;
+    // PV rows on the roof, so a block reads as an array rather than a plain slab
+    const nrow=Math.max(3,Math.min(9,Math.round(b.d/45)));
+    for(let k=1;k<nrow;k++){const yy=b.y+b.d*k/nrow;
+      const s=isoPt(b.x+4,yy,h), e=isoPt(b.x+b.w-4,yy,h);
+      g+=`<line x1="${X(s[0])}" y1="${Y(s[1])}" x2="${X(e[0])}" y2="${Y(e[1])}" stroke="rgba(255,255,255,.35)" stroke-width="${(1.2*K).toFixed(1)}"/>`;}
+    // the plan level, as a line ruled across the block face
+    if(it.p>0.5){const ph=Z0+Math.min(100,it.p)*ZP;
+      const s=isoPt(b.x,b.y+b.d,ph), e=isoPt(b.x+b.w,b.y+b.d,ph);
+      g+=`<line x1="${X(s[0])}" y1="${Y(s[1])}" x2="${X(e[0])}" y2="${Y(e[1])}" stroke="var(--s-plan)" stroke-width="${(2.2*K).toFixed(1)}" stroke-dasharray="${(5*K).toFixed(0)} ${(3*K).toFixed(0)}"/>`;}
+    // X()/Y() hand back strings, so the two label offsets are done in numbers first -
+    // "+16" on a string would concatenate and stack the percentage on the name
+    const c=isoPt(b.x+b.w/2,b.y+b.d/2,h), cx=X(c[0]), cy=+Y(c[1]);
+    g+=`<text x="${cx}" y="${(cy-FS*0.12).toFixed(1)}" text-anchor="middle" font-size="${FS}" font-weight="800" style="fill:var(--ink);pointer-events:none">${esc(b.area.replace("Block-","B"))}</text>`;
+    g+=`<text x="${cx}" y="${(cy+FS*0.86).toFixed(1)}" text-anchor="middle" font-size="${Math.round(FS*0.82)}" font-weight="700" style="fill:var(--ink2);pointer-events:none">${fmt1(it.a)}%</text>`;
+    g+=`</g>`;
+  });
+  g+=`</svg>`;
+  setTimeout(()=>{
+    document.querySelectorAll(`#${idp}-svg .siteblk`).forEach(el=>{
+      el.addEventListener("click",()=>{const a=el.dataset.area;
+        state.f.area=(state.f.area===a?"":a); render();});
+      el.addEventListener("mousemove",e=>showTip(e,el.dataset.tip));
+      el.addEventListener("mouseleave",hideTip);
+    });},0);
+  const sel=state.f.area?`${chip("blue","Filtered: "+esc(state.f.area))} <a href="#" onclick="state.f.area='';render();return false" style="color:var(--blue);font-size:10px;font-weight:600">× clear</a>`:"";
+  return `<div class="legend" style="margin-bottom:4px">
+      <span><span class="sw" style="background:#c9d3e0"></span>not started</span>
+      <span><span class="sw" style="background:#00a3e0"></span>in progress — height = actual %</span>
+      <span><span class="sw" style="background:#2e9e57"></span>complete</span>
+      <span><span class="sw" style="background:var(--s-plan)"></span>plan level (dashed)</span>
+      <span class="dim">${S.extent[0]>=1000?(S.extent[0]/1000).toFixed(1)+" km":Math.round(S.extent[0])+" m"} × ${Math.round(S.extent[1])} m · click a block to filter</span></div>
+    ${sel?`<div style="margin-bottom:4px">${sel}</div>`:""}${g}`;
+}
 // ---------- pages ----------
 function card(cls,title,hint,body,extraHdr){return `<div class="card ${cls}"><div class="hdrrow"><div><h2>${title}</h2><div class="hint">${hint}</div></div>${extraHdr||""}</div>${body}</div>`}
 const unitToggle=()=>`<div class="toggle2"><button id="u-pct" class="${state.unit==="%"?"on":""}">%</button><button id="u-mw" class="${state.unit==="MW"?"on":""}">MW</button></div>`;
@@ -2709,6 +2806,8 @@ function pageLayout(){
   const site=rows.filter(r=>r[C.dept]==="execution"||r[C.dept]==="tnc"||r[C.dept]==="hoto");
   const use=site.length?site:rows;
   let h=`<div class="grid">`;
+  {const m=site3d(use,"lay3d");
+   if(m)h+=card("span12","Plant Layout — 3D Site Model","block footprints from the issued array layout · height and colour = actual % complete · click a block to filter",m);}
   h+=layoutCard(use,CFG.plantLayout?"Plant Layout — Site Map":"Plant Layout — Block / Feeder Scorecard","lay-view");
   h+=card("span12","Area Scorecard","weightage-based vs plan",scorecard(use));
   h+="</div>";
@@ -2952,6 +3051,10 @@ function pageDept(key){
     h+=card("span12","All approval groups","",regTable(rows,false,"ra"));
     h+=card("span12","Statutory Updates Sheet — Exec View","document-wise · target vs revised date · click an approval above to focus, or scroll for all",statSheet(rows));
   }else if(key==="execution"||key==="tnc"){
+    // the model is asked for in two places only - Plant Layout and Execution &
+    // Construction - so T&C keeps the scorecard alone
+    if(key==="execution"){const m=site3d(rows,"exe3d");
+     if(m)h+=card("span12","3D Site Model — execution progress","block footprints from the issued array layout · height and colour = actual % complete · click a block to filter",m);}
     h+=layoutCard(rows,CFG.plantLayout?"Block / Feeder scorecard — Site Map":"Block / Feeder scorecard","layd-view");
     h+=card("span12","Stage progress","by work type · Actual % vs Baseline Plan %",stageBars(rows));
   }else{
