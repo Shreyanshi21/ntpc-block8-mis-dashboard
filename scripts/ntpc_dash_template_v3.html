@@ -2690,6 +2690,17 @@ function padTint(pct){
   const m=(a,b)=>Math.round(a+(b-a)*t);
   return `rgb(${m(196,42)},${m(187,88)},${m(163,143)})`;
 }
+// Walls are only drawn when they face the camera, and are lit by which way they face,
+// which is what makes a block read as a solid raised off the ground rather than a patch
+// of colour. Outward normals need a known winding, so every ring is made counter-clockwise.
+function ringCCW(p){let a=0;for(let i=0;i<p.length;i++){const q=p[i],r=p[(i+1)%p.length];a+=q[0]*r[1]-r[0]*q[1]}return a<0?p.slice().reverse():p}
+const SUN=[-0.50,0.87];                    // low sun off the north-west
+function faceShade(nx,ny){return 0.54+0.42*Math.max(0,nx*SUN[0]+ny*SUN[1])}
+function shade(c,f){return `rgb(${Math.round(c[0]*f)},${Math.round(c[1]*f)},${Math.round(c[2]*f)})`}
+function inPoly(x,y,p){let o=false;
+  for(let i=0,j=p.length-1;i<p.length;j=i++)
+    if((p[i][1]>y)!==(p[j][1]>y)&&x<(p[j][0]-p[i][0])*(y-p[i][1])/(p[j][1]-p[i][1])+p[i][0])o=!o;
+  return o}
 // horizontal slice through a block outline - gives the x spans a tracker row can fill
 function spansAt(poly,y){
   const xs=[];
@@ -2706,7 +2717,10 @@ function site3d(rows,idp){
   const S=CFG.siteModel; if(!S||!S.blocks||!S.blocks.length) return "";
   const byArea={}; rows.forEach(r=>{const a=String(r[C.area]||"");(byArea[a]=byArea[a]||[]).push(r)});
   const PITCH=(S.row&&S.row.pitch)||7.5, TW=(S.row&&S.row.tableWid)||4.8;
-  const PAD=3.0;                                   // the graded pad the arrays sit on
+  // The blocks are raised into plinths so the model reads as a solid three-dimensional
+  // thing rather than a coloured plan. Tied to the model's own size so it holds up at any
+  // extent: a 4.9 x 1.6 km site gets a ~35 m plinth, about 9 px of wall on a full-width card.
+  const PAD=Math.max(14,Math.round((S.extent[1]||1200)*0.022));
   const HUB=S.wtgHubM||120, ROT=(S.wtgRotorM||160)/2;
   const items=S.blocks.map(b=>{
     const rr=byArea[b.area]||[];
@@ -2769,16 +2783,19 @@ function site3d(rows,idp){
       const tip=`${esc(b.area)}${b.approx?" (outline approximate)":""}<br>Actual <b>${fmt1(it.a)}%</b> · plan ${fmt1(it.p)}%<br>`
         +`${it.rr.length} activities · ${(b.areaM2/10000).toFixed(1)} ha`;
       g+=`<g class="siteblk" data-area="${esc(b.area)}" data-tip="${esc(tip)}" style="cursor:pointer"${dim(b.area)}>`;
-      // graded pad, with its south and east faces so the block has thickness
-      const ring=b.poly;
-      g+=`<polygon points="${poly(ring.map(q=>[q[0]+9,q[1]-7,0]))}" fill="#7a7260" opacity=".22"/>`;
-      g+=`<polygon points="${poly(ring.map(q=>[q[0],q[1],0]))}" fill="#9d937c" opacity=".55"/>`;
+      // the plinth: a shadow cast on the ground, the walls the camera can see, then the deck
+      const ring=ringCCW(b.poly), so=PAD*0.42;
+      g+=`<polygon points="${poly(ring.map(q=>[q[0]+so,q[1]-so*0.7,0]))}" fill="#6d6552" opacity=".18"/>`;
+      const WALL=[156,146,121];
       for(let i=0;i<ring.length;i++){
         const a1=ring[i], b1=ring[(i+1)%ring.length];
-        if(depth(a1[0],a1[1])+depth(b1[0],b1[1]) < depth((it.x0+it.x1)/2,(it.y0+it.y1)/2)*2) continue;
-        g+=`<polygon points="${poly([[a1[0],a1[1],0],[b1[0],b1[1],0],[b1[0],b1[1],PAD],[a1[0],a1[1],PAD]])}" fill="#8d8368"/>`;
+        const dx=b1[0]-a1[0], dy=b1[1]-a1[1], L=Math.hypot(dx,dy)||1;
+        const nx=dy/L, ny=-dx/L;                     // outward normal of a counter-clockwise ring
+        if(nx*CSA-ny*CCA<=0) continue;               // this wall faces away from the camera
+        g+=`<polygon points="${poly([[a1[0],a1[1],0],[b1[0],b1[1],0],[b1[0],b1[1],PAD],[a1[0],a1[1],PAD]])}" fill="${shade(WALL,faceShade(nx,ny))}"/>`;
+        g+=`<line x1="${X(prj(a1[0],a1[1],0)[0])}" y1="${Y(prj(a1[0],a1[1],0)[1])}" x2="${X(prj(b1[0],b1[1],0)[0])}" y2="${Y(prj(b1[0],b1[1],0)[1])}" stroke="#000" opacity=".22" stroke-width="${(0.9*K).toFixed(1)}"/>`;
       }
-      g+=`<polygon points="${poly(ring.map(q=>[q[0],q[1],PAD]))}" fill="${padTint(it.a)}" stroke="rgba(0,0,0,.18)" stroke-width="${K.toFixed(1)}"/>`;
+      g+=`<polygon points="${poly(ring.map(q=>[q[0],q[1],PAD]))}" fill="${padTint(it.a)}"/>`;
       // tracker rows, south to north so nearer rows overlap the ones behind
       const n=Math.max(1,Math.floor((it.y1-it.y0)/PITCH));
       const built=Math.round(n*Math.min(100,it.a)/100);
@@ -2787,15 +2804,16 @@ function site3d(rows,idp){
         const isOn=i<built;                      // building sweeps south to north
         spansAt(ring,y).forEach(sp=>{
           if(isOn){
-            g+=`<polygon points="${poly([[sp[0],y,1.1],[sp[1],y,1.1],[sp[1],y+TW,3.1],[sp[0],y+TW,3.1]])}" fill="${it.done?"#1d4a86":"#23558f"}"/>`;
-            g+=`<line x1="${X(prj(sp[0],y+TW,3.1)[0])}" y1="${Y(prj(sp[0],y+TW,3.1)[1])}" x2="${X(prj(sp[1],y+TW,3.1)[0])}" y2="${Y(prj(sp[1],y+TW,3.1)[1])}" stroke="#6fa8dc" stroke-width="${(0.7*K).toFixed(1)}" opacity=".75"/>`;
-            g+=`<polygon points="${poly([[sp[0],y,1.1],[sp[1],y,1.1],[sp[1],y,0],[sp[0],y,0]])}" fill="#1a2c44" opacity=".5"/>`;
+            g+=`<polygon points="${poly([[sp[0],y,PAD+1.1],[sp[1],y,PAD+1.1],[sp[1],y+TW,PAD+3.1],[sp[0],y+TW,PAD+3.1]])}" fill="${it.done?"#1d4a86":"#23558f"}"/>`;
+            g+=`<line x1="${X(prj(sp[0],y+TW,PAD+3.1)[0])}" y1="${Y(prj(sp[0],y+TW,PAD+3.1)[1])}" x2="${X(prj(sp[1],y+TW,PAD+3.1)[0])}" y2="${Y(prj(sp[1],y+TW,PAD+3.1)[1])}" stroke="#6fa8dc" stroke-width="${(0.7*K).toFixed(1)}" opacity=".75"/>`;
+            g+=`<polygon points="${poly([[sp[0],y,PAD+1.1],[sp[1],y,PAD+1.1],[sp[1],y,PAD],[sp[0],y,PAD]])}" fill="#1a2c44" opacity=".5"/>`;
 
           }else{
-            g+=`<line x1="${X(prj(sp[0],y+TW/2,PAD)[0])}" y1="${Y(prj(sp[0],y+TW/2,PAD)[1])}" x2="${X(prj(sp[1],y+TW/2,PAD)[0])}" y2="${Y(prj(sp[1],y+TW/2,PAD)[1])}" stroke="#000" opacity=".16" stroke-width="${(0.9*K).toFixed(1)}"/>`;
+            g+=`<line x1="${X(prj(sp[0],y+TW/2,PAD)[0])}" y1="${Y(prj(sp[0],y+TW/2,PAD)[1])}" x2="${X(prj(sp[1],y+TW/2,PAD)[0])}" y2="${Y(prj(sp[1],y+TW/2,PAD)[1])}" stroke="#000" opacity=".21" stroke-width="${(0.9*K).toFixed(1)}"/>`;
           }
         });
       }
+      g+=`<polygon points="${poly(ring.map(q=>[q[0],q[1],PAD+0.9]))}" fill="none" stroke="rgba(255,255,255,.65)" stroke-width="${(1.6*K).toFixed(1)}"/>`;
       g+=`<polygon points="${poly(ring.map(q=>[q[0],q[1],PAD]))}" fill="none" stroke="${ahead?"#2e9e57":"#d9534f"}" stroke-width="${(2.2*K).toFixed(1)}"/>`;
       let cx=0,cy=0; ring.forEach(q=>{cx+=q[0];cy+=q[1]}); cx/=ring.length; cy/=ring.length;
       const lp=prj(cx,cy,PAD+10), lx=X(lp[0]), ly=+Y(lp[1]);
@@ -2804,7 +2822,8 @@ function site3d(rows,idp){
       g+=`</g>`;
     }else if(o.t==="wtg"){
       const w=o.w, x=w[0], y=w[1];
-      const base=prj(x,y,0), hub=prj(x,y,HUB);
+      const bz=S.blocks.some(bb=>inPoly(x,y,bb.poly))?PAD:0;
+      const base=prj(x,y,bz), hub=prj(x,y,bz+HUB);
       g+=`<ellipse cx="${X(base[0])}" cy="${Y(base[1])}" rx="${(ROT*0.20).toFixed(1)}" ry="${(ROT*0.20*CSE).toFixed(1)}" fill="#000" opacity=".10"/>`;
       g+=`<polygon points="${X(base[0]-ROT*0.030)},${Y(base[1])} ${X(base[0]+ROT*0.030)},${Y(base[1])} ${X(hub[0]+ROT*0.014)},${Y(hub[1])} ${X(hub[0]-ROT*0.014)},${Y(hub[1])}" fill="#e6e9ee" stroke="#b9c0c9" stroke-width="${(0.7*K).toFixed(1)}"/>`;
       for(let k=0;k<3;k++){
@@ -2817,15 +2836,22 @@ function site3d(rows,idp){
       }
       g+=`<circle cx="${X(hub[0])}" cy="${Y(hub[1])}" r="${(ROT*0.055).toFixed(1)}" fill="#dfe4ea" stroke="#aeb6c0" stroke-width="${(0.6*K).toFixed(1)}"/>`;
     }else{
-      const B=o.B, HB=12;
-      g+=`<polygon points="${poly([[B[0],B[1],0],[B[2],B[1],0],[B[2],B[3],0],[B[0],B[3],0]])}" fill="#b9b3a0" stroke="#2e9e57" stroke-width="${(2*K).toFixed(1)}" stroke-dasharray="${(16*K).toFixed(0)} ${(10*K).toFixed(0)}"/>`;
+      const B=o.B, HB=12, brg=ringCCW([[B[0],B[1]],[B[2],B[1]],[B[2],B[3]],[B[0],B[3]]]), bso=PAD*0.42;
+      g+=`<polygon points="${poly(brg.map(q=>[q[0]+bso,q[1]-bso*0.7,0]))}" fill="#6d6552" opacity=".18"/>`;
+      for(let i=0;i<brg.length;i++){
+        const a1=brg[i], b1=brg[(i+1)%brg.length];
+        const dx=b1[0]-a1[0], dy=b1[1]-a1[1], L=Math.hypot(dx,dy)||1, nx=dy/L, ny=-dx/L;
+        if(nx*CSA-ny*CCA<=0) continue;
+        g+=`<polygon points="${poly([[a1[0],a1[1],0],[b1[0],b1[1],0],[b1[0],b1[1],PAD],[a1[0],a1[1],PAD]])}" fill="${shade([156,146,121],faceShade(nx,ny))}"/>`;
+      }
+      g+=`<polygon points="${poly(brg.map(q=>[q[0],q[1],PAD]))}" fill="#b9b3a0" stroke="#2e9e57" stroke-width="${(2*K).toFixed(1)}" stroke-dasharray="${(16*K).toFixed(0)} ${(10*K).toFixed(0)}"/>`;
       const nrow=Math.max(3,Math.round((B[3]-B[1])/60));
       for(let i=0;i<nrow;i++){
         const y0=B[1]+18+i*((B[3]-B[1]-30)/nrow), y1=y0+((B[3]-B[1]-30)/nrow)*0.55;
-        g+=`<polygon points="${poly([[B[0]+16,y0,HB],[B[2]-16,y0,HB],[B[2]-16,y1,HB],[B[0]+16,y1,HB]])}" fill="#5d6b7a"/>`;
-        g+=`<polygon points="${poly([[B[0]+16,y0,0],[B[2]-16,y0,0],[B[2]-16,y0,HB],[B[0]+16,y0,HB]])}" fill="#3f4b58"/>`;
+        g+=`<polygon points="${poly([[B[0]+16,y0,PAD+HB],[B[2]-16,y0,PAD+HB],[B[2]-16,y1,PAD+HB],[B[0]+16,y1,PAD+HB]])}" fill="#5d6b7a"/>`;
+        g+=`<polygon points="${poly([[B[0]+16,y0,PAD],[B[2]-16,y0,PAD],[B[2]-16,y0,PAD+HB],[B[0]+16,y0,PAD+HB]])}" fill="#3f4b58"/>`;
       }
-      const lp=prj((B[0]+B[2])/2,B[3]+30,HB+18);
+      const lp=prj((B[0]+B[2])/2,B[3]+30,PAD+HB+18);
       g+=`<text x="${X(lp[0])}" y="${Y(lp[1])}" text-anchor="middle" font-size="${Math.round(FS*0.84)}" font-weight="700" style="fill:#2e6b46;pointer-events:none">${esc(S.bessLabel||"BESS")}</text>`;
     }
   });
@@ -2899,7 +2925,7 @@ function pageLayout(){
   const use=site.length?site:rows;
   let h=`<div class="grid">`;
   {const m=site3d(use,"lay3d");
-   if(m)h+=card("span12","Plant Layout — 3D Site Model","block footprints from the issued array layout · height and colour = actual % complete · click a block to filter",m);}
+   if(m)h+=card("span12","Plant Layout — 3D Site Model","real block outlines, roads, corridors, boundary, turbines and BESS off the issued array layout · arrays built = actual % · click a block to filter",m);}
   h+=layoutCard(use,CFG.plantLayout?"Plant Layout — Site Map":"Plant Layout — Block / Feeder Scorecard","lay-view");
   h+=card("span12","Area Scorecard","weightage-based vs plan",scorecard(use));
   h+="</div>";
@@ -3146,7 +3172,7 @@ function pageDept(key){
     // the model is asked for in two places only - Plant Layout and Execution &
     // Construction - so T&C keeps the scorecard alone
     if(key==="execution"){const m=site3d(rows,"exe3d");
-     if(m)h+=card("span12","3D Site Model — execution progress","block footprints from the issued array layout · height and colour = actual % complete · click a block to filter",m);}
+     if(m)h+=card("span12","3D Site Model — execution progress","real block outlines, roads, corridors, boundary, turbines and BESS off the issued array layout · arrays built = actual % · click a block to filter",m);}
     h+=layoutCard(rows,CFG.plantLayout?"Block / Feeder scorecard — Site Map":"Block / Feeder scorecard","layd-view");
     h+=card("span12","Stage progress","by work type · Actual % vs Baseline Plan %",stageBars(rows));
   }else{
