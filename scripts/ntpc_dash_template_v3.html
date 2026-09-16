@@ -3153,12 +3153,15 @@ function buildGL(rows, idp, box, S){
   const target=HOMET.clone();
   let radius=HOME.r, theta=HOME.t, phi=HOME.p;   // spherical about the target
   if(GLCAM){radius=GLCAM.r; theta=GLCAM.t; phi=GLCAM.p; target.copy(GLCAM.g)}
+  let tags=null;
   const place=()=>{
     cam.position.set(target.x+radius*Math.sin(phi)*Math.sin(theta),
                      target.y+radius*Math.cos(phi),
                      target.z+radius*Math.sin(phi)*Math.cos(theta));
     cam.lookAt(target);
+    cam.updateMatrixWorld();                 // syncTags projects, so the matrix must be current
     GLCAM={r:radius, t:theta, p:phi, g:target.clone()};
+    if(tags) syncTags();
   };
   place();
   const el=renderer.domElement;
@@ -3242,7 +3245,7 @@ function buildGL(rows, idp, box, S){
     if(Math.abs(A)<1e-6) return [p[0][0], p[0][1]];
     return [cx/(3*A), cy/(3*A)];
   };
-  const tags=blocks.map((m,i)=>{
+  tags=blocks.map((m,i)=>{
     const u=m.userData, d=document.createElement("div"), ahead=u.act>=u.pln-0.05;
     d.style.cssText="position:absolute;transform:translate(-50%,-50%);font:700 10px/1.25 inherit;text-align:center;white-space:nowrap;color:#fff;background:rgba(14,24,38,.74);padding:2px 6px;border-radius:5px;box-shadow:0 1px 3px rgba(0,0,0,.35)";
     d.innerHTML=`${esc(u.area.replace("Block-","ICR-"))} <span style="color:${ahead?"#6ee59d":"#ff9b93"}">${fmt1(u.act)}%</span>`;
@@ -3254,24 +3257,17 @@ function buildGL(rows, idp, box, S){
   // ---- loop --------------------------------------------------------------
   let lastSel=null, occ=0;
   const v=new T.Vector3(), dir=new T.Vector3();
-  const tick=()=>{
-    GL.raf=requestAnimationFrame(tick);
-    if((fit=(fit+1)%12)===0) refit();
-    rotors.forEach((h,i)=>{h.rotation.z+=0.0042+(i%3)*0.0008});
+  // A label belongs to its block, so it is pinned to that block's area centroid and
+  // follows it through every orbit, pan and zoom - never faded out with distance, never
+  // dropped for being near an edge. The one thing that changes it is its block being
+  // genuinely behind another, and then it only steps back rather than disappearing.
+  // The page runs html{zoom}, so the projection has to go into clientWidth/clientHeight -
+  // the layout box in CSS pixels - and not into getBoundingClientRect, which is in
+  // viewport pixels and would push every label further out the further from the corner.
+  function syncTags(){
+    const rw=el.clientWidth, rh=el.clientHeight;
+    if(!rw||!rh) return;
     const sel=state.f.area||"";
-    if(sel!==lastSel){
-      lastSel=sel;
-      blocks.forEach(m=>{const on=!sel||sel===m.userData.area;
-        m.material.forEach(x=>{x.opacity=on?1:0.35; x.depthWrite=on});
-        const k=m.userData.kerb;
-        if(k){k.material.opacity=on?1:0.3; k.material.depthWrite=on}});
-    }
-    renderer.render(scene, cam);
-    // A label belongs to its block, so it is pinned to that block's centroid and follows it
-    // through every orbit, pan and zoom - never faded out with distance, never dropped for
-    // being near an edge. The one reason to hide a label is that its block is genuinely
-    // behind another, which is re-tested a few times a second rather than every frame.
-    const r=el.getBoundingClientRect();
     if((occ=(occ+1)%8)===0){
       tags.forEach(t=>{
         dir.copy(t.p).sub(cam.position);
@@ -3286,13 +3282,27 @@ function buildGL(rows, idp, box, S){
       const vis=v.z<1 && Math.abs(v.x)<1.25 && Math.abs(v.y)<1.25;
       t.d.style.display=vis?"block":"none";
       if(vis){
-        t.d.style.left=((v.x*0.5+0.5)*r.width)+"px";
-        t.d.style.top=((-v.y*0.5+0.5)*r.height)+"px";
-        // never dropped - a block hidden behind another just steps back a little
+        t.d.style.left=((v.x*0.5+0.5)*rw)+"px";
+        t.d.style.top=((-v.y*0.5+0.5)*rh)+"px";
         t.d.style.opacity=(sel&&sel!==t.area)?0.4:(t.occ?0.45:1);
         t.d.style.zIndex=t.occ?1:2;
       }
     });
+  }
+  const tick=()=>{
+    GL.raf=requestAnimationFrame(tick);
+    if((fit=(fit+1)%12)===0) refit();
+    rotors.forEach((h,i)=>{h.rotation.z+=0.0042+(i%3)*0.0008});
+    const sel=state.f.area||"";
+    if(sel!==lastSel){
+      lastSel=sel;
+      blocks.forEach(m=>{const on=!sel||sel===m.userData.area;
+        m.material.forEach(x=>{x.opacity=on?1:0.35; x.depthWrite=on});
+        const k=m.userData.kerb;
+        if(k){k.material.opacity=on?1:0.3; k.material.depthWrite=on}});
+    }
+    renderer.render(scene, cam);
+    syncTags();
   };
   let fit=0;
   const refit=()=>{
@@ -3304,6 +3314,7 @@ function buildGL(rows, idp, box, S){
   };
   GL={renderer, scene, raf:0, ro:null};
   refit();
+  syncTags();
   box.classList.add("gl-on");
   tick();
 }
