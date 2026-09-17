@@ -3223,6 +3223,9 @@ function buildGL(rows, idp, box, S){
                      target.y+radius*Math.cos(phi),
                      target.z+radius*Math.sin(phi)*Math.cos(theta));
     cam.lookAt(target);
+    // a fixed near plane cannot serve both a 4.9 km overview and a 12 m close-up: too far out
+    // and it clips the panels you came to see, too close and depth precision goes at distance
+    cam.near=Math.max(0.4, Math.min(40, radius*0.02)); cam.updateProjectionMatrix();
     cam.updateMatrixWorld();                 // syncTags projects, so the matrix must be current
     GLCAM[idp]={r:radius, t:theta, p:phi, g:target.clone()};
     if(tags) syncTags();
@@ -3256,7 +3259,9 @@ function buildGL(rows, idp, box, S){
   // Zoom toward whatever is under the pointer. Pulling the radius in about a fixed target
   // is what made it impossible to get to a particular part of the plant: you could get
   // closer, but never closer to the thing you were looking at.
-  const GPLANE=new T.Plane(new T.Vector3(0,1,0), 0), gp=new T.Vector3();
+  // the plane the pointer zooms toward is the one the tables stand on, not y=0; aiming at
+  // the floor under a 37 m plinth is what threw the landing point a kilometre wide
+  const GPLANE=new T.Plane(new T.Vector3(0,1,0), -TH), gp=new T.Vector3();
   const groundAt=e=>{
     const r=el.getBoundingClientRect();
     ndc.x=((e.clientX-r.left)/r.width)*2-1; ndc.y=-((e.clientY-r.top)/r.height)*2+1;
@@ -3266,7 +3271,10 @@ function buildGL(rows, idp, box, S){
   el.addEventListener("wheel",e=>{
     e.preventDefault();
     const was=radius;
-    radius=Math.max(W*0.025, Math.min(W*2.2, radius*(1+Math.sign(e.deltaY)*0.12)));
+    // 12 m, not a fraction of the site: a module is 1.1 m whether the plot is 5 km or 50
+    radius=Math.max(12, Math.min(W*2.2, radius*(1+Math.sign(e.deltaY)*0.12)));
+    // and bring the eye down with it, from 70 m over the site to the height of a table
+    target.y=Math.max(TH, Math.min(HOME.y, radius*0.048));
     const p=groundAt(e);
     if(p && radius<was){
       const t=Math.min(0.85, (1-radius/was)*2.4);
@@ -3672,7 +3680,9 @@ function buildParkGL(rows, idp, box, P){
     cam.position.set(target.x+radius*Math.sin(phi)*Math.sin(theta),
                      target.y+radius*Math.cos(phi),
                      target.z+radius*Math.sin(phi)*Math.cos(theta));
-    cam.lookAt(target); cam.updateMatrixWorld();
+    cam.lookAt(target);
+    cam.near=Math.max(0.4, Math.min(60, radius*0.02)); cam.updateProjectionMatrix();
+    cam.updateMatrixWorld();
     GLCAM[idp]={r:radius,t:theta,p:phi,g:target.clone()};
     if(tags) syncPins();
   };
@@ -3707,7 +3717,7 @@ function buildParkGL(rows, idp, box, P){
   el.addEventListener("wheel",e=>{
     e.preventDefault();
     const was=radius;
-    radius=Math.max(W*0.03,Math.min(W*2.4,radius*(1+Math.sign(e.deltaY)*0.12)));
+    radius=Math.max(12,Math.min(W*2.4,radius*(1+Math.sign(e.deltaY)*0.12)));
     const r=el.getBoundingClientRect();
     ndc.x=((e.clientX-r.left)/r.width)*2-1; ndc.y=-((e.clientY-r.top)/r.height)*2+1;
     ray.setFromCamera(ndc,cam);
