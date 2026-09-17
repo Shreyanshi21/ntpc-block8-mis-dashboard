@@ -751,7 +751,11 @@ function moveTip(e){
   // a tooltip taller than the space on either side of the cursor still has to fit
   x=Math.min(Math.max(x,v.l+PAD),Math.max(v.l+PAD,v.r-w-PAD));
   y=Math.min(Math.max(y,v.t+PAD),Math.max(v.t+PAD,v.b-h-PAD));
-  tip.style.left=x+"px";tip.style.top=y+"px";
+  // clientX/clientY and innerWidth are viewport pixels; left/top are CSS pixels, and this
+  // page runs html{zoom}. Without dividing, the callout drifts further from the cursor the
+  // further right and further down it is - a couple of hundred pixels at the far corner.
+  const z=effZoom();
+  tip.style.left=(x/z)+"px";tip.style.top=(y/z)+"px";
 }
 function hideTip(){tip.style.display="none"}
 document.addEventListener("scroll",hideTip,true);
@@ -3492,14 +3496,18 @@ function buildParkGL(rows, idp, box, P){
         new T.MeshLambertMaterial({color:new T.Color(st[0]),
           emissive:k==="s6a"?new T.Color(0x0f5c35):0x000000, emissiveIntensity:k==="s6a"?0.35:0}));
       m.position.set((a[0]+a[2])/2,h/2,Z((a[1]+a[3])/2));
-      m.userData={tip:`${st[1]}<br>${Math.round(a[2]-a[0])} × ${Math.round(a[3]-a[1])} m`};
+      m.userData={tip:`<b>${st[1]}</b><br>${Math.round(a[2]-a[0])} × ${Math.round(a[3]-a[1])} m`};
       scene.add(m); picks.push(m);
+      // a bright edge round the pad, so one block is told from the next at park zoom where
+      // a 3 m kerb would be invisible - 45 m reads as a couple of pixels from 21 km out
+      ribbon([[[a[0],a[1]],[a[2],a[1]],[a[2],a[3]],[a[0],a[3]],[a[0],a[1]]]], 45, h+1, 0xd8e2ec);
     });
   });
   // ---- the real S6a plant, dropped into the park ------------------------
   // Same geometry the Plant Layout model draws - block outlines off the drawing, kerbs in
   // the ahead/behind colours, and every tracker table at the real 7.5 m pitch - placed by
   // the offset between the two models' origins, since both are on the survey grid.
+  const s6aTags=[];
   if(HASS6A){
     const S=CFG.siteModel;
     const dx=S.origin.E-P.origin.E, dy=S.origin.N-P.origin.N;
@@ -3517,6 +3525,9 @@ function buildParkGL(rows, idp, box, P){
       const m=new T.Mesh(geo,new T.MeshLambertMaterial({color:new T.Color(0x22406a)}));
       m.userData={tip:`<b>${esc(b.area)}</b> · S6a<br>Actual <b>${fmt1(act)}%</b> · plan ${fmt1(pln)}%<br>${rr.length} activities · ${(b.areaM2/10000).toFixed(1)} ha`};
       scene.add(m); picks.push(m);
+      s6aTags.push({name:b.area.replace("Block-","ICR-"), act:act, pln:pln,
+                    tip:m.userData.tip, x:(Math.min(...ring.map(q=>q[0]))+Math.max(...ring.map(q=>q[0])))/2,
+                    y:(Math.min(...ring.map(q=>q[1]))+Math.max(...ring.map(q=>q[1])))/2});
       // the kerb, in the colour the rest of the dashboard uses for ahead of / behind plan
       const kr=ringCCW(ring), kp=[], ki=[]; let kn=0;
       for(let i=0;i<kr.length;i++){
@@ -3551,21 +3562,32 @@ function buildParkGL(rows, idp, box, P){
     tables(built,0x11386f,true);
     tables(plan,0x2d4360,false);
   }
-  // 388 turbines: a tapered tower and a hub, two instanced meshes for the lot
+  // 388 turbines, drawn as turbines: tower, nacelle and three blades, four instanced
+  // meshes for the lot. A blade's geometry is shifted so its root sits at the hub, which
+  // lets one instanced mesh carry all 1,164 of them by rotation alone.
   const HUB=(P.stats&&P.stats.wtgHubM)||120, ROT=((P.stats&&P.stats.wtgRotorM)||160)/2;
   const wtg=P.wtg||[];
+  const rotors=[];
   if(wtg.length){
-    const tw=new T.InstancedMesh(new T.CylinderGeometry(6,14,HUB,8),
-      new T.MeshLambertMaterial({color:0xeef1f5}), wtg.length);
-    const hb=new T.InstancedMesh(new T.SphereGeometry(ROT*0.22,8,6),
-      new T.MeshLambertMaterial({color:0xf6f8fb}), wtg.length);
+    const white=new T.MeshLambertMaterial({color:0xeef1f5});
+    const bright=new T.MeshLambertMaterial({color:0xf7f9fc});
+    const tw=new T.InstancedMesh(new T.CylinderGeometry(5,13,HUB,8), white, wtg.length);
+    const nac=new T.InstancedMesh(new T.BoxGeometry(11,10,26), white, wtg.length);
+    const bg=new T.BoxGeometry(7, ROT*0.95, 2.6); bg.translate(0, ROT*0.48, 0);
+    const bl=new T.InstancedMesh(bg, bright, wtg.length*3);
     const d=new T.Object3D();
     wtg.forEach((w,i)=>{
+      d.rotation.set(0,0,0);
       d.position.set(w[0],HUB/2,Z(w[1])); d.updateMatrix(); tw.setMatrixAt(i,d.matrix);
-      d.position.set(w[0],HUB,Z(w[1])); d.updateMatrix(); hb.setMatrixAt(i,d.matrix);
+      d.position.set(w[0],HUB+6,Z(w[1])); d.updateMatrix(); nac.setMatrixAt(i,d.matrix);
+      for(let k=0;k<3;k++){
+        d.position.set(w[0],HUB+6,Z(w[1])-14);
+        d.rotation.set(0,0,k*2*Math.PI/3 + (i%7)*0.3);   // not every rotor at the same angle
+        d.updateMatrix(); bl.setMatrixAt(i*3+k,d.matrix);
+      }
     });
-    tw.instanceMatrix.needsUpdate=true; hb.instanceMatrix.needsUpdate=true;
-    scene.add(tw); scene.add(hb);
+    [tw,nac,bl].forEach(m=>{m.instanceMatrix.needsUpdate=true; scene.add(m)});
+    rotors.push({bl, d:new T.Object3D()});
   }
   // every named place gets a pin; the map would be unreadable if all 97 also got text
   const pins=[];
@@ -3652,20 +3674,35 @@ function buildParkGL(rows, idp, box, P){
   box.appendChild(lay);
   const PRIO={township:0,staff:1,labour:1,helipad:0,ccr:1,container:1,store:1,batching:2,
               airstrip:2,gis:2,water:3,parking:3,plantation:3,storage:3,borewell:3,dump:3,pss:2};
-  tags=pins.filter(q=>!NOLABEL[q.f.cat]).sort((a,b)=>(PRIO[a.f.cat]||4)-(PRIO[b.f.cat]||4)).map(q=>{
+  // A label sits on the place it names, so hovering the label is the natural way to ask
+  // what it is - and it puts the callout on the block instead of on a pin a few pixels wide.
+  const chip=(text,tip,vec,big)=>{
     const d=document.createElement("div");
-    d.style.cssText="position:absolute;transform:translate(-50%,-50%);font:700 9px/1.2 inherit;text-align:center;white-space:nowrap;color:#fff;background:rgba(14,24,38,.74);padding:1px 5px;border-radius:4px";
-    d.textContent=q.f.name; lay.appendChild(d);
-    return {d, p:q.p};
+    d.style.cssText="position:absolute;transform:translate(-50%,-50%);font:"+(big?"800 11px":"700 9px")
+      +"/1.2 inherit;text-align:center;white-space:nowrap;color:#fff;background:rgba(14,24,38,"
+      +(big?".82":".74")+");padding:"+(big?"2px 7px":"1px 5px")+";border-radius:4px;pointer-events:auto;cursor:help";
+    d.innerHTML=text;
+    d.addEventListener("mousemove",e=>{e.stopPropagation(); showTip(e,tip)});
+    d.addEventListener("mouseleave",hideTip);
+    lay.appendChild(d);
+    return {d, p:vec};
+  };
+  tags=pins.filter(q=>!NOLABEL[q.f.cat]).sort((a,b)=>(PRIO[a.f.cat]||4)-(PRIO[b.f.cat]||4))
+    .map(q=>chip(esc(q.f.name), `<b>${esc(q.f.name)}</b><br>${esc(q.st[1])}`, q.p));
+  // and the S6a blocks label themselves the way they do on the plant model
+  s6aTags.forEach(t=>{
+    const ahead=t.act>=t.pln-0.05;
+    tags.push(chip(`${esc(t.name)} <span style="color:${ahead?"#6ee59d":"#ff9b93"}">${fmt1(t.act)}%</span>`,
+                   t.tip, new T.Vector3(t.x, 120, Z(t.y))));
   });
   {let a=(P.areas&&P.areas.s6a&&P.areas.s6a[0]);
    if(HASS6A){const S=CFG.siteModel, dx=S.origin.E-P.origin.E, dy=S.origin.N-P.origin.N;
      const xs=[],ys=[]; S.blocks.forEach(b=>b.poly.forEach(q=>{xs.push(q[0]+dx);ys.push(q[1]+dy)}));
      a=[Math.min(...xs),Math.min(...ys),Math.max(...xs),Math.max(...ys)];}
-   if(a){const d=document.createElement("div");
-     d.style.cssText="position:absolute;transform:translate(-50%,-50%);font:800 11px/1.2 inherit;white-space:nowrap;color:#fff;background:rgba(14,24,38,.82);padding:2px 7px;border-radius:5px";
-     d.textContent="S6a · 234 MW"; lay.appendChild(d);
-     tags.unshift({d, p:new T.Vector3((a[0]+a[2])/2, 340, Z((a[1]+a[3])/2)), f:{cat:"s6a"}});}}
+   if(a){const st=(P.stats||{});
+     const c=chip("S6a · 234 MW", "<b>S6a · 234 MW</b><br>this project · 19 ICR blocks",
+                  new T.Vector3((a[0]+a[2])/2, 340, Z((a[1]+a[3])/2)), true);
+     tags.unshift(c);}}
   const v=new T.Vector3();
   function syncPins(){
     const rw=el.clientWidth, rh=el.clientHeight;           // html{zoom} - project into CSS px
