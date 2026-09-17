@@ -3372,7 +3372,7 @@ const FAC = {
 };
 // mobile towers and the KPS tags would bury the map in text; they keep a marker and a tooltip
 const NOLABEL = {tower:1, kps:1};
-function park3d(idp){
+function park3d(rows,idp){
   const P=CFG.parkModel; if(!P||!P.wtg) return "";
   const W=P.extent[0], D=P.extent[1];
   const pts=[];
@@ -3410,7 +3410,7 @@ function park3d(idp){
    if(a){const q=prj((a[0]+a[2])/2,(a[1]+a[3])/2,0);
      g+=`<text x="${X(q[0])}" y="${(+Y(q[1])+FS*1.6).toFixed(1)}" text-anchor="middle" font-size="${(FS*1.5).toFixed(0)}" font-weight="800" style="fill:#0f5c35;paint-order:stroke;stroke:rgba(255,255,255,.85);stroke-width:${(5*K).toFixed(1)}">S6a · 234 MW</text>`}}
   g+=`</svg>`;
-  setTimeout(()=>parkGLInit(idp),0);
+  setTimeout(()=>parkGLInit(rows,idp),0);
   const S=P.stats||{};
   const key=Object.entries(FAC).map(([k,v])=>`<span><span class="sw" style="background:${v[0]}"></span>${v[1]}</span>`).join("");
   return `<div class="legend" style="margin-bottom:4px">
@@ -3423,17 +3423,17 @@ function park3d(idp){
       <span class="dim">${(W/1000).toFixed(1)} km × ${(D/1000).toFixed(1)} km · ${S.plotAcres?S.plotAcres.toLocaleString():""} acres · ${S.solarMWac?S.solarMWac.toLocaleString():""} MWac solar · ${S.wtg||0} × 5.2 MW WTG (${S.windMW||0} MW) · drag to orbit, scroll to zoom in on the pointer</span>
     </div><div class="glwrap"><div class="glbox" id="${idp}-gl"></div>${g}</div>`;
 }
-async function parkGLInit(idp){
+async function parkGLInit(rows,idp){
   sweepGL();
   const P=CFG.parkModel, box=document.getElementById(idp+"-gl");
   if(!P||!box||_printBusy||!hasWebGL()) return;
   if(!await loadThree()) return;
   if(!document.body.contains(box)) return;
   disposeGL(idp);
-  try{ buildParkGL(idp, box, P) }
+  try{ buildParkGL(rows, idp, box, P) }
   catch(e){ console.warn("park 3D unavailable:", e); disposeGL(idp); box.classList.remove("gl-on") }
 }
-function buildParkGL(idp, box, P){
+function buildParkGL(rows, idp, box, P){
   const T=THREE;
   if(!box.clientWidth||!box.clientHeight) return;
   box.innerHTML="";
@@ -3482,7 +3482,9 @@ function buildParkGL(idp, box, P){
   ribbon(L.plot, 60, 8, 0x2f62d8);
   // yards and plants as low pads; S6a stands a little prouder and brighter
   const picks=[];
+  const HASS6A=!!(CFG.siteModel&&CFG.siteModel.blocks&&CFG.siteModel.blocks.length);
   Object.entries(P.areas||{}).forEach(([k,v])=>{
+    if(k==="s6a"&&HASS6A) return;                 // the real plant is drawn there instead
     const st=PARK_AREA[k]||["#777","area"];
     const h=k==="s6a"?70:34;
     v.forEach((a,i)=>{
@@ -3494,6 +3496,61 @@ function buildParkGL(idp, box, P){
       scene.add(m); picks.push(m);
     });
   });
+  // ---- the real S6a plant, dropped into the park ------------------------
+  // Same geometry the Plant Layout model draws - block outlines off the drawing, kerbs in
+  // the ahead/behind colours, and every tracker table at the real 7.5 m pitch - placed by
+  // the offset between the two models' origins, since both are on the survey grid.
+  if(HASS6A){
+    const S=CFG.siteModel;
+    const dx=S.origin.E-P.origin.E, dy=S.origin.N-P.origin.N;
+    const PITCH=(S.row&&S.row.pitch)||7.5, TL=(S.row&&S.row.tableLen)||32.3, TW=(S.row&&S.row.tableWid)||4.8;
+    const PAD=1.8, TH=PAD+2.3, TILT=22*Math.PI/180;
+    const byArea={}; (rows||[]).forEach(r=>{const a=String(r[C.area]||"");(byArea[a]=byArea[a]||[]).push(r)});
+    const built=[], plan=[];
+    S.blocks.forEach(b=>{
+      const rr=byArea[b.area]||[];
+      const act=rr.length?actPctAt(rr,SW):0, pln=rr.length?planPct(rr,SW):0;
+      const ring=b.poly.map(q=>[q[0]+dx,q[1]+dy]);
+      const shape=new T.Shape(ring.map(q=>new T.Vector2(q[0],Z(q[1]))));
+      const geo=new T.ExtrudeGeometry(shape,{depth:PAD,bevelEnabled:false});
+      geo.rotateX(Math.PI/2); geo.translate(0,PAD,0);
+      const m=new T.Mesh(geo,new T.MeshLambertMaterial({color:new T.Color(padTint(act))}));
+      m.userData={tip:`<b>${esc(b.area)}</b> · S6a<br>Actual <b>${fmt1(act)}%</b> · plan ${fmt1(pln)}%<br>${rr.length} activities · ${(b.areaM2/10000).toFixed(1)} ha`};
+      scene.add(m); picks.push(m);
+      // the kerb, in the colour the rest of the dashboard uses for ahead of / behind plan
+      const kr=ringCCW(ring), kp=[], ki=[]; let kn=0;
+      for(let i=0;i<kr.length;i++){
+        const a=kr[i], b2=kr[(i+1)%kr.length];
+        kp.push(a[0],PAD,Z(a[1]), b2[0],PAD,Z(b2[1]), a[0],PAD+5,Z(a[1]), b2[0],PAD+5,Z(b2[1]));
+        ki.push(kn,kn+1,kn+2,kn+1,kn+3,kn+2); kn+=4;
+      }
+      const kg=new T.BufferGeometry();
+      kg.setAttribute("position",new T.Float32BufferAttribute(kp,3)); kg.setIndex(ki); kg.computeVertexNormals();
+      const kc=act>=pln-0.05?0x2fae60:0xe4564f;
+      scene.add(new T.Mesh(kg,new T.MeshLambertMaterial({color:kc,emissive:kc,emissiveIntensity:0.22,side:T.DoubleSide})));
+      // the tables, built and still to come
+      const ys=ring.map(q=>q[1]), y0=Math.min(...ys), y1=Math.max(...ys);
+      const nrow=Math.max(1,Math.floor((y1-y0)/PITCH)), nb=Math.round(nrow*Math.min(100,act)/100);
+      for(let i=0;i<nrow;i++){
+        const y=y0+(i+0.5)*PITCH;
+        spansAt(ring,y).forEach(sp=>{
+          const run=sp[1]-sp[0], nt=Math.max(1,Math.floor(run/(TL+2.5))), step=run/nt;
+          for(let k=0;k<nt;k++) (i<nb?built:plan).push([sp[0]+step*(k+0.5),Z(y)]);
+        });
+      }
+    });
+    const tables=(pts,colour,lit)=>{
+      if(!pts.length) return;
+      const im=new T.InstancedMesh(new T.BoxGeometry(TL*0.97,0.42,TW),
+        lit?new T.MeshPhongMaterial({color:colour,shininess:95,specular:0x86a9d8})
+           :new T.MeshPhongMaterial({color:colour,shininess:26,specular:0x2f3a4a}), pts.length);
+      const d=new T.Object3D();
+      pts.forEach((q,i)=>{d.position.set(q[0],TH,q[1]); d.rotation.set(TILT,0,0); d.updateMatrix(); im.setMatrixAt(i,d.matrix)});
+      im.instanceMatrix.needsUpdate=true; scene.add(im);
+    };
+    tables(built,0x11386f,true);
+    tables(plan,0x2d4360,false);
+  }
   // 388 turbines: a tapered tower and a hub, two instanced meshes for the lot
   const HUB=(P.stats&&P.stats.wtgHubM)||120, ROT=((P.stats&&P.stats.wtgRotorM)||160)/2;
   const wtg=P.wtg||[];
@@ -3601,7 +3658,10 @@ function buildParkGL(idp, box, P){
     d.textContent=q.f.name; lay.appendChild(d);
     return {d, p:q.p};
   });
-  {const a=(P.areas&&P.areas.s6a&&P.areas.s6a[0]);
+  {let a=(P.areas&&P.areas.s6a&&P.areas.s6a[0]);
+   if(HASS6A){const S=CFG.siteModel, dx=S.origin.E-P.origin.E, dy=S.origin.N-P.origin.N;
+     const xs=[],ys=[]; S.blocks.forEach(b=>b.poly.forEach(q=>{xs.push(q[0]+dx);ys.push(q[1]+dy)}));
+     a=[Math.min(...xs),Math.min(...ys),Math.max(...xs),Math.max(...ys)];}
    if(a){const d=document.createElement("div");
      d.style.cssText="position:absolute;transform:translate(-50%,-50%);font:800 12px/1.2 inherit;white-space:nowrap;color:#fff;background:rgba(15,92,53,.92);padding:3px 8px;border-radius:5px";
      d.textContent="S6a · 234 MW"; lay.appendChild(d);
@@ -3693,7 +3753,7 @@ function pageLayout(){
   let h=`<div class="grid">`;
   {const m=site3d(use,"lay3d");
    if(m)h+=card("span12","Plant Layout — 3D Site Model","real block outlines, roads, corridors, boundary, turbines and BESS off the issued array layout · arrays built = actual % · click a block to filter",m);}
-  {const m=park3d("park3d");
+  {const m=park3d(use,"park3d");
    if(m)h+=card("span12","Khavda Hybrid Park — where S6a sits","the whole park off sheet 1 of the issued array layout · plot boundary, roads, 33kV and 400kV corridors, no-go areas, all 388 turbines, PSS/BESS and GIS yards, batching plants, camps, townships, helipad, container yard, stores and mobile towers · hover any marker",m);}
   h+=layoutCard(use,CFG.plantLayout?"Plant Layout — Site Map":"Plant Layout — Block / Feeder Scorecard","lay-view");
   h+=card("span12","Area Scorecard","weightage-based vs plan",scorecard(use));
