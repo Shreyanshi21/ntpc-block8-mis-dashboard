@@ -1849,7 +1849,12 @@ function stageKey(r){
 }
 function stageBars(rows){
   const set={};rows.forEach(r=>{const s=stageKey(r);(set[s]=set[s]||[]).push(r)});
-  const order=["Initiation","Engineering","Quality","Supply","Services","Statutory & Approvals","Civil & Foundations","Piling","MMS & Module","Laying & Terminations","Earthing & LA","Equipment","PSS & Switchyard","Other Site Works","T&C","HOTO"];
+  const order=(CFG.stageOrder||["Initiation","Engineering","Quality","Supply","Services","Statutory & Approvals","Civil & Foundations","Piling","MMS & Module","Laying & Terminations","Earthing & LA","Equipment","PSS & Switchyard","Other Site Works","T&C","HOTO"]).slice();
+  // a project can produce a bucket this list does not name - a floating plant has
+  // "Floats & Mooring" - so append whatever the data actually carries rather than
+  // dropping those activities off the card. NTPC's buckets are all named above, so
+  // nothing changes there.
+  Object.keys(set).forEach(k=>{if(order.indexOf(k)<0)order.push(k)});
   let h=`<div class="legend"><span><span class="sw" style="background:var(--s-act)"></span>Actual</span><span><span class="sw" style="background:var(--s-plan)"></span>Plan (tick)</span></div>`;
   order.forEach(s=>{if(!set[s])return;const rr=set[s];const a=actPct(rr),p=planPct(rr);
     h+=`<div class="prow"><div class="nm" title="${esc(s)} — ${rr.length} activities">${s} <span class="dim">(${rr.length})</span></div>
