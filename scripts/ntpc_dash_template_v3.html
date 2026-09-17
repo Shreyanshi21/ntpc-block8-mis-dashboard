@@ -3691,10 +3691,10 @@ function pageLayout(){
   const site=rows.filter(r=>r[C.dept]==="execution"||r[C.dept]==="tnc"||r[C.dept]==="hoto");
   const use=site.length?site:rows;
   let h=`<div class="grid">`;
-  {const m=park3d("park3d");
-   if(m)h+=card("span12","Khavda Hybrid Park — where S6a sits","the whole park off sheet 1 of the issued array layout · plot boundary, roads, 33kV and 400kV corridors, no-go areas, all 388 turbines, PSS/BESS and GIS yards, batching plants, camps, townships, helipad, container yard, stores and mobile towers · hover any marker",m);}
   {const m=site3d(use,"lay3d");
    if(m)h+=card("span12","Plant Layout — 3D Site Model","real block outlines, roads, corridors, boundary, turbines and BESS off the issued array layout · arrays built = actual % · click a block to filter",m);}
+  {const m=park3d("park3d");
+   if(m)h+=card("span12","Khavda Hybrid Park — where S6a sits","the whole park off sheet 1 of the issued array layout · plot boundary, roads, 33kV and 400kV corridors, no-go areas, all 388 turbines, PSS/BESS and GIS yards, batching plants, camps, townships, helipad, container yard, stores and mobile towers · hover any marker",m);}
   h+=layoutCard(use,CFG.plantLayout?"Plant Layout — Site Map":"Plant Layout — Block / Feeder Scorecard","lay-view");
   h+=card("span12","Area Scorecard","weightage-based vs plan",scorecard(use));
   h+="</div>";
