@@ -4652,16 +4652,22 @@ function saveUI(){
     scSel,pipeSearch,pipeDelOnly,pipeL1,pipeL2,statSel,regQ,regStatus,
     rsnCat,rsnSel,consTab,y:window.scrollY,t:Date.now()}))}catch(e){}
 }
+// Every project dashboard is served from the same origin, so one shared key meant the
+// filters, date slider and page you left on one project were restored onto the next -
+// and a package or owner that does not exist there filters the page down to nothing.
+// Keyed per project now; the old shared entry is cleared once so it cannot leak again.
+const UIKEY = "kp-ui:" + (CFG.key || CFG.name || "default");
+try{localStorage.removeItem("kp-ui");sessionStorage.removeItem("kp-ui")}catch(e){}
 // Written to both stores: sessionStorage is per-tab, localStorage survives a reload
 // driven by whatever is hosting the page. Whichever is readable wins on the way back.
 function _uiWrite(s){
-  try{sessionStorage.setItem("kp-ui",s)}catch(e){}
-  try{localStorage.setItem("kp-ui",s)}catch(e){}
+  try{sessionStorage.setItem(UIKEY,s)}catch(e){}
+  try{localStorage.setItem(UIKEY,s)}catch(e){}
 }
 function _uiRead(){
   let a=null,b=null;
-  try{a=JSON.parse(sessionStorage.getItem("kp-ui")||"null")}catch(e){}
-  try{b=JSON.parse(localStorage.getItem("kp-ui")||"null")}catch(e){}
+  try{a=JSON.parse(sessionStorage.getItem(UIKEY)||"null")}catch(e){}
+  try{b=JSON.parse(localStorage.getItem(UIKEY)||"null")}catch(e){}
   if(a&&b)return (b.t||0)>(a.t||0)?b:a;
   return a||b;
 }
