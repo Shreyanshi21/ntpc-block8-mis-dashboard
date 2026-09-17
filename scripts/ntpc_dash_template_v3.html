@@ -3414,7 +3414,7 @@ function park3d(rows,idp){
   const S=P.stats||{};
   const key=Object.entries(FAC).map(([k,v])=>`<span><span class="sw" style="background:${v[0]}"></span>${v[1]}</span>`).join("");
   return `<div class="legend" style="margin-bottom:4px">
-      <span><span class="sw" style="background:#1b7f4d"></span><b>S6a — this project</b></span>
+      <span><span class="sw" style="background:#22406a"></span><b>S6a — this project</b></span>
       <span><span class="sw" style="background:#2f62d8"></span>Khavda plot boundary</span>
       <span><span class="sw" style="background:#1fa8bd"></span>33kV TL corridor</span>
       <span><span class="sw" style="background:#7b5fd0"></span>400kV TL</span>
@@ -3514,7 +3514,7 @@ function buildParkGL(rows, idp, box, P){
       const shape=new T.Shape(ring.map(q=>new T.Vector2(q[0],Z(q[1]))));
       const geo=new T.ExtrudeGeometry(shape,{depth:PAD,bevelEnabled:false});
       geo.rotateX(Math.PI/2); geo.translate(0,PAD,0);
-      const m=new T.Mesh(geo,new T.MeshLambertMaterial({color:new T.Color(padTint(act))}));
+      const m=new T.Mesh(geo,new T.MeshLambertMaterial({color:new T.Color(0x22406a)}));
       m.userData={tip:`<b>${esc(b.area)}</b> · S6a<br>Actual <b>${fmt1(act)}%</b> · plan ${fmt1(pln)}%<br>${rr.length} activities · ${(b.areaM2/10000).toFixed(1)} ha`};
       scene.add(m); picks.push(m);
       // the kerb, in the colour the rest of the dashboard uses for ahead of / behind plan
@@ -3663,7 +3663,7 @@ function buildParkGL(rows, idp, box, P){
      const xs=[],ys=[]; S.blocks.forEach(b=>b.poly.forEach(q=>{xs.push(q[0]+dx);ys.push(q[1]+dy)}));
      a=[Math.min(...xs),Math.min(...ys),Math.max(...xs),Math.max(...ys)];}
    if(a){const d=document.createElement("div");
-     d.style.cssText="position:absolute;transform:translate(-50%,-50%);font:800 12px/1.2 inherit;white-space:nowrap;color:#fff;background:rgba(15,92,53,.92);padding:3px 8px;border-radius:5px";
+     d.style.cssText="position:absolute;transform:translate(-50%,-50%);font:800 11px/1.2 inherit;white-space:nowrap;color:#fff;background:rgba(14,24,38,.82);padding:2px 7px;border-radius:5px";
      d.textContent="S6a · 234 MW"; lay.appendChild(d);
      tags.unshift({d, p:new T.Vector3((a[0]+a[2])/2, 340, Z((a[1]+a[3])/2)), f:{cat:"s6a"}});}}
   const v=new T.Vector3();
