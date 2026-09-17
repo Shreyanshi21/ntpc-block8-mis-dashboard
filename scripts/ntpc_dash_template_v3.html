@@ -2929,10 +2929,12 @@ function noiseTex(base, blobs, n, size){
   t.wrapS=t.wrapT=THREE.RepeatWrapping;
   return t;
 }
-let GL=null;                                  // one live scene at a time
-let GLCAM=null;                               // survives the re-render a filter click causes
-function disposeGL(){
+const GLS={};                                 // live scenes, keyed by the card they sit in
+const GLCAM={};                               // cameras survive the re-render a click causes
+function disposeGL(idp){
+  const GL=GLS[idp];
   if(!GL) return;
+  delete GLS[idp];
   cancelAnimationFrame(GL.raf);
   if(GL.ro) GL.ro.disconnect();
   GL.scene.traverse(o=>{
@@ -2946,16 +2948,25 @@ function disposeGL(){
   GL.renderer.dispose();
   const el=GL.renderer.domElement;
   if(el.parentNode) el.parentNode.removeChild(el);
-  GL=null;
+}
+// Changing page throws the card away but leaves its scene running against a canvas that is
+// no longer in the document - three of them once you have visited both model pages, all
+// still drawing every frame into nothing. Sweep anything whose card has gone.
+function sweepGL(){
+  Object.keys(GLS).forEach(k=>{
+    const b=document.getElementById(k+"-gl");
+    if(!b||!document.body.contains(b)) disposeGL(k);
+  });
 }
 async function siteGLInit(rows, idp){
+  sweepGL();
   const S=CFG.siteModel, box=document.getElementById(idp+"-gl");
   if(!S||!box||_printBusy||!hasWebGL()) return;
   if(!await loadThree()) return;
   if(!document.body.contains(box)) return;     // the page moved on while we were loading
-  disposeGL();
+  disposeGL(idp);
   try{ buildGL(rows, idp, box, S) }
-  catch(e){ console.warn("site 3D unavailable:", e); disposeGL(); box.classList.remove("gl-on") }
+  catch(e){ console.warn("site 3D unavailable:", e); disposeGL(idp); box.classList.remove("gl-on") }
 }
 function buildGL(rows, idp, box, S){
   const T=THREE;
@@ -3152,7 +3163,8 @@ function buildGL(rows, idp, box, S){
   const HOMET=new T.Vector3(W*0.50, HOME.y, Z(D*0.50));
   const target=HOMET.clone();
   let radius=HOME.r, theta=HOME.t, phi=HOME.p;   // spherical about the target
-  if(GLCAM){radius=GLCAM.r; theta=GLCAM.t; phi=GLCAM.p; target.copy(GLCAM.g)}
+  const CS=GLCAM[idp];
+  if(CS){radius=CS.r; theta=CS.t; phi=CS.p; target.copy(CS.g)}
   let tags=null;
   const place=()=>{
     cam.position.set(target.x+radius*Math.sin(phi)*Math.sin(theta),
@@ -3160,7 +3172,7 @@ function buildGL(rows, idp, box, S){
                      target.z+radius*Math.sin(phi)*Math.cos(theta));
     cam.lookAt(target);
     cam.updateMatrixWorld();                 // syncTags projects, so the matrix must be current
-    GLCAM={r:radius, t:theta, p:phi, g:target.clone()};
+    GLCAM[idp]={r:radius, t:theta, p:phi, g:target.clone()};
     if(tags) syncTags();
   };
   place();
@@ -3290,7 +3302,7 @@ function buildGL(rows, idp, box, S){
     });
   }
   const tick=()=>{
-    GL.raf=requestAnimationFrame(tick);
+    ST.raf=requestAnimationFrame(tick);
     if((fit=(fit+1)%12)===0) refit();
     rotors.forEach((h,i)=>{h.rotation.z+=0.0042+(i%3)*0.0008});
     const sel=state.f.area||"";
@@ -3312,13 +3324,323 @@ function buildGL(rows, idp, box, S){
     if(Math.abs(el.width-Math.round(w*pr))<2 && Math.abs(el.height-Math.round(h*pr))<2) return;
     cam.aspect=w/h; cam.updateProjectionMatrix(); renderer.setSize(w,h,false);
   };
-  GL={renderer, scene, raf:0, ro:null};
+  const ST=GLS[idp]={renderer, scene, raf:0, ro:null};
   refit();
   syncTags();
   box.classList.add("gl-on");
   tick();
 }
 
+// ---------- Khavda hybrid park ----------
+// The park the S6a plot sits in, off sheet 1 of the issued array layout: the plot boundary,
+// the MW-cluster boundaries, plant roads, the 33kV and 400kV corridors, the air strip, the
+// no-go areas, all 388 turbines, the PSS/BESS yards, the GIS yards, the batching plants and
+// every named facility the sheet carries - camps, townships, helipad, container yard,
+// stores, mobile towers, CCR. S6a is picked out inside it.
+//
+// Sheet 1 has no usable coordinate callouts of its own, so it was registered against sheet 2
+// by matching turbine positions and settled with the S6a plot: 10 of 10 known turbines, the
+// plot within 58 m across 4.5 km, scale isotropic to 0.025%. cfg.parkModel carries the
+// result in metres, x east, y north.
+const PARK_STY = {
+  plot:     ["#2f62d8", 3.0, "plot boundary"],
+  cluster:  ["#8a5a1e", 1.6, "MW cluster"],
+  nogo:     ["#cf4a46", 2.0, "no-go area"],
+  road:     ["#7d7568", 1.6, "plant road"],
+  tl33:     ["#1fa8bd", 3.2, "33kV TL corridor"],
+  tl400:    ["#7b5fd0", 1.6, "400kV TL"],
+  airstrip: ["#9b9486", 2.2, "air strip"],
+};
+const PARK_AREA = {
+  s6a:      ["#1b7f4d", "S6a - 234 MW"],
+  bess:     ["#3f5670", "PSS / BESS yard"],
+  gis:      ["#6a7380", "33/400kV GIS"],
+  batching: ["#a98450", "batching plant"],
+  infra:    ["#8d8368", "infrastructure"],
+};
+// one colour per kind of place, so the park reads without having to label every dot
+const FAC = {
+  helipad:["#e4564f","Helipad"], batching:["#a98450","Batching plant"],
+  container:["#c07b2a","Container yard"], store:["#b5892f","Store"],
+  tower:["#7b8794","Mobile tower"], labour:["#d08a2c","Labour camp"],
+  staff:["#2f8fd0","Staff camp"], township:["#2f6cb0","Township"],
+  kps:["#7b5fd0","KPS"], pss:["#3f5670","PSS"], ccr:["#2fae60","CCR"],
+  airstrip:["#9b9486","Air strip"], borewell:["#2f9fb0","Borewell"],
+  dump:["#8a7a5a","Dumping area"], parking:["#9b9486","Parking"],
+  plantation:["#4f9e3f","Plantation"], storage:["#a98450","Storage yard"],
+  water:["#2f9fb0","Water treatment"], gis:["#6a7380","GIS"],
+};
+// mobile towers and the KPS tags would bury the map in text; they keep a marker and a tooltip
+const NOLABEL = {tower:1, kps:1};
+function park3d(idp){
+  const P=CFG.parkModel; if(!P||!P.wtg) return "";
+  const W=P.extent[0], D=P.extent[1];
+  const pts=[];
+  [[0,0],[W,0],[W,D],[0,D]].forEach(q=>pts.push(prj(q[0],q[1],0)));
+  const M=420, minX=Math.min(...pts.map(q=>q[0]))-M, maxX=Math.max(...pts.map(q=>q[0]))+M;
+  const minY=Math.min(...pts.map(q=>q[1]))-M, maxY=Math.max(...pts.map(q=>q[1]))+M;
+  const VW=Math.round(maxX-minX), VH=Math.round(maxY-minY);
+  const K=Math.max(1,VW/1400), FS=Math.max(60,Math.round(VW/78));
+  const X=v=>(v-minX).toFixed(1), Y=v=>(v-minY).toFixed(1);
+  const P2=(x,y)=>{const q=prj(x,y,0); return X(q[0])+","+Y(q[1])};
+  let g=`<svg viewBox="0 0 ${VW} ${VH}" class="site3d" style="width:100%;height:auto;display:block" id="${idp}-svg">`;
+  g+=`<rect x="0" y="0" width="${VW}" height="${VH}" fill="#dfe7ee"/>`;
+  g+=`<polygon points="${[[-400,-400],[W+400,-400],[W+400,D+400],[-400,D+400]].map(q=>P2(q[0],q[1])).join(" ")}" fill="#8d9a68"/>`;
+  const draw=(k)=>{
+    const ls=(P.lines||{})[k], st=PARK_STY[k]; if(!ls||!ls.length||!st) return "";
+    const d=ls.map(l=>"M"+l.map(q=>P2(q[0],q[1]).replace(","," ")).join("L")).join("");
+    return `<path d="${d}" fill="none" stroke="${st[0]}" stroke-width="${(st[1]*K).toFixed(1)}" stroke-linecap="round" stroke-linejoin="round" opacity=".92"/>`;
+  };
+  ["road","airstrip","cluster","tl400","tl33","nogo","plot"].forEach(k=>{g+=draw(k)});
+  Object.entries(P.areas||{}).forEach(([k,v])=>{
+    const st=PARK_AREA[k]||["#777",""];
+    v.forEach(a=>{
+      g+=`<polygon points="${[[a[0],a[1]],[a[2],a[1]],[a[2],a[3]],[a[0],a[3]]].map(q=>P2(q[0],q[1])).join(" ")}" fill="${st[0]}" fill-opacity="${k==="s6a"?".55":".8"}" stroke="${k==="s6a"?"#0f5c35":"rgba(0,0,0,.25)"}" stroke-width="${((k==="s6a"?3.4:1)*K).toFixed(1)}"/>`;
+    });
+  });
+  (P.wtg||[]).forEach(w=>{const q=prj(w[0],w[1],0);
+    g+=`<circle cx="${X(q[0])}" cy="${Y(q[1])}" r="${(3.2*K).toFixed(1)}" fill="#f2f5f8" stroke="#6d7a86" stroke-width="${(0.9*K).toFixed(1)}"/>`});
+  (P.facilities||[]).forEach(f=>{
+    const st=FAC[f.cat]||["#666",f.cat], q=prj(f.x,f.y,0);
+    g+=`<circle cx="${X(q[0])}" cy="${Y(q[1])}" r="${(5.2*K).toFixed(1)}" fill="${st[0]}" stroke="#fff" stroke-width="${(1.6*K).toFixed(1)}"/>`;
+    if(!NOLABEL[f.cat])
+      g+=`<text x="${X(q[0])}" y="${(+Y(q[1])-8*K).toFixed(1)}" text-anchor="middle" font-size="${FS}" font-weight="700" style="fill:#1d2733;paint-order:stroke;stroke:rgba(255,255,255,.8);stroke-width:${(3.4*K).toFixed(1)}">${esc(f.name)}</text>`;
+  });
+  {const a=(P.areas&&P.areas.s6a&&P.areas.s6a[0]);
+   if(a){const q=prj((a[0]+a[2])/2,(a[1]+a[3])/2,0);
+     g+=`<text x="${X(q[0])}" y="${(+Y(q[1])+FS*1.6).toFixed(1)}" text-anchor="middle" font-size="${(FS*1.5).toFixed(0)}" font-weight="800" style="fill:#0f5c35;paint-order:stroke;stroke:rgba(255,255,255,.85);stroke-width:${(5*K).toFixed(1)}">S6a · 234 MW</text>`}}
+  g+=`</svg>`;
+  setTimeout(()=>parkGLInit(idp),0);
+  const S=P.stats||{};
+  const key=Object.entries(FAC).map(([k,v])=>`<span><span class="sw" style="background:${v[0]}"></span>${v[1]}</span>`).join("");
+  return `<div class="legend" style="margin-bottom:4px">
+      <span><span class="sw" style="background:#1b7f4d"></span><b>S6a — this project</b></span>
+      <span><span class="sw" style="background:#2f62d8"></span>Khavda plot boundary</span>
+      <span><span class="sw" style="background:#1fa8bd"></span>33kV TL corridor</span>
+      <span><span class="sw" style="background:#7b5fd0"></span>400kV TL</span>
+      <span><span class="sw" style="background:#cf4a46"></span>no-go area</span>
+      ${key}
+      <span class="dim">${(W/1000).toFixed(1)} km × ${(D/1000).toFixed(1)} km · ${S.plotAcres?S.plotAcres.toLocaleString():""} acres · ${S.solarMWac?S.solarMWac.toLocaleString():""} MWac solar · ${S.wtg||0} × 5.2 MW WTG (${S.windMW||0} MW) · drag to orbit, scroll to zoom in on the pointer</span>
+    </div><div class="glwrap"><div class="glbox" id="${idp}-gl"></div>${g}</div>`;
+}
+async function parkGLInit(idp){
+  sweepGL();
+  const P=CFG.parkModel, box=document.getElementById(idp+"-gl");
+  if(!P||!box||_printBusy||!hasWebGL()) return;
+  if(!await loadThree()) return;
+  if(!document.body.contains(box)) return;
+  disposeGL(idp);
+  try{ buildParkGL(idp, box, P) }
+  catch(e){ console.warn("park 3D unavailable:", e); disposeGL(idp); box.classList.remove("gl-on") }
+}
+function buildParkGL(idp, box, P){
+  const T=THREE;
+  if(!box.clientWidth||!box.clientHeight) return;
+  box.innerHTML="";
+  const W=P.extent[0], D=P.extent[1], Z=y=>D-y;
+  const scene=new T.Scene();
+  scene.fog=new T.Fog(0xc3d5e6, W*1.1, W*3.4);
+  const renderer=new T.WebGLRenderer({antialias:true, powerPreference:"high-performance"});
+  renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.75));
+  renderer.setSize(box.clientWidth, box.clientHeight, false);
+  renderer.domElement.style.cssText="width:100%;height:100%;display:block;border-radius:6px;cursor:grab;touch-action:none";
+  box.appendChild(renderer.domElement);
+  scene.add(new T.Mesh(new T.SphereGeometry(W*2.4,24,16), new T.ShaderMaterial({
+    side:T.BackSide, depthWrite:false,
+    uniforms:{top:{value:new T.Color(0x2f6cb0)}, bot:{value:new T.Color(0xcfe0ee)}},
+    vertexShader:"varying float h;void main(){h=normalize(position).y;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}",
+    fragmentShader:"uniform vec3 top;uniform vec3 bot;varying float h;void main(){gl_FragColor=vec4(mix(bot,top,clamp(h*2.1+0.05,0.0,1.0)),1.0);}"})));
+  scene.add(new T.HemisphereLight(0xcadcf0,0x5d5c3f,0.78));
+  const sun=new T.DirectionalLight(0xfff2d6,1.15);
+  sun.position.set(-W*0.3, W*0.5, -D*0.9); scene.add(sun);
+  const gt=noiseTex("#8b9866",["#a0ad78","#6f7d50","#b0a682","#96a46c"],900,256);
+  gt.repeat.set(W*4/900, D*4/900);
+  const ground=new T.Mesh(new T.PlaneGeometry(W*4,D*4), new T.MeshLambertMaterial({map:gt}));
+  ground.rotation.x=-Math.PI/2; ground.position.set(W/2,0,Z(D/2)); scene.add(ground);
+  // flat ribbons for everything linear, one merged mesh per kind
+  const ribbon=(lines,width,y,colour)=>{
+    if(!lines||!lines.length) return;
+    const pos=[],idx=[]; let n=0;
+    lines.forEach(l=>{for(let i=0;i+1<l.length;i++){
+      const a=l[i],b=l[i+1],dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy);
+      if(L<1) continue;
+      const nx=-dy/L*width/2, ny=dx/L*width/2;
+      pos.push(a[0]+nx,y,Z(a[1]+ny), a[0]-nx,y,Z(a[1]-ny), b[0]+nx,y,Z(b[1]+ny), b[0]-nx,y,Z(b[1]-ny));
+      idx.push(n,n+1,n+2,n+1,n+3,n+2); n+=4;}});
+    if(!n) return;
+    const g=new T.BufferGeometry();
+    g.setAttribute("position",new T.Float32BufferAttribute(pos,3)); g.setIndex(idx); g.computeVertexNormals();
+    scene.add(new T.Mesh(g,new T.MeshLambertMaterial({color:colour,side:T.DoubleSide})));
+  };
+  const L=P.lines||{};
+  ribbon(L.road, 34, 2, 0x7d7568);
+  ribbon(L.airstrip, 48, 3, 0x9b9486);
+  ribbon(L.cluster, 26, 4, 0x8a5a1e);
+  ribbon(L.tl400, 30, 5, 0x7b5fd0);
+  ribbon(L.tl33, 70, 4, 0x1fa8bd);
+  ribbon(L.nogo, 40, 6, 0xcf4a46);
+  ribbon(L.plot, 60, 8, 0x2f62d8);
+  // yards and plants as low pads; S6a stands a little prouder and brighter
+  const picks=[];
+  Object.entries(P.areas||{}).forEach(([k,v])=>{
+    const st=PARK_AREA[k]||["#777","area"];
+    const h=k==="s6a"?70:34;
+    v.forEach((a,i)=>{
+      const m=new T.Mesh(new T.BoxGeometry(a[2]-a[0],h,a[3]-a[1]),
+        new T.MeshLambertMaterial({color:new T.Color(st[0]),
+          emissive:k==="s6a"?new T.Color(0x0f5c35):0x000000, emissiveIntensity:k==="s6a"?0.35:0}));
+      m.position.set((a[0]+a[2])/2,h/2,Z((a[1]+a[3])/2));
+      m.userData={tip:`${st[1]}<br>${Math.round(a[2]-a[0])} × ${Math.round(a[3]-a[1])} m`};
+      scene.add(m); picks.push(m);
+    });
+  });
+  // 388 turbines: a tapered tower and a hub, two instanced meshes for the lot
+  const HUB=(P.stats&&P.stats.wtgHubM)||120, ROT=((P.stats&&P.stats.wtgRotorM)||160)/2;
+  const wtg=P.wtg||[];
+  if(wtg.length){
+    const tw=new T.InstancedMesh(new T.CylinderGeometry(6,14,HUB,8),
+      new T.MeshLambertMaterial({color:0xeef1f5}), wtg.length);
+    const hb=new T.InstancedMesh(new T.SphereGeometry(ROT*0.22,8,6),
+      new T.MeshLambertMaterial({color:0xf6f8fb}), wtg.length);
+    const d=new T.Object3D();
+    wtg.forEach((w,i)=>{
+      d.position.set(w[0],HUB/2,Z(w[1])); d.updateMatrix(); tw.setMatrixAt(i,d.matrix);
+      d.position.set(w[0],HUB,Z(w[1])); d.updateMatrix(); hb.setMatrixAt(i,d.matrix);
+    });
+    tw.instanceMatrix.needsUpdate=true; hb.instanceMatrix.needsUpdate=true;
+    scene.add(tw); scene.add(hb);
+  }
+  // every named place gets a pin; the map would be unreadable if all 97 also got text
+  const pins=[];
+  (P.facilities||[]).forEach(f=>{
+    const st=FAC[f.cat]||["#666",f.cat];
+    const col=new T.Color(st[0]);
+    const m=new T.Mesh(new T.CylinderGeometry(26,26,150,7),
+      new T.MeshLambertMaterial({color:col, emissive:col, emissiveIntensity:0.45}));
+    m.position.set(f.x,75,Z(f.y));
+    m.userData={tip:`<b>${esc(f.name)}</b><br>${esc(st[1])}`};
+    scene.add(m); picks.push(m); pins.push({f,st,p:new T.Vector3(f.x,240,Z(f.y))});
+  });
+  // ---- camera -------------------------------------------------------------
+  const cam=new T.PerspectiveCamera(42, box.clientWidth/box.clientHeight, 20, W*10);
+  const bb=[1e9,1e9,-1e9,-1e9];
+  const grow=(x,y)=>{bb[0]=Math.min(bb[0],x);bb[1]=Math.min(bb[1],y);bb[2]=Math.max(bb[2],x);bb[3]=Math.max(bb[3],y)};
+  Object.values(P.lines||{}).forEach(ls=>ls.forEach(l=>l.forEach(q=>grow(q[0],q[1]))));
+  (P.wtg||[]).forEach(w=>grow(w[0],w[1]));
+  Object.values(P.areas||{}).forEach(v=>v.forEach(a=>{grow(a[0],a[1]);grow(a[2],a[3])}));
+  const CW=bb[2]-bb[0], CD=bb[3]-bb[1];
+  const vfov=42*Math.PI/360, hfov=Math.atan(Math.tan(vfov)*cam.aspect);
+  const need=Math.max(CW/2/Math.tan(hfov), CD/2/Math.tan(vfov))*1.18;
+  const HOME={r:need, t:-0.26, p:0.50, y:0};
+  const HOMET=new T.Vector3((bb[0]+bb[2])/2, HOME.y, Z((bb[1]+bb[3])/2));
+  const target=HOMET.clone();
+  let radius=HOME.r, theta=HOME.t, phi=HOME.p;
+  const CS=GLCAM[idp];
+  if(CS){radius=CS.r; theta=CS.t; phi=CS.p; target.copy(CS.g)}
+  let tags=null;
+  const place=()=>{
+    cam.position.set(target.x+radius*Math.sin(phi)*Math.sin(theta),
+                     target.y+radius*Math.cos(phi),
+                     target.z+radius*Math.sin(phi)*Math.cos(theta));
+    cam.lookAt(target); cam.updateMatrixWorld();
+    GLCAM[idp]={r:radius,t:theta,p:phi,g:target.clone()};
+    if(tags) syncPins();
+  };
+  const el=renderer.domElement;
+  const ray=new T.Raycaster(), ndc=new T.Vector2();
+  const clampT=()=>{target.x=Math.max(-W*0.2,Math.min(W*1.2,target.x));
+                    target.z=Math.max(-D*0.2,Math.min(D*1.2,target.z))};
+  let drag=null, moved=0;
+  el.addEventListener("pointerdown",e=>{drag={x:e.clientX,y:e.clientY,b:e.button};moved=0;
+    try{el.setPointerCapture(e.pointerId)}catch(_){} el.style.cursor="grabbing"});
+  el.addEventListener("pointerup",()=>{drag=null; el.style.cursor="grab"});
+  el.addEventListener("pointerleave",()=>{drag=null; hideTip()});
+  el.addEventListener("pointermove",e=>{
+    if(!drag){
+      const r=el.getBoundingClientRect();
+      ndc.x=((e.clientX-r.left)/r.width)*2-1; ndc.y=-((e.clientY-r.top)/r.height)*2+1;
+      ray.setFromCamera(ndc,cam);
+      const h=ray.intersectObjects(picks,false);
+      if(h.length){el.style.cursor="help"; showTip(e,h[0].object.userData.tip)}
+      else{hideTip(); el.style.cursor="grab"}
+      return;
+    }
+    const dx=e.clientX-drag.x, dy=e.clientY-drag.y; drag.x=e.clientX; drag.y=e.clientY;
+    moved+=Math.abs(dx)+Math.abs(dy);
+    if(drag.b===2||e.shiftKey){
+      const k=radius*0.0016, st=Math.sin(theta), ct=Math.cos(theta);
+      target.x+=(-ct*dx+st*dy)*k; target.z+=(st*dx+ct*dy)*k; clampT();
+    }else{theta-=dx*0.006; phi=Math.max(0.10,Math.min(1.40,phi-dy*0.005))}
+    place();
+  });
+  const GP=new T.Plane(new T.Vector3(0,1,0),0), gp=new T.Vector3();
+  el.addEventListener("wheel",e=>{
+    e.preventDefault();
+    const was=radius;
+    radius=Math.max(W*0.03,Math.min(W*2.4,radius*(1+Math.sign(e.deltaY)*0.12)));
+    const r=el.getBoundingClientRect();
+    ndc.x=((e.clientX-r.left)/r.width)*2-1; ndc.y=-((e.clientY-r.top)/r.height)*2+1;
+    ray.setFromCamera(ndc,cam);
+    if(ray.ray.intersectPlane(GP,gp) && radius<was){
+      const t=Math.min(0.85,(1-radius/was)*2.4);
+      target.x+=(gp.x-target.x)*t; target.z+=(gp.z-target.z)*t; clampT();
+    }
+    place();
+  },{passive:false});
+  el.addEventListener("contextmenu",e=>e.preventDefault());
+  el.addEventListener("dblclick",()=>{radius=HOME.r;theta=HOME.t;phi=HOME.p;target.copy(HOMET);place()});
+  // ---- labels, pinned to their place the same way the site model does -----
+  const lay=document.createElement("div");
+  lay.style.cssText="position:absolute;inset:0;pointer-events:none;overflow:hidden";
+  box.appendChild(lay);
+  const PRIO={township:0,staff:1,labour:1,helipad:0,ccr:1,container:1,store:1,batching:2,
+              airstrip:2,gis:2,water:3,parking:3,plantation:3,storage:3,borewell:3,dump:3,pss:2};
+  tags=pins.filter(q=>!NOLABEL[q.f.cat]).sort((a,b)=>(PRIO[a.f.cat]||4)-(PRIO[b.f.cat]||4)).map(q=>{
+    const d=document.createElement("div");
+    d.style.cssText="position:absolute;transform:translate(-50%,-50%);font:700 9px/1.2 inherit;text-align:center;white-space:nowrap;color:#fff;background:rgba(14,24,38,.74);padding:1px 5px;border-radius:4px";
+    d.textContent=q.f.name; lay.appendChild(d);
+    return {d, p:q.p};
+  });
+  {const a=(P.areas&&P.areas.s6a&&P.areas.s6a[0]);
+   if(a){const d=document.createElement("div");
+     d.style.cssText="position:absolute;transform:translate(-50%,-50%);font:800 12px/1.2 inherit;white-space:nowrap;color:#fff;background:rgba(15,92,53,.92);padding:3px 8px;border-radius:5px";
+     d.textContent="S6a · 234 MW"; lay.appendChild(d);
+     tags.unshift({d, p:new T.Vector3((a[0]+a[2])/2, 340, Z((a[1]+a[3])/2)), f:{cat:"s6a"}});}}
+  const v=new T.Vector3();
+  function syncPins(){
+    const rw=el.clientWidth, rh=el.clientHeight;           // html{zoom} - project into CSS px
+    if(!rw||!rh) return;
+    // greedy declutter: walk in priority order and drop anything that would land on top
+    // of a label already placed this frame, so zooming in naturally reveals more of them
+    const put=[];
+    tags.forEach(t=>{
+      v.copy(t.p).project(cam);
+      let vis=v.z<1 && Math.abs(v.x)<1.2 && Math.abs(v.y)<1.2;
+      const px=(v.x*0.5+0.5)*rw, py=(-v.y*0.5+0.5)*rh;
+      if(vis) for(const q of put) if(Math.abs(q[0]-px)<58 && Math.abs(q[1]-py)<13){vis=false; break}
+      t.d.style.display=vis?"block":"none";
+      if(vis){t.d.style.left=px+"px"; t.d.style.top=py+"px"; put.push([px,py])}
+    });
+  }
+  place();
+  let fit=0;
+  const refit=()=>{
+    const w=box.clientWidth,h=box.clientHeight; if(!w||!h) return;
+    const pr=renderer.getPixelRatio();
+    if(Math.abs(el.width-Math.round(w*pr))<2 && Math.abs(el.height-Math.round(h*pr))<2) return;
+    cam.aspect=w/h; cam.updateProjectionMatrix(); renderer.setSize(w,h,false);
+  };
+  const ST=GLS[idp]={renderer, scene, raf:0, ro:null};
+  const tick=()=>{
+    ST.raf=requestAnimationFrame(tick);
+    if((fit=(fit+1)%12)===0) refit();
+    renderer.render(scene,cam);
+    syncPins();
+  };
+  refit(); syncPins();
+  box.classList.add("gl-on");
+  tick();
+}
 // ---------- pages ----------
 function card(cls,title,hint,body,extraHdr){return `<div class="card ${cls}"><div class="hdrrow"><div><h2>${title}</h2><div class="hint">${hint}</div></div>${extraHdr||""}</div>${body}</div>`}
 const unitToggle=()=>`<div class="toggle2"><button id="u-pct" class="${state.unit==="%"?"on":""}">%</button><button id="u-mw" class="${state.unit==="MW"?"on":""}">MW</button></div>`;
@@ -3369,6 +3691,8 @@ function pageLayout(){
   const site=rows.filter(r=>r[C.dept]==="execution"||r[C.dept]==="tnc"||r[C.dept]==="hoto");
   const use=site.length?site:rows;
   let h=`<div class="grid">`;
+  {const m=park3d("park3d");
+   if(m)h+=card("span12","Khavda Hybrid Park — where S6a sits","the whole park off sheet 1 of the issued array layout · plot boundary, roads, 33kV and 400kV corridors, no-go areas, all 388 turbines, PSS/BESS and GIS yards, batching plants, camps, townships, helipad, container yard, stores and mobile towers · hover any marker",m);}
   {const m=site3d(use,"lay3d");
    if(m)h+=card("span12","Plant Layout — 3D Site Model","real block outlines, roads, corridors, boundary, turbines and BESS off the issued array layout · arrays built = actual % · click a block to filter",m);}
   h+=layoutCard(use,CFG.plantLayout?"Plant Layout — Site Map":"Plant Layout — Block / Feeder Scorecard","lay-view");
@@ -3737,6 +4061,7 @@ function render(){
   navHtml();syncFilterUI();
   const pg=document.getElementById("page");
   pg.innerHTML=pageHtml(state.page);
+  sweepGL();                                   // the page just changed; drop orphaned scenes
   const rows=filtered();
   const cht=document.getElementById("sc-chart"),tbl=document.getElementById("sc-table");
   if(cht){
