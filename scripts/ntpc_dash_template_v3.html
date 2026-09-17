@@ -3587,7 +3587,12 @@ function buildParkGL(rows, idp, box, P){
       }
     });
     [tw,nac,bl].forEach(m=>{m.instanceMatrix.needsUpdate=true; scene.add(m)});
-    rotors.push({bl, d:new T.Object3D()});
+    // what the frame loop needs to turn them: the mesh, where each hub is, each rotor's
+    // starting angle and its own speed, so 388 turbines do not sweep in lockstep
+    rotors.push({bl, d:new T.Object3D(),
+                 hub:wtg.map(w=>[w[0], HUB+6, Z(w[1])-14]),
+                 phase:wtg.map((w,i)=>(i%7)*0.3),
+                 rate:wtg.map((w,i)=>0.010+(i%5)*0.0016)});
   }
   // every named place gets a pin; the map would be unreadable if all 97 also got text
   const pins=[];
@@ -3728,9 +3733,24 @@ function buildParkGL(rows, idp, box, P){
     cam.aspect=w/h; cam.updateProjectionMatrix(); renderer.setSize(w,h,false);
   };
   const ST=GLS[idp]={renderer, scene, raf:0, ro:null};
+  let spin=0;
+  const TAU3=2*Math.PI/3;
   const tick=()=>{
     ST.raf=requestAnimationFrame(tick);
     if((fit=(fit+1)%12)===0) refit();
+    // turn the rotors, unless the whole park is so far away that a 160 m rotor is a pixel
+    if(rotors.length && radius < W*1.5){
+      spin+=1;
+      const R=rotors[0], d=R.d, bl=R.bl;
+      for(let i=0;i<R.hub.length;i++){
+        const h=R.hub[i], a=R.phase[i]+spin*R.rate[i];
+        d.position.set(h[0],h[1],h[2]);
+        for(let k=0;k<3;k++){
+          d.rotation.set(0,0,a+k*TAU3); d.updateMatrix(); bl.setMatrixAt(i*3+k,d.matrix);
+        }
+      }
+      bl.instanceMatrix.needsUpdate=true;
+    }
     renderer.render(scene,cam);
     syncPins();
   };
