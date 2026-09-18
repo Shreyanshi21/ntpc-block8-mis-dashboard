@@ -121,6 +121,14 @@ print("task %d | hist %d | notes %d" % tuple(len(FEED[k]) for k in ("task", "his
 PERSON = re.compile(r"^[A-Za-z][A-Za-z'\-]*(?:\s+[A-Za-z][A-Za-z'\-]*){1,3}$")
 NOT_PERSON = re.compile(r"^(target date|for action|the designated|action by)", re.I)
 BY = re.compile(r"\bby\s+([A-Za-z][^\.,:;\r\n]{2,40})")
+# VisiLean writes these sentences itself, so a name sitting in one of these positions is a
+# real user on their very first action. The >=3 rule below exists only to stop free note
+# text inventing people, and it was costing new joiners their first updates: Vikram Singh's
+# only action on 14-Sep read as "Unattributed" until this existed.
+STRICT_BY = re.compile(
+    r"(?:was forced ready to start by|as a result of action by|bulk completed by"
+    r"|imported from file[^.]{0,160}?by|created by|completed on time by|started on time by"
+    r"|rescheduled by|assigned to [^.]{1,80}?by)\s+([A-Za-z][^\.,:;\r\n]{2,40})", re.I)
 
 owners = {}
 for r in FEED["task"]:
@@ -129,6 +137,7 @@ for r in FEED["task"]:
         owners[n.lower()] = n
 
 cand = {}
+strict = set()
 for feed in ("hist", "notes"):
     for r in FEED[feed]:
         txt = str(r.get("activityHistory") or "")
@@ -142,10 +151,15 @@ for feed in ("hist", "notes"):
             k = n.lower()
             cand.setdefault(k, [n, 0])
             cand[k][1] += 1
+        for m in STRICT_BY.finditer(txt):
+            n = " ".join(m.group(1).split())
+            n = re.sub(r"\s+for action$", "", n).strip()
+            if PERSON.match(n) and not NOT_PERSON.match(n):
+                strict.add(n.lower())
 
 roster = list(owners.values())
 for k, (n, c) in cand.items():
-    if k not in owners and c >= 3:          # credited at least three times = a real actor
+    if k not in owners and (c >= 3 or k in strict):   # three generic credits, or one in a sentence VisiLean wrote
         roster.append(n)
 roster = sorted(set(roster))   # parsing vocabulary - keeps excluded names so their events are still recognised (and then dropped)
 
