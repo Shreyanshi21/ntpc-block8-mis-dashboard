@@ -3563,9 +3563,16 @@ function buildParkGL(rows, idp, box, P){
   // Same geometry the Plant Layout model draws - block outlines off the drawing, kerbs in
   // the ahead/behind colours, and every tracker table at the real 7.5 m pitch - placed by
   // the offset between the two models' origins, since both are on the survey grid.
-  const s6aTags=[];
+  const s6aTags=[], s6aDeck=[];
+  let S6APAD=null, S6AFAR=null;
   if(HASS6A){
     const S=CFG.siteModel;
+    // the plant model's pad, built the same way: a blue deck under blue tables is why the
+    // plot read as one slab here while the same blocks show their rows over there
+    const padTex=noiseTex("#bcb193", ["#cbc0a0","#a99e82","#d4caab"], 800, 128);
+    padTex.repeat.set(1/22, 1/22);
+    S6APAD=new T.MeshLambertMaterial({map:padTex});      // close up: the graded pad
+    S6AFAR=new T.MeshLambertMaterial({color:0x22406a});  // far off: a solar plot
     const dx=S.origin.E-P.origin.E, dy=S.origin.N-P.origin.N;
     const PITCH=(S.row&&S.row.pitch)||7.5, TL=(S.row&&S.row.tableLen)||32.3, TW=(S.row&&S.row.tableWid)||4.8;
     const PAD=1.8, TH=PAD+2.3, TILT=22*Math.PI/180;
@@ -3578,7 +3585,8 @@ function buildParkGL(rows, idp, box, P){
       const shape=new T.Shape(ring.map(q=>new T.Vector2(q[0],Z(q[1]))));
       const geo=new T.ExtrudeGeometry(shape,{depth:PAD,bevelEnabled:false});
       geo.rotateX(Math.PI/2); geo.translate(0,PAD,0);
-      const m=new T.Mesh(geo,new T.MeshLambertMaterial({color:new T.Color(0x22406a)}));
+      const m=new T.Mesh(geo,[S6APAD, new T.MeshLambertMaterial({color:0x9c9378})]);
+      s6aDeck.push(m);
       m.userData={tip:`<b>${esc(b.area)}</b> · S6a<br>Actual <b>${fmt1(act)}%</b> · plan ${fmt1(pln)}%<br>${rr.length} activities · ${(b.areaM2/10000).toFixed(1)} ha`};
       scene.add(m); picks.push(m);
       s6aTags.push({name:b.area.replace("Block-","ICR-"), act:act, pln:pln,
@@ -3612,6 +3620,15 @@ function buildParkGL(rows, idp, box, P){
       const d=new T.Object3D();
       pts.forEach((q,i)=>{d.position.set(q[0],TH,q[1]); d.rotation.set(TILT,0,0); d.updateMatrix(); im.setMatrixAt(i,d.matrix)});
       im.instanceMatrix.needsUpdate=true; scene.add(im);
+      const OFF=[-TL*0.34, 0, TL*0.34];
+      const lg=new T.InstancedMesh(new T.BoxGeometry(0.42, TH-PAD, 0.42),
+        new T.MeshLambertMaterial({color:0x7a828c}), pts.length*OFF.length);
+      const q2=new T.Object3D();
+      pts.forEach((p,i)=>OFF.forEach((o,k)=>{
+        q2.position.set(p[0]+o, PAD+(TH-PAD)/2, p[1]); q2.updateMatrix();
+        lg.setMatrixAt(i*OFF.length+k, q2.matrix);
+      }));
+      lg.instanceMatrix.needsUpdate=true; scene.add(lg);
     };
     tables(built,0x11386f,true);
     tables(plan,0x2d4360,false);
@@ -3676,12 +3693,18 @@ function buildParkGL(rows, idp, box, P){
   const CS=GLCAM[idp];
   if(CS){radius=CS.r; theta=CS.t; phi=CS.p; target.copy(CS.g)}
   let tags=null;
+  let deckFar=null;
+  const S6A_LOD=2600;                            // radius past which 7.5 m rows stop resolving
   const place=()=>{
     cam.position.set(target.x+radius*Math.sin(phi)*Math.sin(theta),
                      target.y+radius*Math.cos(phi),
                      target.z+radius*Math.sin(phi)*Math.cos(theta));
     cam.lookAt(target);
     cam.near=Math.max(0.4, Math.min(60, radius*0.02)); cam.updateProjectionMatrix();
+    if(s6aDeck.length){
+      const far=radius>S6A_LOD;
+      if(far!==deckFar){deckFar=far; s6aDeck.forEach(m=>{m.material[0]=far?S6AFAR:S6APAD})}
+    }
     cam.updateMatrixWorld();
     GLCAM[idp]={r:radius,t:theta,p:phi,g:target.clone()};
     if(tags) syncPins();
