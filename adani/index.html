@@ -171,6 +171,10 @@ tr:hover td{background:var(--blue-wash)}
 .prow .val{font-size:9.5px;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden}
 .legend{display:flex;gap:9px;font-size:9px;color:var(--ink2);margin:2px 0 5px;flex-wrap:wrap}
 .legend .sw{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:3px;vertical-align:-1px}
+/* legend entries that take you there; they look like the plain ones until you point at them */
+.legend .lgb{font:inherit;color:inherit;background:none;border:0;padding:0 2px;margin:0;cursor:pointer;border-radius:3px}
+.legend .lgb:hover{background:var(--hover,rgba(0,45,98,.09));color:var(--ink)}
+.legend .lgb:focus-visible{outline:2px solid var(--acc,#2f62d8);outline-offset:1px}
 .bgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(196px,1fr));gap:7px}
 .ftile{border:1px solid var(--line2);border-radius:7px;padding:7px 9px;cursor:pointer;background:var(--surface)}
 .ftile:hover{border-color:var(--blue)}
@@ -3472,17 +3476,20 @@ function park3d(rows,idp){
   g+=`</svg>`;
   setTimeout(()=>parkGLInit(rows,idp),0);
   const S=P.stats||{};
-  const key=Object.entries(FAC).map(([k,v])=>`<span><span class="sw" style="background:${v[0]}"></span>${v[1]}</span>`).join("");
+  const go=(k,col,txt,bold)=>`<button class="lgb" data-go="${k}" onclick="parkGo('${idp}','${k}')" title="show me ${esc(txt)}"><span class="sw" style="background:${col}"></span>${bold?`<b>${txt}</b>`:txt}</button>`;
+  const key=Object.entries(FAC).map(([k,v])=>go(k,v[0],v[1])).join("");
   return `<div class="legend" style="margin-bottom:4px">
-      <span><span class="sw" style="background:#22406a"></span><b>S6a — this project</b></span>
-      <span><span class="sw" style="background:#2f62d8"></span>Khavda plot boundary</span>
-      <span><span class="sw" style="background:#1fa8bd"></span>33kV TL corridor</span>
-      <span><span class="sw" style="background:#7b5fd0"></span>400kV TL</span>
-      <span><span class="sw" style="background:#cf4a46"></span>no-go area</span>
+      ${go("s6a","#22406a","S6a — this project",1)}
+      ${go("bnd","#2f62d8","Khavda plot boundary")}
+      ${go("tl33","#1fa8bd","33kV TL corridor")}
+      ${go("tl400","#7b5fd0","400kV TL")}
+      ${go("nogo","#cf4a46","no-go area")}
       ${key}
       <span class="dim">${(W/1000).toFixed(1)} km × ${(D/1000).toFixed(1)} km · ${S.plotAcres?S.plotAcres.toLocaleString():""} acres · ${S.solarMWac?S.solarMWac.toLocaleString():""} MWac solar · ${S.wtg||0} × 5.2 MW WTG (${S.windMW||0} MW) · drag to orbit, scroll to zoom in on the pointer</span>
     </div><div class="glwrap"><div class="glbox" id="${idp}-gl"></div>${g}</div>`;
 }
+// the legend buttons reach the live scene through here; before it is up, they do nothing
+function parkGo(idp,key){const S=GLS[idp]; if(S&&S.goto) S.goto(key);}
 async function parkGLInit(rows,idp){
   sweepGL();
   const P=CFG.parkModel, box=document.getElementById(idp+"-gl");
@@ -3530,10 +3537,16 @@ function buildParkGL(rows, idp, box, P){
     if(!n) return;
     const g=new T.BufferGeometry();
     g.setAttribute("position",new T.Float32BufferAttribute(pos,3)); g.setIndex(idx); g.computeVertexNormals();
-    scene.add(new T.Mesh(g,new T.MeshLambertMaterial({color:colour,side:T.DoubleSide})));
+    const msh=new T.Mesh(g,new T.MeshLambertMaterial({color:colour,side:T.DoubleSide}));
+    scene.add(msh); return msh;
   };
   const L=P.lines||{};
-  ribbon(L.road, 34, 2, 0x7d7568);
+  // 34 m of flat brown is what a plant road has to be to survive a 21 km view, and four
+  // times too wide once you are down among the buildings. Both are built; one shows at a time.
+  const roadFar=[ribbon(L.road, 34, 2, 0x7d7568)];
+  const roadNear=[ribbon(L.road, 10.0, 2.00, 0x55524d),      // asphalt
+                  ribbon(L.road,  4.4, 2.14, 0x7d7568)];     // the crown, worn lighter
+  roadNear.forEach(m=>m&&(m.visible=false));
   ribbon(L.airstrip, 48, 3, 0x9b9486);
   ribbon(L.cluster, 26, 4, 0x8a5a1e);
   ribbon(L.tl400, 30, 5, 0x7b5fd0);
@@ -3543,6 +3556,7 @@ function buildParkGL(rows, idp, box, P){
   // yards and plants as low pads; S6a stands a little prouder and brighter
   const picks=[];
   const HASS6A=!!(CFG.siteModel&&CFG.siteModel.blocks&&CFG.siteModel.blocks.length);
+  const areaSlab=[], areaEdge=[];
   Object.entries(P.areas||{}).forEach(([k,v])=>{
     if(k==="s6a"&&HASS6A) return;                 // the real plant is drawn there instead
     const st=PARK_AREA[k]||["#777","area"];
@@ -3553,10 +3567,10 @@ function buildParkGL(rows, idp, box, P){
           emissive:k==="s6a"?new T.Color(0x0f5c35):0x000000, emissiveIntensity:k==="s6a"?0.35:0}));
       m.position.set((a[0]+a[2])/2,h/2,Z((a[1]+a[3])/2));
       m.userData={tip:`<b>${st[1]}</b><br>${Math.round(a[2]-a[0])} × ${Math.round(a[3]-a[1])} m`};
-      scene.add(m); picks.push(m);
+      scene.add(m); picks.push(m); areaSlab.push({m,h});
       // a bright edge round the pad, so one block is told from the next at park zoom where
       // a 3 m kerb would be invisible - 45 m reads as a couple of pixels from 21 km out
-      ribbon([[[a[0],a[1]],[a[2],a[1]],[a[2],a[3]],[a[0],a[3]],[a[0],a[1]]]], 45, h+1, 0xd8e2ec);
+      areaEdge.push(ribbon([[[a[0],a[1]],[a[2],a[1]],[a[2],a[3]],[a[0],a[3]],[a[0],a[1]]]], 45, h+1, 0xd8e2ec));
     });
   });
   // ---- the real S6a plant, dropped into the park ------------------------
@@ -3644,20 +3658,26 @@ function buildParkGL(rows, idp, box, P){
     const bright=new T.MeshLambertMaterial({color:0xf7f9fc});
     const tw=new T.InstancedMesh(new T.CylinderGeometry(5,13,HUB,8), white, wtg.length);
     const nac=new T.InstancedMesh(new T.BoxGeometry(11,10,26), white, wtg.length);
-    const bg=new T.BoxGeometry(7, ROT*0.95, 2.6); bg.translate(0, ROT*0.48, 0);
+    // a blade is wide at the root and narrow at the tip, and thin the other way: a four
+    // sided taper flattened to about a third reads as an aerofoil at any distance that matters
+    const bg=new T.CylinderGeometry(0.7, 3.6, ROT*0.95, 4, 1);
+    bg.rotateY(Math.PI/4); bg.scale(1, 1, 0.34); bg.translate(0, ROT*0.48, 0);
     const bl=new T.InstancedMesh(bg, bright, wtg.length*3);
+    const cg=new T.ConeGeometry(4.6, 9, 10); cg.rotateX(-Math.PI/2);
+    const ns=new T.InstancedMesh(cg, bright, wtg.length);
     const d=new T.Object3D();
     wtg.forEach((w,i)=>{
       d.rotation.set(0,0,0);
       d.position.set(w[0],HUB/2,Z(w[1])); d.updateMatrix(); tw.setMatrixAt(i,d.matrix);
       d.position.set(w[0],HUB+6,Z(w[1])); d.updateMatrix(); nac.setMatrixAt(i,d.matrix);
+      d.position.set(w[0],HUB+6,Z(w[1])-17); d.updateMatrix(); ns.setMatrixAt(i,d.matrix);
       for(let k=0;k<3;k++){
         d.position.set(w[0],HUB+6,Z(w[1])-14);
         d.rotation.set(0,0,k*2*Math.PI/3 + (i%7)*0.3);   // not every rotor at the same angle
         d.updateMatrix(); bl.setMatrixAt(i*3+k,d.matrix);
       }
     });
-    [tw,nac,bl].forEach(m=>{m.instanceMatrix.needsUpdate=true; scene.add(m)});
+    [tw,nac,bl,ns].forEach(m=>{m.instanceMatrix.needsUpdate=true; scene.add(m)});
     // what the frame loop needs to turn them: the mesh, where each hub is, each rotor's
     // starting angle and its own speed, so 388 turbines do not sweep in lockstep
     rotors.push({bl, d:new T.Object3D(),
@@ -3665,17 +3685,161 @@ function buildParkGL(rows, idp, box, P){
                  phase:wtg.map((w,i)=>(i%7)*0.3),
                  rate:wtg.map((w,i)=>0.010+(i%5)*0.0016)});
   }
+  // ---- built form ---------------------------------------------------------
+  // A camp is barracks, a batching plant is silos, a helipad is a marked apron. All of it is
+  // boxes, tubes and cones scaled off three unit geometries, gathered by colour so ninety-odd
+  // places cost a few dozen draw calls. HB exaggerates height: a 4 m barrack is nothing from
+  // 500 m, and this is a site model, not a survey.
+  const HB=2.2;
+  const UBOX=new T.BoxGeometry(1,1,1), UCYL=new T.CylinderGeometry(0.5,0.5,1,12),
+        UCONE=new T.ConeGeometry(0.5,1,10);
+  const BM={}, d3=new T.Object3D();
+  const put=(geo,tag,col,x,y,z,sx,sy,sz)=>{
+    const k=tag+col, e=BM[k]||(BM[k]={geo,col,list:[]});
+    d3.position.set(x,y,z); d3.scale.set(sx,sy,sz); d3.updateMatrix(); e.list.push(d3.matrix.clone());
+  };
+  const bx =(c,x,y,z,w,h,d)=>put(UBOX ,"b",c,x,y,z,w,h,d);
+  const cy =(c,x,y,z,r,h)  =>put(UCYL ,"c",c,x,y,z,r*2,h,r*2);
+  const cn =(c,x,y,z,r,h)  =>put(UCONE,"n",c,x,y,z,r*2,h,r*2);
+  const PAD_=0xb9b4a8, WALL=0xe6e0d2, ROOF=0xaeb6bd, STEEL=0x9aa0a6, TARMAC=0x55524d;
+
+  const camp=(f,nx,nz)=>{                       // township, staff camp, labour camp
+    const z=Z(f.y), bw=32, bd=10, gx=13, gz=17;
+    const w=nx*(bw+gx)-gx, d=nz*(bd+gz)-gz, h=4.2*HB;
+    bx(PAD_, f.x, 0.5, z, w+52, 1, d+52);
+    for(let i=0;i<nx;i++) for(let j=0;j<nz;j++){
+      const x=f.x-w/2+bw/2+i*(bw+gx), zz=z-d/2+bd/2+j*(bd+gz);
+      bx(WALL, x, 1+h/2, zz, bw, h, bd);
+      bx(ROOF, x, 1+h+0.7, zz, bw+2.4, 1.4, bd+2.4);
+    }
+    bx(0x6b6a66, f.x, 1.2, z+d/2+16, w+40, 0.5, 7);        // the road in
+  };
+  const helipad=f=>{
+    const z=Z(f.y);
+    bx(0x8b867c, f.x, 0.6, z, 72, 1.2, 72);                // apron
+    cy(0xf0efe9, f.x, 1.35, z, 27, 0.6);                   // touchdown circle
+    cy(0x8b867c, f.x, 1.55, z, 23, 0.6);                   // hollowed out, leaving a ring
+    bx(0xf0efe9, f.x-7.5, 1.85, z, 3.2, 0.5, 21);          // the H
+    bx(0xf0efe9, f.x+7.5, 1.85, z, 3.2, 0.5, 21);
+    bx(0xf0efe9, f.x,     1.85, z, 18.0, 0.5, 3.2);
+    bx(0xd8d2c4, f.x+42, 7, z+36, 0.9, 13, 0.9);           // windsock
+    bx(0xe4564f, f.x+46, 12.6, z+36, 7, 1.9, 1.9);
+  };
+  const batching=f=>{
+    const z=Z(f.y);
+    bx(PAD_, f.x, 0.5, z, 96, 1, 74);
+    for(let i=0;i<3;i++) cy(0xd8dade, f.x-18+i*18, 24, z-12, 6.5, 46);   // cement silos
+    for(let i=0;i<3;i++) cn(0xc4c8cc, f.x-18+i*18, 49, z-12, 6.5, 4);
+    bx(0xc9ccd0, f.x+27, 10, z+7, 22, 18, 18);             // mixer house
+    bx(STEEL,    f.x+6,  17, z+2,  42, 1.8, 3.4);          // conveyor
+    for(let i=0;i<3;i++) bx(0x9c9378, f.x-28+i*17, 4, z+26, 15, 6.5, 15); // aggregate bays
+  };
+  const office=f=>{                              // CCR, GIS control building, site office
+    const z=Z(f.y), h=8*HB;
+    bx(PAD_, f.x, 0.5, z, 84, 1, 54);
+    bx(0xe8e5dc, f.x, 1+h/2, z, 46, h, 20);
+    bx(0x3e5a70, f.x, 1+h*0.62, z, 47, 3.4, 21);           // window band
+    bx(ROOF,     f.x, 1+h+0.8, z, 48, 1.6, 22);
+    bx(0x6b6a66, f.x, 1.2, z+30, 60, 0.5, 8);
+  };
+  const shed=f=>{                                // store, storage yard
+    const z=Z(f.y), h=9*HB;
+    bx(PAD_, f.x, 0.5, z, 104, 1, 60);
+    for(let i=0;i<2;i++){
+      const zz=z-14+i*28;
+      bx(0xc6ccd0, f.x, 1+h/2, zz, 80, h, 22);
+      bx(0xa8b0b6, f.x, 1+h+0.8, zz, 82, 1.6, 24);
+    }
+  };
+  const yard=f=>{                                // container yard
+    const z=Z(f.y), cols=[0xc0562f,0x2f6a8f,0x3f7a4a,0xb8902f,0x9a4f6a];
+    bx(0x6f6a62, f.x, 0.5, z, 124, 1, 84);
+    for(let i=0;i<5;i++) for(let j=0;j<4;j++){
+      const st=1+((i*3+j)%3);
+      for(let k=0;k<st;k++)
+        bx(cols[(i*4+j)%5], f.x-48+i*24, 1+3.2+k*6.2, z-30+j*20, 13, 6, 5.6);
+    }
+  };
+  const mast=f=>{                                // mobile tower
+    const z=Z(f.y), H2=68;
+    bx(PAD_, f.x, 0.5, z, 22, 1, 22);
+    for(let i=0;i<4;i++){
+      const a=i*Math.PI/2+Math.PI/4;
+      bx(STEEL, f.x+Math.cos(a)*3.6, H2/2, z+Math.sin(a)*3.6, 1.1, H2, 1.1);
+    }
+    for(let k=1;k<=4;k++) bx(STEEL, f.x, H2*k/5, z, 8.4, 0.8, 8.4);
+    bx(0xe4564f, f.x, H2+2.5, z, 1.3, 5, 1.3);
+  };
+  const switchyard=f=>{                          // PSS, KPS, GIS
+    const z=Z(f.y);
+    bx(0xa8a294, f.x, 0.5, z, 112, 1, 82);
+    for(let i=0;i<3;i++) bx(STEEL, f.x-32+i*32, 1+5.5, z-17, 14, 11, 12);   // transformers
+    for(let i=0;i<3;i++){                                                   // gantries
+      const gx2=f.x-32+i*32;
+      bx(0xb4bac0, gx2-7, 13, z+19, 1.3, 24, 1.3);
+      bx(0xb4bac0, gx2+7, 13, z+19, 1.3, 24, 1.3);
+      bx(0xb4bac0, gx2,   25, z+19, 17, 1.3, 1.3);
+    }
+    bx(0xe8e5dc, f.x+42, 1+5, z+6, 20, 10, 14);                             // control room
+  };
+  const water=f=>{
+    const z=Z(f.y);
+    bx(PAD_, f.x, 0.5, z, 94, 1, 64);
+    cy(0xc9ced2, f.x-20, 1+6.5, z, 15, 13);
+    cy(0x4f7f92, f.x-20, 1+13.2, z, 14.3, 0.5);            // the water in it
+    cy(0xc9ced2, f.x+18, 1+5.5, z+9, 12, 11);
+    bx(0xe8e5dc, f.x+22, 1+3.5, z-21, 18, 7, 12);
+  };
+  const parking=f=>{
+    const z=Z(f.y), cc=[0xcfd3d6,0x8d939a,0x3f5a70,0xb0453f];
+    bx(TARMAC, f.x, 0.4, z, 112, 0.8, 72);
+    for(let i=0;i<7;i++) for(let j=0;j<4;j++)
+      bx(cc[(i+j)%4], f.x-45+i*15, 2.5, z-27+j*18, 4.4, 3.4, 10);
+  };
+  const plantation=f=>{
+    const z=Z(f.y);
+    for(let i=0;i<8;i++) for(let j=0;j<5;j++){
+      const x=f.x-52+i*15, zz=z-30+j*15;
+      bx(0x6b4f30, x, 2.5, zz, 0.9, 5, 0.9);
+      cn(0x3f7a3a, x, 9.5, zz, 5, 10);
+    }
+  };
+  const dump=f=>{const z=Z(f.y); cn(0x8a7a5a, f.x, 7, z, 34, 14);};
+  const borewell=f=>{
+    const z=Z(f.y);
+    bx(PAD_, f.x, 0.5, z, 22, 1, 22);
+    bx(0xd8d2c4, f.x, 1+3.5, z, 9, 7, 9);
+    cy(STEEL, f.x+7, 1+5, z, 1.3, 10);
+  };
+  const BUILT={township:f=>camp(f,4,3), staff:f=>camp(f,3,2), labour:f=>camp(f,4,3),
+    helipad, batching, ccr:office, gis:office, store:shed, storage:shed, container:yard,
+    tower:mast, pss:switchyard, kps:switchyard, water, parking, plantation, dump, borewell};
+
   // every named place gets a pin; the map would be unreadable if all 97 also got text
-  const pins=[];
+  const pins=[], facPins=[];
+  const PICK=new T.MeshBasicMaterial({visible:false});   // renders nothing, still raycasts
   (P.facilities||[]).forEach(f=>{
     const st=FAC[f.cat]||["#666",f.cat];
     const col=new T.Color(st[0]);
     const m=new T.Mesh(new T.CylinderGeometry(26,26,150,7),
       new T.MeshLambertMaterial({color:col, emissive:col, emissiveIntensity:0.45}));
     m.position.set(f.x,75,Z(f.y));
-    m.userData={tip:`<b>${esc(f.name)}</b><br>${esc(st[1])}`};
-    scene.add(m); picks.push(m); pins.push({f,st,p:new T.Vector3(f.x,240,Z(f.y))});
+    scene.add(m); facPins.push(m);
+    const bf=BUILT[f.cat]; if(bf) bf(f);
+    // the hover target is the plot, not the pin: once the pin is off you still want the place
+    const pk=new T.Mesh(new T.BoxGeometry(150,120,150), PICK);
+    pk.position.set(f.x,60,Z(f.y));
+    pk.userData={tip:`<b>${esc(f.name)}</b><br>${esc(st[1])}`};
+    scene.add(pk); picks.push(pk);
+    pins.push({f,st,p:new T.Vector3(f.x,240,Z(f.y))});
   });
+  const builtGrp=new T.Group();
+  Object.values(BM).forEach(e=>{
+    const im=new T.InstancedMesh(e.geo, new T.MeshLambertMaterial({color:e.col}), e.list.length);
+    e.list.forEach((mx,i)=>im.setMatrixAt(i,mx));
+    im.instanceMatrix.needsUpdate=true; builtGrp.add(im);
+  });
+  scene.add(builtGrp);
   // ---- camera -------------------------------------------------------------
   const cam=new T.PerspectiveCamera(42, box.clientWidth/box.clientHeight, 20, W*10);
   const bb=[1e9,1e9,-1e9,-1e9];
@@ -3693,8 +3857,9 @@ function buildParkGL(rows, idp, box, P){
   const CS=GLCAM[idp];
   if(CS){radius=CS.r; theta=CS.t; phi=CS.p; target.copy(CS.g)}
   let tags=null;
-  let deckFar=null;
+  let deckFar=null, facFar=null;
   const S6A_LOD=2600;                            // radius past which 7.5 m rows stop resolving
+  const FAC_LOD=5200;                            // and past which a building is under a pixel
   const place=()=>{
     cam.position.set(target.x+radius*Math.sin(phi)*Math.sin(theta),
                      target.y+radius*Math.cos(phi),
@@ -3704,6 +3869,19 @@ function buildParkGL(rows, idp, box, P){
     if(s6aDeck.length){
       const far=radius>S6A_LOD;
       if(far!==deckFar){deckFar=far; s6aDeck.forEach(m=>{m.material[0]=far?S6AFAR:S6APAD})}
+    }
+    // a 20 m building is nothing from 21 km and a 150 m glowing post is absurd from 400 m,
+    // so each is only on where it is the honest thing to draw
+    const bFar=radius>FAC_LOD;
+    if(bFar!==facFar){
+      facFar=bFar;
+      facPins.forEach(m=>m.material.visible=bFar);
+      builtGrp.visible=!bFar;
+      roadFar.forEach(m=>m&&(m.visible=bFar));
+      roadNear.forEach(m=>m&&(m.visible=!bFar));
+      // a 34 m pad is a wall you cannot see over from inside it; close up it is 1.5 m of grade
+      areaSlab.forEach(o=>{const k=bFar?1:0.045; o.m.scale.y=k; o.m.position.y=o.h*k/2});
+      areaEdge.forEach(m=>m&&(m.visible=bFar));
     }
     cam.updateMatrixWorld();
     GLCAM[idp]={r:radius,t:theta,p:phi,g:target.clone()};
@@ -3795,7 +3973,11 @@ function buildParkGL(rows, idp, box, P){
     // of a label already placed this frame, so zooming in naturally reveals more of them
     const put=[];
     tags.forEach(t=>{
-      v.copy(t.p).project(cam);
+      v.copy(t.p);
+      // the label rides down with the camera; 240 m up is right for the whole park and far
+      // above the top of the canvas once a legend button has put you next to a silo
+      if(v.y>0) v.y=Math.max(12, Math.min(t.p.y, radius*0.16));
+      v.project(cam);
       let vis=v.z<1 && Math.abs(v.x)<1.2 && Math.abs(v.y)<1.2;
       const px=(v.x*0.5+0.5)*rw, py=(-v.y*0.5+0.5)*rh;
       if(vis) for(const q of put) if(Math.abs(q[0]-px)<58 && Math.abs(q[1]-py)<13){vis=false; break}
@@ -3812,11 +3994,47 @@ function buildParkGL(rows, idp, box, P){
     cam.aspect=w/h; cam.updateProjectionMatrix(); renderer.setSize(w,h,false);
   };
   const ST=GLS[idp]={renderer, scene, raf:0, ro:null};
+  // ---- go to --------------------------------------------------------------
+  // The legend already names everything on the map, so it doubles as the way in. Each kind
+  // keeps its own cursor: click once for the first container yard, again for the next.
+  const GOTO={};
+  (P.facilities||[]).forEach(f=>{(GOTO[f.cat]=GOTO[f.cat]||[]).push([[f.x,f.y]])});
+  Object.entries(P.lines||{}).forEach(([k,ls])=>{
+    const q=[]; ls.forEach(l=>l.forEach(p=>q.push(p)));
+    if(q.length) GOTO[k]=[q];                       // a corridor is one thing: all of it
+  });
+  {const a=(P.areas&&P.areas.s6a&&P.areas.s6a[0]);
+   if(a) GOTO.s6a=[[[a[0],a[1]],[a[2],a[3]]]];}
+  const goAt={};
+  let fly=null;
+  ST.goto=key=>{
+    const opts=GOTO[key]; if(!opts||!opts.length) return false;
+    const i=goAt[key]===undefined?(goAt[key]=0):(goAt[key]=(goAt[key]+1)%opts.length);
+    const pts=opts[i];
+    let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+    pts.forEach(p=>{x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1])});
+    const span=Math.max(x1-x0, y1-y0, 150);         // a single place still wants some room
+    const hf=Math.atan(Math.tan(vfov)*cam.aspect);
+    const r1=Math.max(150, Math.min(W*2.2, (span/2)/Math.min(Math.tan(vfov),Math.tan(hf))*1.5));
+    fly={t:performance.now(), dur:950,
+         r0:radius, r1:r1, a0:theta, a1:theta, p0:phi, p1:span>4000?0.72:1.02,
+         g0:target.clone(), g1:new T.Vector3((x0+x1)/2, 0, Z((y0+y1)/2))};
+    return true;
+  };
   let spin=0;
   const TAU3=2*Math.PI/3;
   const tick=()=>{
     ST.raf=requestAnimationFrame(tick);
     if((fit=(fit+1)%12)===0) refit();
+    if(fly){
+      // radius eases geometrically: 21 km to 500 m is four doublings, and a linear ramp
+      // spends most of the flight crawling the last hundred metres
+      const u=Math.min(1,(performance.now()-fly.t)/fly.dur), e=u<0.5?2*u*u:1-Math.pow(2-2*u,2)/2;
+      radius=fly.r0*Math.pow(fly.r1/fly.r0, e);
+      theta=fly.a0+(fly.a1-fly.a0)*e; phi=fly.p0+(fly.p1-fly.p0)*e;
+      target.lerpVectors(fly.g0, fly.g1, e); clampT();
+      place(); if(u>=1) fly=null;
+    }
     // turn the rotors, unless the whole park is so far away that a 160 m rotor is a pixel
     if(rotors.length && radius < W*1.5){
       spin+=1;
