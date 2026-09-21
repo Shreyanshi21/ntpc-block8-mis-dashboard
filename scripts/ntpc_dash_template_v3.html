@@ -3485,7 +3485,7 @@ function park3d(rows,idp){
       ${go("tl400","#7b5fd0","400kV TL")}
       ${go("nogo","#cf4a46","no-go area")}
       ${key}
-      <span class="dim">${(W/1000).toFixed(1)} km × ${(D/1000).toFixed(1)} km · ${S.plotAcres?S.plotAcres.toLocaleString():""} acres · ${S.solarMWac?S.solarMWac.toLocaleString():""} MWac solar · ${S.wtg||0} × 5.2 MW WTG (${S.windMW||0} MW) · drag to orbit, scroll to zoom in on the pointer</span>
+      <span class="dim">${(W/1000).toFixed(1)} km × ${(D/1000).toFixed(1)} km · ${S.plotAcres?S.plotAcres.toLocaleString():""} acres · ${S.solarMWac?S.solarMWac.toLocaleString():""} MWac solar · ${S.wtg||0} × 5.2 MW WTG (${S.windMW||0} MW) · drag to orbit, scroll to zoom in on the pointer · click a legend entry to fly there, click an S6a block to filter</span>
     </div><div class="glwrap"><div class="glbox" id="${idp}-gl"></div>${g}</div>`;
 }
 // the legend buttons reach the live scene through here; before it is up, they do nothing
@@ -3546,13 +3546,17 @@ function buildParkGL(rows, idp, box, P){
   const roadFar=[ribbon(L.road, 34, 2, 0x7d7568)];
   const roadNear=[ribbon(L.road, 10.0, 2.00, 0x55524d),      // asphalt
                   ribbon(L.road,  4.4, 2.14, 0x7d7568)];     // the crown, worn lighter
+  ribbon(L.airstrip, 48, 3, 0x9b9486);            // a runway really is about this wide
+  // wide enough to read from 21 km, and a marked corridor rather than a painted river close up
+  [[L.cluster, 26, 4, 0x8a5a1e, 5.0],
+   [L.tl400,   30, 5, 0x7b5fd0, 9.0],
+   [L.tl33,    70, 4, 0x1fa8bd, 6.0],
+   [L.nogo,    40, 6, 0xcf4a46, 7.0],
+   [L.plot,    60, 8, 0x2f62d8, 5.0]].forEach(q=>{
+    roadFar.push(ribbon(q[0], q[1], q[2], q[3]));
+    roadNear.push(ribbon(q[0], q[4], q[2]+0.05, q[3]));
+  });
   roadNear.forEach(m=>m&&(m.visible=false));
-  ribbon(L.airstrip, 48, 3, 0x9b9486);
-  ribbon(L.cluster, 26, 4, 0x8a5a1e);
-  ribbon(L.tl400, 30, 5, 0x7b5fd0);
-  ribbon(L.tl33, 70, 4, 0x1fa8bd);
-  ribbon(L.nogo, 40, 6, 0xcf4a46);
-  ribbon(L.plot, 60, 8, 0x2f62d8);
   // yards and plants as low pads; S6a stands a little prouder and brighter
   const picks=[];
   const HASS6A=!!(CFG.siteModel&&CFG.siteModel.blocks&&CFG.siteModel.blocks.length);
@@ -3601,7 +3605,8 @@ function buildParkGL(rows, idp, box, P){
       geo.rotateX(Math.PI/2); geo.translate(0,PAD,0);
       const m=new T.Mesh(geo,[S6APAD, new T.MeshLambertMaterial({color:0x9c9378})]);
       s6aDeck.push(m);
-      m.userData={tip:`<b>${esc(b.area)}</b> · S6a<br>Actual <b>${fmt1(act)}%</b> · plan ${fmt1(pln)}%<br>${rr.length} activities · ${(b.areaM2/10000).toFixed(1)} ha`};
+      m.userData={area:b.area,
+        tip:`<b>${esc(b.area)}</b> · S6a<br>Actual <b>${fmt1(act)}%</b> · plan ${fmt1(pln)}%<br>${rr.length} activities · ${(b.areaM2/10000).toFixed(1)} ha<br><span style="opacity:.75">click to filter the page</span>`};
       scene.add(m); picks.push(m);
       s6aTags.push({name:b.area.replace("Block-","ICR-"), act:act, pln:pln,
                     tip:m.userData.tip, x:(Math.min(...ring.map(q=>q[0]))+Math.max(...ring.map(q=>q[0])))/2,
@@ -3692,15 +3697,44 @@ function buildParkGL(rows, idp, box, P){
   // 500 m, and this is a site model, not a survey.
   const HB=2.2;
   const UBOX=new T.BoxGeometry(1,1,1), UCYL=new T.CylinderGeometry(0.5,0.5,1,12),
-        UCONE=new T.ConeGeometry(0.5,1,10);
+        UCONE=new T.ConeGeometry(0.5,1,10), USPH=new T.SphereGeometry(0.5,7,5);
+  const UCYX=new T.CylinderGeometry(0.5,0.5,1,10); UCYX.rotateZ(Math.PI/2);  // axle along x
   const BM={}, d3=new T.Object3D();
-  const put=(geo,tag,col,x,y,z,sx,sy,sz)=>{
+  const put=(geo,tag,col,x,y,z,sx,sy,sz,rx,ry,rz)=>{
     const k=tag+col, e=BM[k]||(BM[k]={geo,col,list:[]});
-    d3.position.set(x,y,z); d3.scale.set(sx,sy,sz); d3.updateMatrix(); e.list.push(d3.matrix.clone());
+    d3.position.set(x,y,z); d3.rotation.set(rx||0,ry||0,rz||0); d3.scale.set(sx,sy,sz);
+    d3.updateMatrix(); e.list.push(d3.matrix.clone());
   };
   const bx =(c,x,y,z,w,h,d)=>put(UBOX ,"b",c,x,y,z,w,h,d);
+  const bxr=(c,x,y,z,w,h,d,rx,ry,rz)=>put(UBOX,"b",c,x,y,z,w,h,d,rx,ry,rz);
   const cy =(c,x,y,z,r,h)  =>put(UCYL ,"c",c,x,y,z,r*2,h,r*2);
   const cn =(c,x,y,z,r,h)  =>put(UCONE,"n",c,x,y,z,r*2,h,r*2);
+  const sph=(c,x,y,z,r)    =>put(USPH ,"s",c,x,y,z,r*2,r*2,r*2);
+  // a pitched roof: two planes leaning on a ridge. Rotating about x sends local +z to
+  // (0,-sin,cos), so the half on the -z side takes -a to rise towards the ridge.
+  const gable=(c,x,yb,z,w,d,rise)=>{
+    const a=Math.atan2(rise,d/2), sl=Math.hypot(d/2,rise);
+    bxr(c,x,yb+rise/2,z-d/4,w,0.45,sl,-a,0,0);
+    bxr(c,x,yb+rise/2,z+d/4,w,0.45,sl, a,0,0);
+  };
+  // a car, not a crate: body, cabin set back, glass, four wheels. rot yaws the whole thing.
+  const car=(c,x,z,rot,g)=>{
+    const S2=Math.sin(rot), C2=Math.cos(rot), y0=g||0;   // y0 is the surface it stands on
+    bxr(c,        x, y0+0.88, z,          1.90, 0.86, 4.50, 0, rot, 0);   // body
+    bxr(c,        x, y0+1.62, z-0.25*C2,  1.74, 0.64, 2.30, 0, rot, 0);   // cabin, set back
+    bxr(0x2b333c, x, y0+1.64, z-0.25*C2,  1.78, 0.46, 2.34, 0, rot, 0);   // glass
+    [[-0.66,1.42],[0.66,1.42],[-0.66,-1.42],[0.66,-1.42]].forEach(p=>{
+      put(UCYX,"x",0x23272c, x+p[0]*C2+p[1]*S2, y0+0.34, z-p[0]*S2+p[1]*C2,
+          0.30,0.68,0.68, 0,rot,0);
+    });
+  };
+  // a tree: a trunk and three crowns that overlap, which is what stops it reading as a cone
+  const tree=(x,z,k)=>{
+    bxr(0x6b4f30, x, 2.3*k, z, 0.8*k, 4.6*k, 0.8*k);
+    sph(0x3f7a3a, x,            6.4*k, z,            3.0*k);
+    sph(0x4c8f46, x-1.55*k,     5.5*k, z+0.95*k,     2.2*k);
+    sph(0x356a32, x+1.45*k,     5.7*k, z-1.05*k,     2.1*k);
+  };
   const PAD_=0xb9b4a8, WALL=0xe6e0d2, ROOF=0xaeb6bd, STEEL=0x9aa0a6, TARMAC=0x55524d;
 
   const camp=(f,nx,nz)=>{                       // township, staff camp, labour camp
@@ -3708,9 +3742,12 @@ function buildParkGL(rows, idp, box, P){
     const w=nx*(bw+gx)-gx, d=nz*(bd+gz)-gz, h=4.2*HB;
     bx(PAD_, f.x, 0.5, z, w+52, 1, d+52);
     for(let i=0;i<nx;i++) for(let j=0;j<nz;j++){
-      const x=f.x-w/2+bw/2+i*(bw+gx), zz=z-d/2+bd/2+j*(bd+gz);
+      const x=f.x-w/2+bw/2+i*(bw+gx), zz=z-d/2+bd/2+j*(bd+gz), fz=zz+bd/2+0.2;
       bx(WALL, x, 1+h/2, zz, bw, h, bd);
-      bx(ROOF, x, 1+h+0.7, zz, bw+2.4, 1.4, bd+2.4);
+      gable(ROOF, x, 1+h, zz, bw+2.6, bd+2.8, 2.8);
+      bxr(0x7a6550, x-bw/2+3.2, 1+1.7, fz, 1.7, 3.4, 0.4);          // door
+      for(let k2=0;k2<5;k2++)                                        // and its windows
+        bxr(0x4e6b80, x-bw/2+8+k2*5.2, 1+h*0.60, fz, 2.6, 2.0, 0.4);
     }
     bx(0x6b6a66, f.x, 1.2, z+d/2+16, w+40, 0.5, 7);        // the road in
   };
@@ -3739,7 +3776,12 @@ function buildParkGL(rows, idp, box, P){
     bx(PAD_, f.x, 0.5, z, 84, 1, 54);
     bx(0xe8e5dc, f.x, 1+h/2, z, 46, h, 20);
     bx(0x3e5a70, f.x, 1+h*0.62, z, 47, 3.4, 21);           // window band
+    bx(0x3e5a70, f.x, 1+h*0.30, z, 47, 3.0, 21);           // and the floor below
     bx(ROOF,     f.x, 1+h+0.8, z, 48, 1.6, 22);
+    bx(0xd6d3ca, f.x, 1+h+2.4, z, 48, 1.8, 22);            // parapet
+    bx(0xd6d3ca, f.x, 1+4.4, z+11.5, 12, 0.7, 5);          // entrance canopy
+    bxr(0xbdbab2, f.x-5, 1+2.2, z+13.4, 0.5, 4.4, 0.5);
+    bxr(0xbdbab2, f.x+5, 1+2.2, z+13.4, 0.5, 4.4, 0.5);
     bx(0x6b6a66, f.x, 1.2, z+30, 60, 0.5, 8);
   };
   const shed=f=>{                                // store, storage yard
@@ -3760,15 +3802,24 @@ function buildParkGL(rows, idp, box, P){
         bx(cols[(i*4+j)%5], f.x-48+i*24, 1+3.2+k*6.2, z-30+j*20, 13, 6, 5.6);
     }
   };
-  const mast=f=>{                                // mobile tower
-    const z=Z(f.y), H2=68;
-    bx(PAD_, f.x, 0.5, z, 22, 1, 22);
-    for(let i=0;i<4;i++){
-      const a=i*Math.PI/2+Math.PI/4;
-      bx(STEEL, f.x+Math.cos(a)*3.6, H2/2, z+Math.sin(a)*3.6, 1.1, H2, 1.1);
+  const mast=f=>{                                // mobile tower, as a lattice
+    const z=Z(f.y), H2=68, R0=4.4, R1=1.5, SEG=6;
+    bx(PAD_, f.x, 0.5, z, 24, 1, 24);
+    for(let k=0;k<SEG;k++){
+      const y0=1+H2*k/SEG, seg=H2/SEG, ym=y0+seg/2;
+      const rr=R0+(R1-R0)*((ym-1)/H2);
+      [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(p=>            // legs, stepping in as they rise
+        bx(STEEL, f.x+p[0]*rr, ym, z+p[1]*rr, 0.85, seg, 0.85));
+      bx(STEEL, f.x, y0, z, rr*2.1, 0.5, rr*2.1);          // the ring it sits on
+      const dl=Math.hypot(seg, rr*2), ang=Math.atan2(rr*2, seg), sg=k%2?1:-1;
+      [-1,1].forEach(q=>bxr(STEEL, f.x, ym, z+q*rr, 0.42, dl, 0.42, 0,0, sg*ang));
+      [-1,1].forEach(q=>bxr(STEEL, f.x+q*rr, ym, z, 0.42, dl, 0.42, -sg*ang,0,0));
     }
-    for(let k=1;k<=4;k++) bx(STEEL, f.x, H2*k/5, z, 8.4, 0.8, 8.4);
-    bx(0xe4564f, f.x, H2+2.5, z, 1.3, 5, 1.3);
+    bx(STEEL, f.x, 1+H2, z, R1*2.1, 0.5, R1*2.1);
+    bx(0xe4564f, f.x, 1+H2+3, z, 1.2, 6, 1.2);             // the mast and its light
+    for(let i=0;i<3;i++){const a=i*2.094;                  // dishes
+      bxr(0xeceae4, f.x+Math.cos(a)*(R1+1.5), 1+H2*0.80, z+Math.sin(a)*(R1+1.5),
+          2.8, 2.8, 0.6, 0, -a, 0);}
   };
   const switchyard=f=>{                          // PSS, KPS, GIS
     const z=Z(f.y);
@@ -3791,17 +3842,30 @@ function buildParkGL(rows, idp, box, P){
     bx(0xe8e5dc, f.x+22, 1+3.5, z-21, 18, 7, 12);
   };
   const parking=f=>{
-    const z=Z(f.y), cc=[0xcfd3d6,0x8d939a,0x3f5a70,0xb0453f];
-    bx(TARMAC, f.x, 0.4, z, 112, 0.8, 72);
-    for(let i=0;i<7;i++) for(let j=0;j<4;j++)
-      bx(cc[(i+j)%4], f.x-45+i*15, 2.5, z-27+j*18, 4.4, 3.4, 10);
+    const z=Z(f.y), cc=[0xcfd3d6,0x8f959c,0x33506b,0xb0453f,0x2f3b46,0xd8d2c4,0x6d7c52];
+    bx(TARMAC, f.x, 0.4, z, 116, 0.8, 76);
+    let n=0;
+    [[-17,0],[13,Math.PI]].forEach(row=>{                  // two rows, nose to nose
+      const zz=z+row[0];
+      for(let i=0;i<34;i++){
+        const x=f.x-51+i*3.1;
+        bx(0xe8e6de, x-1.55, 0.85, zz, 0.28, 0.1, 11);     // the bay line
+        if((i*7+n)%9===0) continue;                        // leave a few bays empty
+        car(cc[n%cc.length], x, zz, row[1], 0.8); n++;     // 0.8 is the top of the slab
+      }
+      bx(0xe8e6de, f.x-51+34*3.1-1.55, 0.85, zz, 0.28, 0.1, 11);
+    });
   };
   const plantation=f=>{
     const z=Z(f.y);
-    for(let i=0;i<8;i++) for(let j=0;j<5;j++){
-      const x=f.x-52+i*15, zz=z-30+j*15;
-      bx(0x6b4f30, x, 2.5, zz, 0.9, 5, 0.9);
-      cn(0x3f7a3a, x, 9.5, zz, 5, 10);
+    bx(0x5c9147, f.x, 0.35, z, 146, 0.7, 104);             // watered ground, not scrub
+    for(let i=0;i<8;i++) for(let j=0;j<5;j++)
+      tree(f.x-52+i*15, z-30+j*15, 0.82+((i*5+j)%4)*0.13);
+    // tufts on a sunflower spiral, so they scatter without clumping or gridding
+    for(let i=0;i<120;i++){
+      const a=i*2.39996, rr=Math.sqrt(i/120);
+      cn(i%3?0x5f9b4a:0x6fae55, f.x+Math.cos(a)*rr*66, 0.7+0.6*(0.8+(i%4)*0.3),
+         z+Math.sin(a)*rr*46, 0.55+(i%3)*0.18, 1.6+(i%4)*0.5);
     }
   };
   const dump=f=>{const z=Z(f.y); cn(0x8a7a5a, f.x, 7, z, 34, 14);};
@@ -3894,7 +3958,17 @@ function buildParkGL(rows, idp, box, P){
   let drag=null, moved=0;
   el.addEventListener("pointerdown",e=>{drag={x:e.clientX,y:e.clientY,b:e.button};moved=0;
     try{el.setPointerCapture(e.pointerId)}catch(_){} el.style.cursor="grabbing"});
-  el.addEventListener("pointerup",()=>{drag=null; el.style.cursor="grab"});
+  // a click on an S6a block filters the whole page to it, the way the plant model does;
+  // the movement test keeps an orbit that ends over a block from counting as a click
+  el.addEventListener("pointerup",e=>{
+    const was=drag; drag=null; el.style.cursor="grab";
+    if(!was||moved>=6) return;
+    const r=el.getBoundingClientRect();
+    ndc.x=((e.clientX-r.left)/r.width)*2-1; ndc.y=-((e.clientY-r.top)/r.height)*2+1;
+    ray.setFromCamera(ndc,cam);
+    const h=ray.intersectObjects(picks,false), a=h.length&&h[0].object.userData.area;
+    if(a){hideTip(); state.f.area=(state.f.area===a?"":a); render()}
+  });
   el.addEventListener("pointerleave",()=>{drag=null; hideTip()});
   el.addEventListener("pointermove",e=>{
     if(!drag){
