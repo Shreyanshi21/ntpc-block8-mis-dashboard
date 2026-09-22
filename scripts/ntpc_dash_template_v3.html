@@ -572,6 +572,25 @@ function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
 const DATA = __DATA__;
 const M = DATA.meta, L = DATA.leaves;
 const C = {}; DATA.cols.forEach((c,i)=>C[c]=i);
+// booked against planned. aqty is VisiLean's "Actual Quantity" custom field - what the site
+// entered - not qty*pct, which is only percent complete restated in the planned unit.
+// Only projects that book quantities get the split column; for the rest this is the plain
+// planned figure it has always been, so nothing moves on a dashboard that never had the field.
+const HASAQ = C.aqty!==undefined && DATA.leaves.some(r=>(r[C.aqty]||0)>0);
+// exact, not abbreviated: these are piece counts and the difference is the whole point
+const qn=v=>Math.abs(v-Math.round(v))<0.005
+  ? Math.round(v).toLocaleString()
+  : (+v).toLocaleString(undefined,{maximumFractionDigits:2});
+const qtyCell=(r,html)=>{
+  if(!r[C.qty]) return html?`<span class="dim">—</span>`:"—";
+  const u=r[C.uom]||"";
+  if(!HASAQ) return html ? `${fq(r[C.qty])} <span class="dim">${esc(u)}</span>`
+                         : fq(r[C.qty])+" "+u;
+  const b=r[C.aqty]||0, p=qn(r[C.qty]);
+  if(!html) return (b?qn(b):"–")+" / "+p+(u?" "+u:"");
+  return `${b?`<b>${qn(b)}</b>`:`<span class="dim" title="no quantity booked yet">–</span>`}`
+    +` <span class="dim">/ ${p} ${esc(u)}</span>`;
+};
 const DEPTS = DATA.depts, DNAME = {}; DEPTS.forEach(d=>DNAME[d.key]=d.name);
 const SW = M.statusWd;
 // ---------- project configuration ----------
@@ -2020,10 +2039,10 @@ function pipeTable(rows,idp,engMode){
         let t=`<div class="dethd"><b>${esc(x.pkg)}</b>
           <span class="dim">${rr.length} ${rr.length===1?"activity":"activities"}</span>
           <button type="button" class="rsndrill detmore" data-g="${idp}-${gi}">&#9783; Full list · standard columns</button></div>`;
-        t+=`<div class="detscroll"><table><tr><th>Activity</th><th>Status</th><th class="num">%</th><th class="num">Qty</th><th>Owner</th><th>Baseline end</th><th>Forecast end</th><th class="num">Var</th></tr>`;
+        t+=`<div class="detscroll"><table><tr><th>Activity</th><th>Status</th><th class="num">%</th><th class="num">${HASAQ?"Qty booked / planned":"Qty"}</th><th>Owner</th><th>Baseline end</th><th>Forecast end</th><th class="num">Var</th></tr>`;
         rr.forEach(r=>{const v=r[C.fEF]-r[C.bEF];
           t+=`<tr><td>${esc(r[C.name])}</td><td>${rowChip(r)}</td><td class="num">${r[C.pct]}</td>
-           <td class="num">${r[C.qty]?fq(r[C.qty])+" "+esc(r[C.uom]):"—"}</td><td>${esc(r[C.owner]||r[C.ownship]||"—")}</td>
+           <td class="num">${qtyCell(r,1)}</td><td>${esc(r[C.owner]||r[C.ownship]||"—")}</td>
            <td>${wdate(r[C.bEF],1)}</td><td>${wdate(r[C.fEF],1)}</td>
            <td class="num" ${v>=4?'style="color:var(--crit-text);font-weight:700"':""}>${v>0?"+":""}${v}</td></tr>`});
         pin.innerHTML=t+"</table></div>";
@@ -2558,10 +2577,10 @@ function stepCounts(rows,spec){
 function stepCols(){
   const cols=stdCols();
   const i=cols.findIndex(c=>c.k==="pct");
-  cols.splice(i<0?cols.length:i+1,0,{k:"qty",label:"Quantity / documents",w:118,num:true,
-    get:r=>r[C.qty]||0,
-    html:r=>r[C.qty]?`${fq(r[C.qty])} <span class="dim">${esc(r[C.uom]||"")}</span>`:`<span class="dim">—</span>`,
-    txt:r=>r[C.qty]?fq(r[C.qty])+" "+(r[C.uom]||""):"—"});
+  cols.splice(i<0?cols.length:i+1,0,{k:"qty",
+    label:HASAQ?"Quantity booked / planned":"Quantity / documents", w:HASAQ?158:118, num:true,
+    get:r=>(HASAQ?r[C.aqty]:r[C.qty])||0,     // sorting follows whichever figure is shown
+    html:r=>qtyCell(r,1), txt:r=>qtyCell(r,0)});
   return cols;
 }
 // sub: which of the four numbers was clicked, so the list opens on that subset.
