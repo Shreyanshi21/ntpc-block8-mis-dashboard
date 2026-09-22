@@ -395,5 +395,11 @@
   "acceptByTitle": "Engineering drawings by group",
   "acceptGroupLabel": "Drawing group",
   "_execStage_comment": "S6a's work-type keys matched 1,440 of 1,560 construction rows; the 120 left are the per-block CEA approvals, COD and Trial Operation, added to the T&C bucket. 'cod' and the three 'cea*' keys were checked project-wide for false positives (none).",
-  "_longLead_comment": "the big-ticket packages among the 37 in PROCUREMENT- ORDERING & DELIVERY"
+  "_longLead_comment": "the big-ticket packages among the 37 in PROCUREMENT- ORDERING & DELIVERY",
+  "quantityFields": {
+    "planned": "Planned Quantity",
+    "actual": "Actual Quantity",
+    "uom": "UoM"
+  },
+  "_quantityFields_comment": "KP 22-Sep: the real planned / actual quantity and unit live in these custom fields (384 construction rows). VisiLean's own totalQuantity / quantityUnits carry a placeholder - 100 'Units' on 1,844 rows with no measured scope - and its actualQuantity disagrees with the field the team maintains on 29 rows, so the custom fields are read instead and a row without them carries no quantity."
 }
