@@ -96,6 +96,24 @@ NULL_LEVELS = {re.sub(r"[^a-z0-9]", "", str(x).lower()) for x in (CFG.get("nullL
 # task hierarchy. levelsFromChain reads the levels off the parent chain instead
 # (root first); levelsFromChainDrop skips the leading names that are the project
 # itself, so Level 1 lands on the same grouping the Level fields would have held.
+# Planned quantity and unit: VisiLean's own totalQuantity / quantityUnits carry a
+# placeholder (100 "Units") on every row with no measured scope, so a project that
+# maintains the real figures in custom fields names them here. The booked figure
+# (aqty) already comes from the "Actual Quantity" custom field for every project.
+QTY_F = CFG.get("quantityFields") or {}
+
+def qnum(v):
+    """A quantity written by hand: '1,176', ' 204 ', '' -> float or None."""
+    if v is None:
+        return None
+    s = str(v).replace(",", "").strip()
+    if not s:
+        return None
+    try:
+        return float(s)
+    except ValueError:
+        return None
+
 CHAIN_LEVELS = bool(CFG.get("levelsFromChain"))
 CHAIN_DROP = int(CFG.get("levelsFromChainDrop", 1))
 wdates = []
@@ -262,6 +280,12 @@ for t in TASKS:
     except Exception: r["dur"] = max(0.0, float(r["bEF"] - r["bES"]))
     if r["dur"] == 0 and not r["parent"]:
         r["dur"] = max(0.0, float(r["bEF"] - r["bES"]))
+    if QTY_F:
+        # the custom fields are the source of truth where the project keeps them, so a
+        # row without them carries no quantity rather than VisiLean's placeholder
+        p = qnum(cf.get(QTY_F.get("planned", ""))) if QTY_F.get("planned") else None
+        u = (cf.get(QTY_F.get("uom", "")) or "").strip() if QTY_F.get("uom") else ""
+        r["qty"], r["uom"] = (p or 0), u
     if (L[0] or "").startswith("Key Milestones") or re.match(r"^MS-\d", r["name"]):
         if not r["parent"]: milestones_raw.append(r)
         continue
