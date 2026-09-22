@@ -244,6 +244,9 @@ for t in TASKS:
          "pct": float(t.get("percentComplete") or 0),
          "vls": t.get("status") or "Not Committed",
          "qty": t.get("totalQuantity"), "uom": t.get("quantityUnits") or "",
+         # the booked figure, not the derived one: top-level actualQuantity is only
+         # totalQuantity x percentComplete, which the dashboard can work out for itself
+         "aqty": money(cf.get("Actual Quantity")),
          "cost": money(cf.get("Cost")),
          # KP 26-Aug: progress weight comes from VisiLean's own "Weightage" custom
          # field - the approved Rev-2 model, which sums to ~100 across the project.
@@ -556,7 +559,7 @@ for r in sorted(leafs.values(), key=lambda x: x["uid"]):
                  (wd_f(r["aF"]) if r["aF"] else None),
                  r["tid"], " > ".join([x for x in r["L"][:5] if x])[:170],
                  ("" if r["org"].lower() == "none" else r["org"])[:60], u,
-                 r["pb"], r["sup"]])
+                 r["pb"], r["sup"], r["aqty"]])
 n_crit = sum(1 for x in rows if x[15] <= 5 and x[16] != "done" and not x[23])
 
 ms = []
@@ -880,7 +883,7 @@ for r in sorted(milestones_raw, key=lambda x: x["uid"]):
         strip_html(r["desc"])[:120], strip_html(r["note"])[:220],
         (wd_f(r["aF"]) if r["aF"] else None),
         r["tid"], " > ".join([x for x in r["L"][:5] if x])[:170],
-        ("" if r["org"].lower() == "none" else r["org"])[:60], u, r["pb"], r["sup"]])
+        ("" if r["org"].lower() == "none" else r["org"])[:60], u, r["pb"], r["sup"], r["aqty"]])
 
 # ---------- predecessor network for the activity panel ----------
 # Shown, not calculated with: float still comes from the same links above. Only links
@@ -928,8 +931,12 @@ DATA = {"meta": meta, "months": months, "reasons": reasons, "msLeaves": ms_rows,
         "cols": ["dept", "type", "area", "pkg", "sec", "stage", "name", "bES", "bEF", "fES", "fEF",
                  "pct", "dur", "qty", "uom", "tf", "state", "owner", "sub", "cost", "seq", "vls",
                  "ownship", "nd", "dly", "item", "wt", "vcrit", "desc", "note", "aef",
-                 "tid", "wbs", "org", "uid", "pb", "sup"],
+                 "tid", "wbs", "org", "uid", "pb", "sup", "aqty"],
         "leaves": rows}
+_aq_i = DATA["cols"].index("aqty")
+_aq_n = sum(1 for r in rows if (r[_aq_i] or 0) > 0)
+print("booked quantity (Actual Quantity custom field): %d of %d activities carry one%s"
+      % (_aq_n, len(rows), "" if _aq_n else " - nothing to show until the site fills it in"))
 assert DATA["cols"][WT_I] == "wt", f"WT_I points at {DATA['cols'][WT_I]!r}, not 'wt'"
 assert DATA["cols"][AEF_I] == "aef", f"AEF_I points at {DATA['cols'][AEF_I]!r}, not 'aef'"
 out = os.path.join(SCR, CFG.get("dataFile", "ntpc_dashboard_data_v2.json"))
