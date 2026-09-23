@@ -181,7 +181,16 @@ tr:hover td{background:var(--blue-wash)}
   border:1px solid var(--line2);border-radius:7px;padding:9px 12px;margin-bottom:9px;background:var(--surface)}
 .fsum .fsumbig{font-size:21px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.12}
 .fsum .fsumsub{font-size:8.5px;color:var(--mut);margin-top:1px}
+.fsumwrap{display:grid;grid-template-columns:repeat(auto-fit,minmax(268px,1fr));gap:2px 20px;align-items:start}
 .fsumcats{display:grid;grid-template-columns:repeat(auto-fit,minmax(236px,1fr));gap:1px 18px}
+.fsumgrp .fsumcats{grid-template-columns:1fr}
+/* which side of the plant a package belongs to */
+.fside{font-size:7.5px;font-weight:800;letter-spacing:.05em;color:var(--mut);margin:4px 0 1px}
+/* the project's package names are longer than the seven categories these were sized for */
+.bgrid.csub{grid-template-columns:repeat(auto-fill,minmax(224px,1fr))}
+.bgrid.csub .frow{grid-template-columns:80px 1fr 84px}
+.fsumwrap.csub .frow{grid-template-columns:96px 1fr 104px}
+.ftile .fside:first-of-type,.fsumgrp .fside{margin-top:0}
 .fsumcats .frow{grid-template-columns:70px 1fr 116px}
 .fsumcats .frow .fn,.fsumcats .frow .fv{font-size:9px}
 .fsumcats .frow .fb{height:5px}
@@ -2164,13 +2173,55 @@ const FCATS=[["Civil",r=>/Civil & Foundations|Other Site Works/.test(r[C.stage])
  ["DC Cabling",r=>r[C.stage]==="DC Works"],
  ["AC/HT",r=>r[C.stage]==="AC / HT Works"],
  ["BOP",r=>/Equipment|Earthing & LA|PSS & Switchyard|T&C/.test(r[C.stage])]];
+// The project's own construction breakdown, in the order KP gave rather than alphabetical.
+// FCATS above guesses a package from the stage and the activity name, which is how 142
+// activities called "Piling" came to be counted as Civil - its test looks for "pile", and
+// "piling" does not contain it. These two custom fields say it outright, so where the feed
+// fills them in they replace the guess; where it does not, FCATS still stands.
+const CSUBS=[
+  ["PV AREA-DC SIDE",["Piling","Pile Capping","Array Earthing","MMS Erection",
+                      "Module Installation","DC Cable Laying","MC4 Termination"]],
+  ["PV AREA-AC SIDE",["LT Cable Laying","HT Cable Laying","Inverter Installation"]]];
+const HASCSUB = C.csub!==undefined && DATA.leaves.some(r=>r[C.csub]);
+// [label, predicate, side]
+function catList(){
+  if(!HASCSUB) return FCATS.map(c=>[c[0],c[1],null]);
+  const out=[], named=new Set();
+  CSUBS.forEach(([side,names])=>names.forEach(n=>{
+    named.add(n); out.push([n, r=>r[C.csub]===n, side]);
+  }));
+  // a package the project adds later still shows, under Other, rather than disappearing
+  [...new Set(DATA.leaves.map(r=>r[C.csub]).filter(v=>v&&!named.has(v)))].sort()
+    .forEach(n=>out.push([n, r=>r[C.csub]===n, "Other"]));
+  return out;
+}
+// one bar: a quantity where the package measures in something countable, else just the percent
+function catRow(cn,cr){
+  const q=cr.filter(r=>r[C.uom]&&r[C.uom]!=="Lot"&&r[C.uom]!=="%");
+  const qt=q.reduce((x,r)=>x+(r[C.qty]||0),0), qd=q.reduce((x,r)=>x+(r[C.qty]||0)*r[C.pct]/100,0);
+  const cp=actPctAt(cr,SW), uom=q.length?(q[0][C.uom]||""):"";
+  const val=qt>0?`${fq(qd)}/${fq(qt)} ${esc(uom)} \u00b7 ${Math.round(cp)}%`:`${Math.round(cp)}%`;
+  return `<div class="frow"${CFG.blockDrill?` data-cat="${esc(cn)}"`:``}><div class="fn">${esc(cn)}</div>`
+    +`<div class="fb"><i style="width:${Math.min(100,cp)}%"></i></div><div class="fv">${val}</div></div>`;
+}
+// the packages present in a row set, grouped by side, order preserved
+function catGroups(rr){
+  const g=[], at={};
+  catList().forEach(([cn,fn,sd])=>{
+    const cr=rr.filter(fn); if(!cr.length) return;
+    const k=sd||"";
+    if(at[k]===undefined){at[k]=g.length; g.push([sd,[]])}
+    g[at[k]][1].push([cn,cr]);
+  });
+  return g;
+}
 // One block, its activities tabbed by the packages the tile summarises. FCATS is the same
 // list the tile rows come from, so the tabs and the bars agree by construction; anything the
 // seven predicates do not claim lands in Other rather than disappearing.
 function blockDrill(area,rr,cat){
   const subs=[{k:"all",label:"All"}];
   const claimed=new Set();
-  FCATS.forEach(([cn,fn])=>{
+  catList().forEach(([cn,fn])=>{
     const n=rr.filter(fn); if(!n.length) return;
     n.forEach(r=>claimed.add(r[C.tid]));
     subs.push({k:cn,label:cn,f:fn});
@@ -2298,13 +2349,9 @@ function feederSummary(rows){
   const areas=areaList(rows);
   const a=actPctAt(rows,SW), p=planPct(rows,SW), dl=rows.filter(isBehind).length;
   let cats="";
-  FCATS.forEach(([cn,fn])=>{
-    const cr=rows.filter(fn); if(!cr.length) return;
-    const q=cr.filter(r=>r[C.uom]&&r[C.uom]!=="Lot"&&r[C.uom]!=="%");
-    const qt=q.reduce((x,r)=>x+(r[C.qty]||0),0), qd=q.reduce((x,r)=>x+(r[C.qty]||0)*r[C.pct]/100,0);
-    const cp=actPctAt(cr,SW), uom=q.length?(q[0][C.uom]||""):"";
-    const val=qt>0?`${fq(qd)}/${fq(qt)} ${esc(uom)} \u00b7 ${Math.round(cp)}%`:`${Math.round(cp)}%`;
-    cats+=`<div class="frow" data-cat="${esc(cn)}" title="${esc(cn)} across every block in view"><div class="fn">${cn}</div><div class="fb"><i style="width:${Math.min(100,cp)}%"></i></div><div class="fv">${val}</div></div>`;
+  catGroups(rows).forEach(([sd,list])=>{
+    cats+=`<div class="fsumgrp">`+(sd?`<div class="fside">${esc(sd)}</div>`:``)
+      +`<div class="fsumcats">${list.map(([cn,cr])=>catRow(cn,cr)).join("")}</div></div>`;
   });
   return `<div class="fsum${CFG.blockDrill?" fclick":""}">
     <div>
@@ -2313,27 +2360,22 @@ function feederSummary(rows){
       <div class="fsumsub">plan ${fmt1(p)}% \u00b7 ${areas.length} ${areas.length===1?"area":"areas"} \u00b7 ${rows.length} activities`
       +(dl?` \u00b7 <span style="color:var(--crit-text)">${dl} behind</span>`:``)+`</div>
     </div>
-    <div class="fsumcats">${cats}</div>
+    <div class="fsumwrap${HASCSUB?" csub":""}">${cats}</div>
   </div>`;
 }
 let _ftileRows={};          // area -> the rows the tile was built from, for the drill
 function feederTiles(rows){
   let h=CFG.blockSummary?feederSummary(rows):"";
-  h+=`<div class="bgrid">`;
+  h+=`<div class="bgrid${HASCSUB?" csub":""}">`;
   _ftileRows={};
   areaList(rows).forEach(([k,rr])=>{
     _ftileRows[k]=rr;
     const a=actPctAt(rr,SW),p=planPct(rr,SW),dl=rr.filter(isBehind).length;
     const isBlock=AREA_RE.test(k);
     let cats="";
-    FCATS.forEach(([cn,fn])=>{
-      const cr2=rr.filter(fn);if(!cr2.length)return;
-      const q2=cr2.filter(r=>r[C.uom]&&r[C.uom]!=="Lot"&&r[C.uom]!=="%");
-      const qt=q2.reduce((x,r)=>x+(r[C.qty]||0),0),qd=q2.reduce((x,r)=>x+(r[C.qty]||0)*r[C.pct]/100,0);
-      const cp=actPctAt(cr2,SW);
-      const uom=q2.length?(q2[0][C.uom]||""):"";
-      const val=qt>0?`${fq(qd)}/${fq(qt)} ${esc(uom)} · ${Math.round(cp)}%`:`${Math.round(cp)}%`;
-      cats+=`<div class="frow"${CFG.blockDrill?` data-cat="${esc(cn)}"`:``}><div class="fn">${cn}</div><div class="fb"><i style="width:${Math.min(100,cp)}%"></i></div><div class="fv">${val}</div></div>`;
+    catGroups(rr).forEach(([sd,list])=>{
+      if(sd) cats+=`<div class="fside">${esc(sd)}</div>`;
+      list.forEach(([cn,cr])=>{cats+=catRow(cn,cr)});
     });
     const big=`<span style="color:${a+0.05<p?"var(--crit-text)":"inherit"}">${fmt1(a)}%</span>`;
     h+=`<div class="ftile ${state.f.area===k?"sel":""}" data-area="${esc(k)}">
