@@ -54,7 +54,7 @@ jobs:
               if git diff --quiet -- adani-s7/.datahash ; then
                 echo "no data change"
               else
-                git add adani-s7/index.html adani-s7/meta.json adani-s7/.datahash
+                git add adani-s7/index.html adani-s7/meta.json adani-s7/version.json adani-s7/.datahash
                 git commit -m "adanis7 auto-refresh $(TZ=Asia/Kolkata date '+%d-%b %H:%M IST')" || true
                 # another worker may have pushed while we were building
                 for try in 1 2 3 ; do
