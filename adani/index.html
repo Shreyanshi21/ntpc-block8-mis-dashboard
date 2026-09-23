@@ -834,7 +834,7 @@ function vlChip(v){const k=vlKey(v);const m=VLMAP[k];return m?chip(m[0],vlText(k
 // ---------- am I the build the server has? ----------------------------------
 // Read in an iframe that can hold a cached copy for hours, so the page asks rather than
 // assumes. Replaces itself once per published build; silent when it is already current.
-const BUILD_ID="a0a687b9a415df81";
+const BUILD_ID="85e71c5c2ab3bf72";
 (function(){
   if(!window.fetch || BUILD_ID.indexOf("BUILD")>=0) return;   // not stamped: nothing to check
   let ss=null; try{ss=window.sessionStorage; ss.getItem("x")}catch(e){ss=null}
@@ -857,16 +857,23 @@ const BUILD_ID="a0a687b9a415df81";
   el.insertAdjacentHTML("beforeend", VLORDER.filter(k=>VLMAP[k]&&!VLHIDE.has(k))
     .map(k=>`<span class="chip ${VLMAP[k][0]}">${esc(vlText(k))}</span>`).join(""));
 })();
-function rowChip(r){
+// the display name for a raw VisiLean value, so nothing prints the feed's own wording
+function vlName(v){const k=vlKey(v); return VLMAP[k]?vlText(k):String(v||"\u2014")}
+// [chip class, label] for a row - the single place that decides how a status reads
+function rowStatus(r){
   if(C.vls!==undefined&&r[C.vls]){
-    if(VLMAP[vlKey(r[C.vls])]) return vlChip(r[C.vls]);
+    const k=vlKey(r[C.vls]);
+    if(VLMAP[k]) return [VLMAP[k][0], vlText(k)];
     // a state the map does not know - say where the work stands, not VisiLean's raw wording
-    return r[C.state]==="done" ? chip("vlc",vlText("complete"))
-         : r[C.pct]>0          ? chip("vls",vlText("started"))
-         :                       chip("vlnr",vlText("notready"));
+    return r[C.state]==="done" ? ["vlc",vlText("complete")]
+         : r[C.pct]>0          ? ["vls",vlText("started")]
+         :                       ["vlnr",vlText("notready")];
   }
-  return stChip(r[C.state]);
+  return r[C.state]==="done"   ? ["vlc",vlText("complete")]
+       : r[C.state]==="inprog" ? ["vls",vlText("started")]
+       :                         ["vlnc",vlText("notcommitted")];
 }
+function rowChip(r){const s=rowStatus(r); return chip(s[0],s[1])}
 // ---------- speedometer gauge (semicircle, correct sweep) ----------
 function gauge(a,p){
   const Wc=170,Hc=104,cx=85,cy=90,R=62;
@@ -1196,7 +1203,7 @@ function predNote(r){
     // every predecessor is finished, so the delay is this activity's own
     return "All "+P.length+" predecessor"+(P.length===1?"":"s")+" complete \u2014 no reason recorded against this activity";
   const p=open[0];
-  let s="Predecessor incomplete: "+p.name+" ("+(p.vls||"\u2014")+", "+p.pct+"%)";
+  let s="Predecessor incomplete: "+p.name+" ("+vlName(p.vls)+", "+p.pct+"%)";
   if(p.dly&&p.reason)s+=" \u2014 "+p.reason;      // carry the predecessor's own reason
   else if(p.dly)s+=" \u2014 running late, no reason recorded";
   if(open.length>1)s+=" (+"+(open.length-1)+" more open)";
@@ -1243,7 +1250,7 @@ function stdCols(){
     {k:"desc",label:"Description",w:130,get:r=>r[C.desc]||"—"},
     {k:"own",label:"Owner",w:110,get:r=>r[C.owner]||r[C.ownship]||"—"},
     {k:"org",label:"Organisation",w:110,get:r=>r[C.org]||"—"},
-    {k:"st",label:"Status",w:100,get:r=>r[C.vls],html:r=>rowChip(r)},
+    {k:"st",label:"Status",w:100,get:r=>rowStatus(r)[1],html:r=>rowChip(r)},
     {k:"pct",label:"% complete",w:78,num:true,get:r=>r[C.pct]},
     {k:"bef",label:"Baseline finish",get:r=>r[C.bEF],html:r=>wdate(r[C.bEF],1),txt:r=>wdate(r[C.bEF],1)},
     {k:"fef",label:"Planned finish",get:r=>r[C.fEF],html:r=>wdate(r[C.fEF],1),txt:r=>wdate(r[C.fEF],1)},
