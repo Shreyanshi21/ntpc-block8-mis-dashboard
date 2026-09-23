@@ -185,6 +185,10 @@ tr:hover td{background:var(--blue-wash)}
 .fsumcats .frow{grid-template-columns:70px 1fr 116px}
 .fsumcats .frow .fn,.fsumcats .frow .fv{font-size:9px}
 .fsumcats .frow .fb{height:5px}
+.fsum.fclick{cursor:pointer}
+.fsum.fclick:hover{border-color:var(--blue)}
+.fsumcats .frow[data-cat],.ftile .frow[data-cat]{border-radius:3px}
+.fsum.fclick .fsumcats .frow[data-cat]:hover,.ftile .frow[data-cat]:hover{background:var(--grid)}
 @media(max-width:720px){.fsum{grid-template-columns:1fr}}
 .ftile{border:1px solid var(--line2);border-radius:7px;padding:7px 9px;cursor:pointer;background:var(--surface)}
 .ftile:hover{border-color:var(--blue)}
@@ -2163,7 +2167,7 @@ const FCATS=[["Civil",r=>/Civil & Foundations|Other Site Works/.test(r[C.stage])
 // One block, its activities tabbed by the packages the tile summarises. FCATS is the same
 // list the tile rows come from, so the tabs and the bars agree by construction; anything the
 // seven predicates do not claim lands in Other rather than disappearing.
-function blockDrill(area,rr){
+function blockDrill(area,rr,cat){
   const subs=[{k:"all",label:"All"}];
   const claimed=new Set();
   FCATS.forEach(([cn,fn])=>{
@@ -2175,13 +2179,16 @@ function blockDrill(area,rr){
   if(rest.length) subs.push({k:"other",label:"Other",f:r=>!claimed.has(r[C.tid])});
   const a=actPctAt(rr,SW), p=planPct(rr,SW), dl=rr.filter(isBehind).length;
   drillOpen({
-    eyebrow:"Plant layout \u00b7 block",
+    eyebrow:"Plant layout \u00b7 "+(rr===_fsumRows?"all blocks":"block")
+      +(cat?" \u00b7 "+cat:""),
     title:area,
     status:pill(a+0.05<p?"warn":"good",`${fmt1(a)}% actual \u00b7 plan ${fmt1(p)}%`),
     formula:`<b>${rr.length}</b> ${rr.length===1?"activity":"activities"} in <b>${esc(area)}</b>`
       +` \u00b7 tabs are the packages the tile breaks the block into`
       +(dl?` \u00b7 <b>${dl}</b> behind baseline`:``),
     rows:rr, cols:stdCols(), rowId:r=>String(r[C.tid]),
+    // land on the package that was clicked, when one was
+    sub:(cat && subs.some(x=>x.k===cat)) ? cat : "all",
     subsets:subs});
 }
 function areaList(rows){
@@ -2285,7 +2292,9 @@ function feederMap(rows){
 // The same seven bars a tile carries, summed over every block in view. Built from the rows
 // the card was given, so it re-bases under a filter the way the tiles do rather than quoting a
 // project total that no longer matches what is on screen.
+let _fsumRows=[];           // the rows the totals strip was built from
 function feederSummary(rows){
+  _fsumRows=rows;
   const areas=areaList(rows);
   const a=actPctAt(rows,SW), p=planPct(rows,SW), dl=rows.filter(isBehind).length;
   let cats="";
@@ -2295,9 +2304,9 @@ function feederSummary(rows){
     const qt=q.reduce((x,r)=>x+(r[C.qty]||0),0), qd=q.reduce((x,r)=>x+(r[C.qty]||0)*r[C.pct]/100,0);
     const cp=actPctAt(cr,SW), uom=q.length?(q[0][C.uom]||""):"";
     const val=qt>0?`${fq(qd)}/${fq(qt)} ${esc(uom)} \u00b7 ${Math.round(cp)}%`:`${Math.round(cp)}%`;
-    cats+=`<div class="frow"><div class="fn">${cn}</div><div class="fb"><i style="width:${Math.min(100,cp)}%"></i></div><div class="fv">${val}</div></div>`;
+    cats+=`<div class="frow" data-cat="${esc(cn)}" title="${esc(cn)} across every block in view"><div class="fn">${cn}</div><div class="fb"><i style="width:${Math.min(100,cp)}%"></i></div><div class="fv">${val}</div></div>`;
   });
-  return `<div class="fsum">
+  return `<div class="fsum${CFG.blockDrill?" fclick":""}">
     <div>
       <div class="eyebrow">All blocks</div>
       <div class="fsumbig" style="color:${a+0.05<p?"var(--crit-text)":"inherit"}">${fmt1(a)}%</div>
@@ -2324,7 +2333,7 @@ function feederTiles(rows){
       const cp=actPctAt(cr2,SW);
       const uom=q2.length?(q2[0][C.uom]||""):"";
       const val=qt>0?`${fq(qd)}/${fq(qt)} ${esc(uom)} · ${Math.round(cp)}%`:`${Math.round(cp)}%`;
-      cats+=`<div class="frow"><div class="fn">${cn}</div><div class="fb"><i style="width:${Math.min(100,cp)}%"></i></div><div class="fv">${val}</div></div>`;
+      cats+=`<div class="frow"${CFG.blockDrill?` data-cat="${esc(cn)}"`:``}><div class="fn">${cn}</div><div class="fb"><i style="width:${Math.min(100,cp)}%"></i></div><div class="fv">${val}</div></div>`;
     });
     const big=`<span style="color:${a+0.05<p?"var(--crit-text)":"inherit"}">${fmt1(a)}%</span>`;
     h+=`<div class="ftile ${state.f.area===k?"sel":""}" data-area="${esc(k)}">
@@ -4249,7 +4258,7 @@ let layoutView="map";
 function layoutCard(rows,title,idp){
   if(!CFG.plantLayout)
     return card("span12",title,
-      (CFG.blockDrill?"click a block for its activities by package":"click a tile to filter")
+      (CFG.blockDrill?"click a block \u2014 or the totals strip, or any package bar \u2014 for the activities behind it":"click a tile to filter")
       +" \u00b7 Actual % (red = behind baseline plan)",feederTiles(rows));
   setTimeout(()=>{const t=document.getElementById(idp);
     if(t)t.querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{layoutView=b.dataset.v;render()}))},0);
@@ -4646,6 +4655,22 @@ function render(){
   const up=document.getElementById("u-pct"),um=document.getElementById("u-mw");
   if(up){up.onclick=()=>{state.unit="%";render()}}
   if(um){um.onclick=()=>{state.unit="MW";render()}}
+  // a bar inside a tile opens that block on that package; it must not also fire the tile
+  if(CFG.blockDrill) document.querySelectorAll(".ftile .frow[data-cat]").forEach(el=>{
+    el.addEventListener("click",e=>{
+      e.stopPropagation();
+      const k=el.closest(".ftile").dataset.area, rr=_ftileRows[k];
+      if(rr&&rr.length) blockDrill(k,rr,el.dataset.cat);
+    });
+  });
+  // the totals strip: the whole thing for every block, a bar for that package across them all
+  if(CFG.blockDrill) document.querySelectorAll(".fsum.fclick").forEach(el=>{
+    el.addEventListener("click",e=>{
+      if(!_fsumRows.length) return;
+      const row=e.target.closest(".frow[data-cat]");
+      blockDrill("All blocks",_fsumRows,row?row.dataset.cat:null);
+    });
+  });
   document.querySelectorAll(".ftile").forEach(el=>{el.addEventListener("click",()=>{
     const k=el.dataset.area, rr=_ftileRows[k];
     // opening the activity list is opt-in per project; everywhere else a tile still filters
