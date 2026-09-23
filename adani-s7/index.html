@@ -600,15 +600,19 @@ const C = {}; DATA.cols.forEach((c,i)=>C[c]=i);
 // Only projects that book quantities get the split column; for the rest this is the plain
 // planned figure it has always been, so nothing moves on a dashboard that never had the field.
 const HASAQ = C.aqty!==undefined && DATA.leaves.some(r=>(r[C.aqty]||0)>0);
-// exact, not abbreviated: these are piece counts and the difference is the whole point
+// The one quantity formatter, used everywhere a quantity is shown: exact, never abbreviated.
+// These are piece counts and lengths booked off site, so the digits are the point - "45k of
+// 156k nos" hides up to 900 piles at each end, and two blocks that read alike can be a week
+// apart. Thousands are grouped so long counts stay readable; a part-booked metre keeps its
+// decimals.
 const qn=v=>Math.abs(v-Math.round(v))<0.005
   ? Math.round(v).toLocaleString()
   : (+v).toLocaleString(undefined,{maximumFractionDigits:2});
 const qtyCell=(r,html)=>{
   if(!r[C.qty]) return html?`<span class="dim">—</span>`:"—";
   const u=r[C.uom]||"";
-  if(!HASAQ) return html ? `${fq(r[C.qty])} <span class="dim">${esc(u)}</span>`
-                         : fq(r[C.qty])+" "+u;
+  if(!HASAQ) return html ? `${qn(r[C.qty])} <span class="dim">${esc(u)}</span>`
+                         : qn(r[C.qty])+" "+u;
   const b=r[C.aqty]||0, p=qn(r[C.qty]);
   if(!html) return (b?qn(b):"–")+" / "+p+(u?" "+u:"");
   return `${b?`<b>${qn(b)}</b>`:`<span class="dim" title="no quantity booked yet">–</span>`}`
@@ -676,7 +680,6 @@ const MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","De
 function wdate(w,fin){ const i=Math.min(WD.length-1,Math.max(0,Math.round(w)-(fin?1:0))); const d=WD[i]; return d.getDate().toString().padStart(2,"0")+"-"+MON[d.getMonth()]+"-"+String(d.getFullYear()).slice(2); }
 const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 const fmt1=x=>(Math.round(x*10)/10).toFixed(1);
-const fq=x=>x>=1e6?(x/1e6).toFixed(1)+"M":x>=1000?(x/1000).toFixed(x>=10000?0:1)+"k":Math.round(x*10)/10;
 // ---------- state ----------
 const state = {page:"summary", unit:"%", at:SW, f:{dept:"",type:"",area:"",pkg:"",owner:"",ownship:"",w1:null,w2:null,crit:false,del:false}};
 // status rules aligned with the schedule Excel 'Status' column
@@ -834,7 +837,7 @@ function vlChip(v){const k=vlKey(v);const m=VLMAP[k];return m?chip(m[0],vlText(k
 // ---------- am I the build the server has? ----------------------------------
 // Read in an iframe that can hold a cached copy for hours, so the page asks rather than
 // assumes. Replaces itself once per published build; silent when it is already current.
-const BUILD_ID="1f618d0474b5d071";
+const BUILD_ID="44489f66146a6884";
 (function(){
   if(!window.fetch || BUILD_ID.indexOf("BUILD")>=0) return;   // not stamped: nothing to check
   let ss=null; try{ss=window.sessionStorage; ss.getItem("x")}catch(e){ss=null}
@@ -2214,8 +2217,8 @@ function scopeOrderDeliver(rows,asIs){
     const del=grn.reduce((a,r)=>a+(r[C.qty]||0)*r[C.pct]/100,0);
     const gplan=grn.length?Math.max(...grn.map(r=>r[C.bEF])):0,gfc=grn.length?Math.max(...grn.map(r=>r[C.fEF])):0;
     nrows++;
-    h+=`<tr><td title="${esc(pkg)}">${esc(pkg.slice(0,38))}</td><td class="num">${fq(scope)}</td>
-     <td class="num">${poDone?fq(scope):po.some(r=>r[C.pct]>0)?"in tender":"0"}</td><td class="num">${fq(del)}</td>
+    h+=`<tr><td title="${esc(pkg)}">${esc(pkg.slice(0,38))}</td><td class="num">${qn(scope)}</td>
+     <td class="num">${poDone?qn(scope):po.some(r=>r[C.pct]>0)?"in tender":"0"}</td><td class="num">${qn(del)}</td>
      <td>${poDone?chip("good","ordered"):po.some(r=>r[C.pct]>0)?chip("blue","ordering"):chip("mut","pending")}</td>
      <td class="small">${wdate(gplan,1)} → ${wdate(gfc,1)}${gfc-gplan>=4?` <span style="color:var(--crit-text)">(+${gfc-gplan}d)</span>`:""}</td></tr>`;
   });
@@ -2256,7 +2259,7 @@ function catRow(cn,cr){
   const q=cr.filter(r=>r[C.uom]&&r[C.uom]!=="Lot"&&r[C.uom]!=="%");
   const qt=q.reduce((x,r)=>x+(r[C.qty]||0),0), qd=q.reduce((x,r)=>x+(r[C.qty]||0)*r[C.pct]/100,0);
   const cp=actPctAt(cr,SW), uom=q.length?(q[0][C.uom]||""):"";
-  const val=qt>0?`${fq(qd)}/${fq(qt)} ${esc(uom)} \u00b7 ${Math.round(cp)}%`:`${Math.round(cp)}%`;
+  const val=qt>0?`${qn(Math.round(qd))}/${qn(qt)} ${esc(uom)} \u00b7 ${Math.round(cp)}%`:`${Math.round(cp)}%`;
   return `<div class="frow"${CFG.blockDrill?` data-cat="${esc(cn)}"`:``}><div class="fn">${esc(cn)}</div>`
     +`<div class="fb"><i style="width:${Math.min(100,cp)}%"></i></div><div class="fv">${val}</div></div>`;
 }
@@ -2319,7 +2322,7 @@ function areaFacts(k,rr){
     const q2=cr2.filter(r=>r[C.uom]&&r[C.uom]!=="Lot"&&r[C.uom]!=="%");
     const qt=q2.reduce((x,r)=>x+(r[C.qty]||0),0),qd=q2.reduce((x,r)=>x+(r[C.qty]||0)*r[C.pct]/100,0);
     const cp=actPctAt(cr2,SW),uom=q2.length?(q2[0][C.uom]||""):"";
-    t+=`<br><span class="t2">${cn}: ${qt>0?`${fq(qd)}/${fq(qt)} ${esc(uom)} \u00b7 `:``}${Math.round(cp)}%</span>`;
+    t+=`<br><span class="t2">${cn}: ${qt>0?`${qn(Math.round(qd))}/${qn(qt)} ${esc(uom)} \u00b7 `:``}${Math.round(cp)}%</span>`;
   });
   return t;
 }
@@ -2769,7 +2772,7 @@ function stepDrill(rows,spec,sub,pkg){
     title:spec.title+(pkg?" — "+pkg:""),
     status:pill(short>0?"crit":"good",c.act+" of "+c.total),
     formula:`<b>${c.total}</b> ${spec.unit}${pkg?` in <b>${esc(pkg)}</b>`:``}`
-      +(docs?` · <b>${fq(docs)}</b> ${esc(rs[0][C.uom]||"")}`:``)
+      +(docs?` · <b>${qn(docs)}</b> ${esc(rs[0][C.uom]||"")}`:``)
       +` · the baseline says <b>${c.base}</b> should be finished by ${wdate(SW,1)} · current plan <b>${c.plan}</b> · actually finished <b>${c.act}</b>`,
     reconcile:short>0?`<span class="pill crit">▲ ${short} behind the baseline count</span>`
                      :`<span class="pill good">✓ on or ahead of the baseline count</span>`,
