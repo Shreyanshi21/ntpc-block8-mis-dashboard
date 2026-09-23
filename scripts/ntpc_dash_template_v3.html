@@ -176,6 +176,16 @@ tr:hover td{background:var(--blue-wash)}
 .legend .lgb:hover{background:var(--hover,rgba(0,45,98,.09));color:var(--ink)}
 .legend .lgb:focus-visible{outline:2px solid var(--acc,#2f62d8);outline-offset:1px}
 .bgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(196px,1fr));gap:7px}
+/* the all-blocks totals strip above the tiles */
+.fsum{display:grid;grid-template-columns:minmax(150px,190px) 1fr;gap:14px;align-items:center;
+  border:1px solid var(--line2);border-radius:7px;padding:9px 12px;margin-bottom:9px;background:var(--surface)}
+.fsum .fsumbig{font-size:21px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.12}
+.fsum .fsumsub{font-size:8.5px;color:var(--mut);margin-top:1px}
+.fsumcats{display:grid;grid-template-columns:repeat(auto-fit,minmax(236px,1fr));gap:1px 18px}
+.fsumcats .frow{grid-template-columns:70px 1fr 116px}
+.fsumcats .frow .fn,.fsumcats .frow .fv{font-size:9px}
+.fsumcats .frow .fb{height:5px}
+@media(max-width:720px){.fsum{grid-template-columns:1fr}}
 .ftile{border:1px solid var(--line2);border-radius:7px;padding:7px 9px;cursor:pointer;background:var(--surface)}
 .ftile:hover{border-color:var(--blue)}
 .ftile.sel{outline:2px solid var(--blue)}
@@ -2272,9 +2282,35 @@ function feederMap(rows){
   },0);
   return lg+g;
 }
+// The same seven bars a tile carries, summed over every block in view. Built from the rows
+// the card was given, so it re-bases under a filter the way the tiles do rather than quoting a
+// project total that no longer matches what is on screen.
+function feederSummary(rows){
+  const areas=areaList(rows);
+  const a=actPctAt(rows,SW), p=planPct(rows,SW), dl=rows.filter(isBehind).length;
+  let cats="";
+  FCATS.forEach(([cn,fn])=>{
+    const cr=rows.filter(fn); if(!cr.length) return;
+    const q=cr.filter(r=>r[C.uom]&&r[C.uom]!=="Lot"&&r[C.uom]!=="%");
+    const qt=q.reduce((x,r)=>x+(r[C.qty]||0),0), qd=q.reduce((x,r)=>x+(r[C.qty]||0)*r[C.pct]/100,0);
+    const cp=actPctAt(cr,SW), uom=q.length?(q[0][C.uom]||""):"";
+    const val=qt>0?`${fq(qd)}/${fq(qt)} ${esc(uom)} \u00b7 ${Math.round(cp)}%`:`${Math.round(cp)}%`;
+    cats+=`<div class="frow"><div class="fn">${cn}</div><div class="fb"><i style="width:${Math.min(100,cp)}%"></i></div><div class="fv">${val}</div></div>`;
+  });
+  return `<div class="fsum">
+    <div>
+      <div class="eyebrow">All blocks</div>
+      <div class="fsumbig" style="color:${a+0.05<p?"var(--crit-text)":"inherit"}">${fmt1(a)}%</div>
+      <div class="fsumsub">plan ${fmt1(p)}% \u00b7 ${areas.length} ${areas.length===1?"area":"areas"} \u00b7 ${rows.length} activities`
+      +(dl?` \u00b7 <span style="color:var(--crit-text)">${dl} behind</span>`:``)+`</div>
+    </div>
+    <div class="fsumcats">${cats}</div>
+  </div>`;
+}
 let _ftileRows={};          // area -> the rows the tile was built from, for the drill
 function feederTiles(rows){
-  let h=`<div class="bgrid">`;
+  let h=CFG.blockSummary?feederSummary(rows):"";
+  h+=`<div class="bgrid">`;
   _ftileRows={};
   areaList(rows).forEach(([k,rr])=>{
     _ftileRows[k]=rr;
