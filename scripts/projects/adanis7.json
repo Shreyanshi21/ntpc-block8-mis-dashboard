@@ -401,5 +401,21 @@
     "actual": "Actual Quantity",
     "uom": "UoM"
   },
-  "_quantityFields_comment": "KP 22-Sep: the real planned / actual quantity and unit live in these custom fields (384 construction rows). VisiLean's own totalQuantity / quantityUnits carry a placeholder - 100 'Units' on 1,844 rows with no measured scope - and its actualQuantity disagrees with the field the team maintains on 29 rows, so the custom fields are read instead and a row without them carries no quantity."
+  "_quantityFields_comment": "KP 22-Sep: the real planned / actual quantity and unit live in these custom fields (384 construction rows). VisiLean's own totalQuantity / quantityUnits carry a placeholder - 100 'Units' on 1,844 rows with no measured scope - and its actualQuantity disagrees with the field the team maintains on 29 rows, so the custom fields are read instead and a row without them carries no quantity.",
+  "blockDrill": true,
+  "_blockDrill_comment": "as S6a: a block tile, its totals strip and any package bar open the activities behind them. S7 publishes the same Construction Fields / Construction sub Field custom fields - 360 activities across 10 packages - so the per-package breakdown has real content.",
+  "blockSummary": true,
+  "_blockSummary_comment": "as S6a: an all-blocks total above the block scorecard",
+  "vlLabel": {
+    "Not Ready": "Not Started"
+  },
+  "_vlLabel_comment": "as S6a: KP reads 'Not Ready' as not started - it is 410 of S7's activities",
+  "vlHide": [
+    "Ready",
+    "Forced Ready",
+    "Rejected at QC",
+    "Quality Checked"
+  ],
+  "_vlHide_comment": "as S6a: the QC / ready states this client's projects never use are dropped from the status legend. Warning and Stopped stay, as on S6a, so an activity that lands in one is still explained. Hiding only affects the legend - a chip on a row always renders.",
+  "actionsRunsApi": "https://api.github.com/repos/Vikas-visilean/ntpc-block8-mis-dashboard/actions/workflows/refresh-adani-s7.yml/runs?per_page=1&status=in_progress"
 }
