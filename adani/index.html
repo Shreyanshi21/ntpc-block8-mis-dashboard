@@ -831,13 +831,42 @@ const VLLABEL={}; Object.entries(CFG.vlLabel||{}).forEach(([k,v])=>{
 });
 function vlText(k){return VLLABEL[k]||(VLMAP[k]?VLMAP[k][1]:k)}
 function vlChip(v){const k=vlKey(v);const m=VLMAP[k];return m?chip(m[0],vlText(k)):chip("mut",esc(String(v||"—")))}
+// ---------- am I the build the server has? ----------------------------------
+// Read in an iframe that can hold a cached copy for hours, so the page asks rather than
+// assumes. Replaces itself once per published build; silent when it is already current.
+const BUILD_ID="a0a687b9a415df81";
+(function(){
+  if(!window.fetch || BUILD_ID.indexOf("BUILD")>=0) return;   // not stamped: nothing to check
+  let ss=null; try{ss=window.sessionStorage; ss.getItem("x")}catch(e){ss=null}
+  if(!ss) return;                    // a reload we cannot remember having done is a loop
+  fetch("version.json?cb="+Date.now(), {cache:"no-store"})
+    .then(r=>r.ok?r.json():null)
+    .then(v=>{
+      if(!v || !v.build || v.build===BUILD_ID) return;
+      const k="kp-stale-"+v.build;
+      if(ss.getItem(k)) return;
+      ss.setItem(k,"1");
+      const u=new URL(location.href); u.searchParams.set("b", v.build);
+      location.replace(u.toString());
+    })
+    .catch(function(){});
+})();
 // hiding a state hides it from the legend only - a row that carries one still shows it
 (function(){
   const el=document.getElementById("vleg"); if(!el) return;
   el.insertAdjacentHTML("beforeend", VLORDER.filter(k=>VLMAP[k]&&!VLHIDE.has(k))
     .map(k=>`<span class="chip ${VLMAP[k][0]}">${esc(vlText(k))}</span>`).join(""));
 })();
-function rowChip(r){return (C.vls!==undefined&&r[C.vls])?vlChip(r[C.vls]):stChip(r[C.state])}
+function rowChip(r){
+  if(C.vls!==undefined&&r[C.vls]){
+    if(VLMAP[vlKey(r[C.vls])]) return vlChip(r[C.vls]);
+    // a state the map does not know - say where the work stands, not VisiLean's raw wording
+    return r[C.state]==="done" ? chip("vlc",vlText("complete"))
+         : r[C.pct]>0          ? chip("vls",vlText("started"))
+         :                       chip("vlnr",vlText("notready"));
+  }
+  return stChip(r[C.state]);
+}
 // ---------- speedometer gauge (semicircle, correct sweep) ----------
 function gauge(a,p){
   const Wc=170,Hc=104,cx=85,cy=90,R=62;
