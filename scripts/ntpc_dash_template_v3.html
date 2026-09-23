@@ -559,7 +559,7 @@ html{zoom:1.3}
       <span class="tgl" id="f-del">⏰ Delayed</span>
       <span class="dsl">Date <input type="range" id="f-date" min="0" max="0" step="1"><b id="f-datev"></b></span>
       <button class="reset" id="f-reset">Reset</button>
-      <span class="vleg" style="margin-left:auto">VisiLean status (live):<span class="chip vlnc">Not Committed</span><span class="chip vlnr">Not Ready</span><span class="chip vlr">Ready</span><span class="chip vlfr">Forced Ready</span><span class="chip vls">Started</span><span class="chip vlw">Warning</span><span class="chip vlst">Stopped</span><span class="chip vlc">Complete</span><span class="chip vlrq">Rejected at QC</span><span class="chip vlqc">Quality Checked</span></span>
+      <span class="vleg" id="vleg" style="margin-left:auto">VisiLean status (live):</span>
       <span class="fnote" id="f-count"></span>
     </div>
     <div id="page"></div>
@@ -816,7 +816,27 @@ const VLMAP={"complete":["vlc","Complete"],"started":["vls","Started"],"notcommi
  "ready":["vlr","Ready"],"forcedready":["vlfr","Forced Ready"],"notready":["vlnr","Not Ready"],
  "warning":["vlw","Warning"],"stopped":["vlst","Stopped"],
  "rejectedatqualitycheck":["vlrq","Rejected at QC"],"qualitychecked":["vlqc","Quality Checked"]};
-function vlChip(v){const k=String(v||"").toLowerCase().replace(/[^a-z]/g,"");const m=VLMAP[k];return m?chip(m[0],m[1]):chip("mut",esc(String(v||"—")))}
+const vlKey=v=>String(v||"").toLowerCase().replace(/[^a-z]/g,"");
+// the order the legend reads in, which is the order work moves through
+const VLORDER=["notcommitted","notready","ready","forcedready","started","warning","stopped",
+               "complete","rejectedatqualitycheck","qualitychecked"];
+// a config entry may name a state either way round: its key or the words on the chip
+function vlResolve(name){
+  const n=vlKey(name);
+  return Object.keys(VLMAP).filter(k=>k===n||vlKey(VLMAP[k][1])===n);
+}
+const VLHIDE=new Set(); (CFG.vlHide||[]).forEach(h=>vlResolve(h).forEach(k=>VLHIDE.add(k)));
+const VLLABEL={}; Object.entries(CFG.vlLabel||{}).forEach(([k,v])=>{
+  const hit=vlResolve(k); (hit.length?hit:[vlKey(k)]).forEach(x=>{VLLABEL[x]=v});
+});
+function vlText(k){return VLLABEL[k]||(VLMAP[k]?VLMAP[k][1]:k)}
+function vlChip(v){const k=vlKey(v);const m=VLMAP[k];return m?chip(m[0],vlText(k)):chip("mut",esc(String(v||"—")))}
+// hiding a state hides it from the legend only - a row that carries one still shows it
+(function(){
+  const el=document.getElementById("vleg"); if(!el) return;
+  el.insertAdjacentHTML("beforeend", VLORDER.filter(k=>VLMAP[k]&&!VLHIDE.has(k))
+    .map(k=>`<span class="chip ${VLMAP[k][0]}">${esc(vlText(k))}</span>`).join(""));
+})();
 function rowChip(r){return (C.vls!==undefined&&r[C.vls])?vlChip(r[C.vls]):stChip(r[C.state])}
 // ---------- speedometer gauge (semicircle, correct sweep) ----------
 function gauge(a,p){
