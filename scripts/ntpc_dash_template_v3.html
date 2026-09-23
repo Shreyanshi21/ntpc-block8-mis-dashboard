@@ -2150,6 +2150,30 @@ const FCATS=[["Civil",r=>/Civil & Foundations|Other Site Works/.test(r[C.stage])
  ["DC Cabling",r=>r[C.stage]==="DC Works"],
  ["AC/HT",r=>r[C.stage]==="AC / HT Works"],
  ["BOP",r=>/Equipment|Earthing & LA|PSS & Switchyard|T&C/.test(r[C.stage])]];
+// One block, its activities tabbed by the packages the tile summarises. FCATS is the same
+// list the tile rows come from, so the tabs and the bars agree by construction; anything the
+// seven predicates do not claim lands in Other rather than disappearing.
+function blockDrill(area,rr){
+  const subs=[{k:"all",label:"All"}];
+  const claimed=new Set();
+  FCATS.forEach(([cn,fn])=>{
+    const n=rr.filter(fn); if(!n.length) return;
+    n.forEach(r=>claimed.add(r[C.tid]));
+    subs.push({k:cn,label:cn,f:fn});
+  });
+  const rest=rr.filter(r=>!claimed.has(r[C.tid]));
+  if(rest.length) subs.push({k:"other",label:"Other",f:r=>!claimed.has(r[C.tid])});
+  const a=actPctAt(rr,SW), p=planPct(rr,SW), dl=rr.filter(isBehind).length;
+  drillOpen({
+    eyebrow:"Plant layout \u00b7 block",
+    title:area,
+    status:pill(a+0.05<p?"warn":"good",`${fmt1(a)}% actual \u00b7 plan ${fmt1(p)}%`),
+    formula:`<b>${rr.length}</b> ${rr.length===1?"activity":"activities"} in <b>${esc(area)}</b>`
+      +` \u00b7 tabs are the packages the tile breaks the block into`
+      +(dl?` \u00b7 <b>${dl}</b> behind baseline`:``),
+    rows:rr, cols:stdCols(), rowId:r=>String(r[C.tid]),
+    subsets:subs});
+}
 function areaList(rows){
   const set={};rows.forEach(r=>{(set[r[C.area]]=set[r[C.area]]||[]).push(r)});
   return Object.keys(set).sort((a,b)=>{const na=a.match(AREA_RE),nb=b.match(AREA_RE);
@@ -2248,9 +2272,12 @@ function feederMap(rows){
   },0);
   return lg+g;
 }
+let _ftileRows={};          // area -> the rows the tile was built from, for the drill
 function feederTiles(rows){
   let h=`<div class="bgrid">`;
+  _ftileRows={};
   areaList(rows).forEach(([k,rr])=>{
+    _ftileRows[k]=rr;
     const a=actPctAt(rr,SW),p=planPct(rr,SW),dl=rr.filter(isBehind).length;
     const isBlock=AREA_RE.test(k);
     let cats="";
@@ -4185,11 +4212,15 @@ let layoutView="map";
 // when the project ships geometry, the tile grid otherwise, with a toggle between them.
 function layoutCard(rows,title,idp){
   if(!CFG.plantLayout)
-    return card("span12",title,"click a tile to filter \u00b7 Actual % (red = behind baseline plan)",feederTiles(rows));
+    return card("span12",title,
+      (CFG.blockDrill?"click a block for its activities by package":"click a tile to filter")
+      +" \u00b7 Actual % (red = behind baseline plan)",feederTiles(rows));
   setTimeout(()=>{const t=document.getElementById(idp);
     if(t)t.querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{layoutView=b.dataset.v;render()}))},0);
   return card("span12",title,
-    "drawn to the site layout \u00b7 click a block to filter \u00b7 hover for quantities \u00b7 A = actual, P = plan (red = behind plan)",
+    "drawn to the site layout \u00b7 "
+      +(CFG.blockDrill&&layoutView==="tiles"?"click a block for its activities by package":"click a block to filter")
+      +" \u00b7 hover for quantities \u00b7 A = actual, P = plan (red = behind plan)",
     layoutView==="tiles"?feederTiles(rows):feederMap(rows),
     `<div class="toggle2" id="${idp}"><button data-v="map" class="${layoutView!=="tiles"?"on":""}">Site map</button><button data-v="tiles" class="${layoutView==="tiles"?"on":""}">Tiles</button></div>`);
 }
@@ -4580,7 +4611,10 @@ function render(){
   if(up){up.onclick=()=>{state.unit="%";render()}}
   if(um){um.onclick=()=>{state.unit="MW";render()}}
   document.querySelectorAll(".ftile").forEach(el=>{el.addEventListener("click",()=>{
-    state.f.area=state.f.area===el.dataset.area?"":el.dataset.area;render();})});
+    const k=el.dataset.area, rr=_ftileRows[k];
+    // opening the activity list is opt-in per project; everywhere else a tile still filters
+    if(CFG.blockDrill && rr && rr.length){blockDrill(k,rr); return}
+    state.f.area=state.f.area===k?"":k;render();})});
   document.querySelectorAll("tr.regrow").forEach(el=>{el.addEventListener("click",()=>{
     const p=el.dataset.pkg;statSel=statSel===p?"":p;render();})});
   if(_keep)window.scrollTo(0,_sy);else window.scrollTo(0,0);lastPage=state.page;
