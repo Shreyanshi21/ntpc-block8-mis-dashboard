@@ -5,8 +5,15 @@
   "outDir": "adani",
   "blockDrill": true,
   "blockSummary": true,
-  "vlLabel": {"Not Ready": "Not Started"},
-  "vlHide": ["Ready", "Forced Ready", "Rejected at QC", "Quality Checked"],
+  "vlLabel": {
+    "Not Ready": "Not Started"
+  },
+  "vlHide": [
+    "Ready",
+    "Forced Ready",
+    "Rejected at QC",
+    "Quality Checked"
+  ],
   "dataFile": "adani_dashboard_data.json",
   "relationsFile": "adani_relations.json",
   "_relations_comment": "built from the P6 XER (FY26-P18 S6a 07.09.2026.xer) by scripts/build_relations_from_xer.py. VisiLean returns prerequisites empty, so the schedule file is the only place the logic lives. Endpoints are activity codes (P6 task_code = VisiLean externalId); dash_data.py resolves them to uids. 6,152 links, 100% of leaves wired in.",
@@ -32786,5 +32793,8 @@
         "y": 6770.8
       }
     ]
-  }
+  },
+  "syncRepo": "Vikas-visilean/ntpc-block8-mis-dashboard",
+  "syncWorkflow": "refresh-adani.yml",
+  "_sync_comment": "the workflow that keeps this dashboard fed; the page asks GitHub about it only when a build is old enough to question (checkSyncHealth)"
 }

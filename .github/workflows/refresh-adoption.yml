@@ -35,6 +35,38 @@ jobs:
         with:
           python-version: "3.12"
 
+      # Fail LOUDLY when the sync is not configured. Without this the loop below just
+      # logs "cycle failed" every 5 minutes and the run still finishes green, which is
+      # how four dashboards sat stale for days with nothing to show for it.
+      - name: Check credentials are configured
+        env:
+          T: ${{ secrets.VL_TOKEN_ADOPT_TASK }}
+          H: ${{ secrets.VL_TOKEN_ADOPT_HIST }}
+          C: ${{ secrets.VL_TOKEN_ADOPT_NOTES }}
+        run: |
+          missing=""
+          [ -n "${T:-}" ] || missing="$missing VL_TOKEN_ADOPT_TASK"
+          [ -n "${H:-}" ] || missing="$missing VL_TOKEN_ADOPT_HIST"
+          [ -n "${C:-}" ] || missing="$missing VL_TOKEN_ADOPT_NOTES"
+          if [ -n "$missing" ]; then
+            echo "::error title=Adoption tracker sync is not configured::Missing repository secret(s):$missing"
+            {
+              echo "### Adoption tracker sync is not configured"
+              echo ""
+              echo "Missing repository secret(s):"
+              for s in $missing ; do echo "- \`$s\`" ; done
+              echo ""
+              echo "A VisiLean API token only works for the project it was generated for, so this"
+              echo "project needs its own. Add them once and this dashboard refreshes itself:"
+              echo ""
+              echo '```bash'
+              for s in $missing ; do echo "gh secret set $s --repo ${{ github.repository }}" ; done
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "credentials present"
+
       - name: Refresh loop (every 15 minutes)
         env:
           VL_TOKEN_ADOPT_TASK: ${{ secrets.VL_TOKEN_ADOPT_TASK }}
@@ -48,15 +80,17 @@ jobs:
 
           END=$(( $(date +%s) + 330*60 ))   # leave headroom before the job timeout
           n=0
+          fails=0
           while : ; do
             n=$((n+1))
             echo "::group::cycle $n  $(date -u '+%H:%M:%S UTC')"
 
             if python scripts/adoption_data.py && python scripts/build_adoption.py && python scripts/build_updates.py ; then
-              if git diff --quiet -- adoption/.datahash ; then
+              fails=0
+              if git diff --quiet -- adoption/.datahash adoption/.tplhash ; then
                 echo "no new activity in the trail"
               else
-                git add adoption/index.html adoption/meta.json adoption/.datahash \
+                git add adoption
                         updates/index.html updates/meta.json updates/.datahash
                 git commit -m "adoption + updates auto-refresh $(TZ=Asia/Kolkata date '+%d-%b %H:%M IST')" || true
                 # another worker may have pushed while we were building
@@ -66,9 +100,19 @@ jobs:
                 done
               fi
             else
-              # a bad cycle must not kill the worker - the next one recovers
-              echo "cycle failed (VisiLean unreachable or build error) - continuing"
+              # a bad cycle must not kill the worker - the next one recovers. But a run
+              # of them means the sync is broken, not that VisiLean blinked, so stop
+              # pretending everything is fine and let the run go red.
+              fails=$((fails+1))
+              echo "cycle failed (VisiLean unreachable or build error) - continuing ($fails in a row)"
               git checkout -- adoption updates 2>/dev/null || true
+              if [ "$fails" -ge 6 ]; then
+                echo "::error title=Adoption tracker sync is failing::$fails cycles in a row failed - VisiLean unreachable, token rejected, or a build error."
+                echo "### Adoption tracker sync is failing" >> "$GITHUB_STEP_SUMMARY"
+                echo "" >> "$GITHUB_STEP_SUMMARY"
+                echo "$fails consecutive cycles failed (~$((fails*5)) minutes). Check the cycle logs above: a rejected token gives HTTP 400 from VisiLean." >> "$GITHUB_STEP_SUMMARY"
+                exit 1
+              fi
             fi
             echo "::endgroup::"
 

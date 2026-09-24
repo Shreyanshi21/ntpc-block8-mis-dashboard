@@ -257,6 +257,16 @@ tr:hover td{background:var(--blue-wash)}
 #rsnmodal-bd{padding:10px 14px 14px;overflow:auto;flex:1 1 auto;min-height:0}
 #tip{position:fixed;z-index:400;background:var(--tip-bg);color:var(--tip-fg);border-radius:6px;padding:6px 9px;font-size:10px;pointer-events:none;box-shadow:var(--shadow-popover);display:none;max-width:290px;line-height:1.45}
 #tip .t2{color:var(--tip-fg2)}
+/* only rendered when the build is old enough to question - see checkSyncHealth() */
+#syncwarn{display:flex;gap:10px;align-items:flex-start;margin:0 0 9px;padding:9px 12px;
+ border:1px solid var(--line2);border-radius:var(--r-tile,10px);background:var(--warn-wash);font-size:11px;line-height:1.5}
+#syncwarn[hidden]{display:none}
+#syncwarn.bad{background:var(--crit-wash)}
+#syncwarn .ico{font-size:14px;line-height:1.2}
+#syncwarn b{display:block;margin-bottom:1px}
+#syncwarn .sub{color:var(--ink2)}
+#syncwarn a{color:var(--blue);font-weight:700;text-decoration:none}
+#syncwarn a:hover{text-decoration:underline}
 /* sentinel the tooltip clamp measures the visible band with - see visibleBox() */
 #vport{position:fixed;inset:0;pointer-events:none;visibility:hidden;z-index:-1}
 #copyfall{display:none;position:fixed;z-index:500;right:16px;bottom:16px;width:min(520px,88vw);
@@ -373,6 +383,7 @@ html{zoom:1.3}
       <span class="vleg" style="margin-left:auto">VisiLean status (live):<span class="chip vlnc">Not Committed</span><span class="chip vlnr">Not Ready</span><span class="chip vlr">Ready</span><span class="chip vlfr">Forced Ready</span><span class="chip vls">Started</span><span class="chip vlw">Warning</span><span class="chip vlst">Stopped</span><span class="chip vlc">Complete</span><span class="chip vlrq">Rejected at QC</span><span class="chip vlqc">Quality Checked</span></span>
       <span class="fnote" id="f-count"></span>
     </div>
+    <div id="syncwarn" hidden></div>
     <div id="page"></div>
   </main>
 </div>
@@ -405,6 +416,7 @@ function lsGet(k){try{return localStorage.getItem(k)}catch(e){return null}}
 function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
 const DATA = __DATA__;
 const M = DATA.meta, L = DATA.leaves;
+const CFG={syncRepo:"Vikas-visilean/ntpc-block8-mis-dashboard",syncWorkflow:"refresh-v2.yml"};
 const C = {}; DATA.cols.forEach((c,i)=>C[c]=i);
 const DEPTS = DATA.depts, DNAME = {}; DEPTS.forEach(d=>DNAME[d.key]=d.name);
 const SW = M.statusWd;
@@ -2219,6 +2231,43 @@ if(_rbtn)_rbtn.addEventListener("click",async()=>{
     setTimeout(hideTip,4000);
   }
 });
+// ---------- is the data still arriving? ----------
+// The sync publishes only when VisiLean data CHANGES, so an old build is not by itself
+// a fault - a quiet project genuinely looks like this. What separates "quiet" from
+// "broken" is whether this project's workflow is still running, so only once a build is
+// old enough to question do we ask GitHub, and only then does anything render.
+// substituted by the builder - a page names its OWN sync, whatever its data age
+const SYNC = Object.assign({repo:"Vikas-visilean/ntpc-block8-mis-dashboard",
+                           workflow:"refresh-v2.yml"}, __SYNC__);
+const SYNC_WARN_HOURS = 26;
+async function checkSyncHealth(){
+  const el=document.getElementById("syncwarn");
+  if(!el||!M.generatedAtEpoch)return;
+  const hrs=(Date.now()/1000-M.generatedAtEpoch)/3600;
+  if(hrs<SYNC_WARN_HOURS)return;                 // normal operation: say nothing
+  const age=hrs<48?`${Math.round(hrs)} hours`:`${(hrs/24).toFixed(1)} days`;
+  let bad=false,verdict="",fix="";
+  try{
+    const wf=SYNC.workflow;
+    if(wf){
+      const r=await fetch(`https://api.github.com/repos/${SYNC.repo}/actions/workflows/${wf}/runs?per_page=1`,{cache:"no-store"});
+      if(r.ok){
+        const j=await r.json(),run=(j.workflow_runs||[])[0];
+        if(!run){bad=true;verdict="Its sync has never run."}
+        else if(run.status!=="completed"){verdict="Its sync is running now, so this is the latest VisiLean has.";}
+        else if(run.conclusion==="success"){verdict="Its sync last ran without error, so VisiLean has published no changes since.";}
+        else{bad=true;verdict="Its sync is failing.";fix=` <a href="${run.html_url}" target="_blank" rel="noopener">See why \u2197</a>`}
+      }
+    }
+  }catch(e){/* rate-limited or offline - still show the age, just not the verdict */}
+  el.className=bad?"bad":"";
+  el.innerHTML=`<span class="ico">${bad?"\u26a0":"\u2139"}</span><span>`
+    +`<b>This build is ${age} old.</b>`
+    +`<span class="sub">${esc(verdict||"Could not check whether the sync is running.")}${fix}</span></span>`;
+  el.hidden=false;
+}
+setTimeout(()=>{try{checkSyncHealth()}catch(e){}},1200);
+
 // keep the reader's place across a reload
 function saveUI(){
   try{_uiWrite(JSON.stringify({

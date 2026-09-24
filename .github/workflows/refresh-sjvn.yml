@@ -32,6 +32,38 @@ jobs:
         with:
           python-version: "3.12"
 
+      # Fail LOUDLY when the sync is not configured. Without this the loop below just
+      # logs "cycle failed" every 5 minutes and the run still finishes green, which is
+      # how four dashboards sat stale for days with nothing to show for it.
+      - name: Check credentials are configured
+        env:
+          T: ${{ secrets.VL_TOKEN_TASK_SJVN }}
+          H: ${{ secrets.VL_TOKEN_HISTORY_SJVN }}
+          C: ${{ secrets.VL_TOKEN_CONSTRAINTS_SJVN }}
+        run: |
+          missing=""
+          [ -n "${T:-}" ] || missing="$missing VL_TOKEN_TASK_SJVN"
+          [ -n "${H:-}" ] || missing="$missing VL_TOKEN_HISTORY_SJVN"
+          [ -n "${C:-}" ] || missing="$missing VL_TOKEN_CONSTRAINTS_SJVN"
+          if [ -n "$missing" ]; then
+            echo "::error title=SJVN Khavda sync is not configured::Missing repository secret(s):$missing"
+            {
+              echo "### SJVN Khavda sync is not configured"
+              echo ""
+              echo "Missing repository secret(s):"
+              for s in $missing ; do echo "- \`$s\`" ; done
+              echo ""
+              echo "A VisiLean API token only works for the project it was generated for, so this"
+              echo "project needs its own. Add them once and this dashboard refreshes itself:"
+              echo ""
+              echo '```bash'
+              for s in $missing ; do echo "gh secret set $s --repo ${{ github.repository }}" ; done
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "credentials present"
+
       - name: Refresh loop (every 5 minutes)
         env:
           # per-project tokens; the builder also accepts the plain VL_TOKEN_* names
@@ -46,15 +78,17 @@ jobs:
 
           END=$(( $(date +%s) + 340*60 ))   # leave headroom before the job timeout
           n=0
+          fails=0
           while : ; do
             n=$((n+1))
             echo "::group::cycle $n  $(date -u '+%H:%M:%S UTC')"
 
             if python scripts/dash_data.py sjvn && python scripts/build_dash.py sjvn ; then
-              if git diff --quiet -- sjvn/.datahash ; then
+              fails=0
+              if git diff --quiet -- sjvn/.datahash sjvn/.tplhash ; then
                 echo "no data change"
               else
-                git add sjvn/index.html sjvn/meta.json sjvn/.datahash
+                git add sjvn
                 git commit -m "sjvn auto-refresh $(TZ=Asia/Kolkata date '+%d-%b %H:%M IST')" || true
                 # another worker may have pushed while we were building
                 for try in 1 2 3 ; do
@@ -63,9 +97,19 @@ jobs:
                 done
               fi
             else
-              # a bad cycle must not kill the worker - the next one recovers
-              echo "cycle failed (VisiLean unreachable or build error) - continuing"
+              # a bad cycle must not kill the worker - the next one recovers. But a run
+              # of them means the sync is broken, not that VisiLean blinked, so stop
+              # pretending everything is fine and let the run go red.
+              fails=$((fails+1))
+              echo "cycle failed (VisiLean unreachable or build error) - continuing ($fails in a row)"
               git checkout -- sjvn 2>/dev/null || true
+              if [ "$fails" -ge 6 ]; then
+                echo "::error title=SJVN Khavda sync is failing::$fails cycles in a row failed - VisiLean unreachable, token rejected, or a build error."
+                echo "### SJVN Khavda sync is failing" >> "$GITHUB_STEP_SUMMARY"
+                echo "" >> "$GITHUB_STEP_SUMMARY"
+                echo "$fails consecutive cycles failed (~$((fails*5)) minutes). Check the cycle logs above: a rejected token gives HTTP 400 from VisiLean." >> "$GITHUB_STEP_SUMMARY"
+                exit 1
+              fi
             fi
             echo "::endgroup::"
 

@@ -12021,5 +12021,8 @@
         "areaM2": 124306
       }
     ]
-  }
+  },
+  "syncRepo": "Vikas-visilean/ntpc-block8-mis-dashboard",
+  "syncWorkflow": "refresh-adani-s7.yml",
+  "_sync_comment": "the workflow that keeps this dashboard fed; the page asks GitHub about it only when a build is old enough to question (checkSyncHealth)"
 }

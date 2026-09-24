@@ -601,5 +601,8 @@
   "_actionsRunsApi_comment": "best-effort, public API: lets the Refresh button say whether this project's sync worker is running. Purely informational - the click always reloads.",
   "acceptRe": "^approval\\b",
   "_acceptRe_comment": "this project's design documents are named 'Submission (MDL)' / 'Approval (MDL)', so the accepted-document step is 'Approval ...' - not NTPC's 'Final Acceptance ...'. 48 of the 100 engineering activities match (checked 07-Sep-2026).",
-  "acceptLabel": "Approval"
+  "acceptLabel": "Approval",
+  "syncRepo": "Vikas-visilean/ntpc-block8-mis-dashboard",
+  "syncWorkflow": "refresh-sjvn.yml",
+  "_sync_comment": "the workflow that keeps this dashboard fed; the page asks GitHub about it only when a build is old enough to question (checkSyncHealth)"
 }

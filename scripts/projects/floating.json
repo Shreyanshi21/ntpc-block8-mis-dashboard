@@ -5,7 +5,6 @@
   "outDir": "floating",
   "dataFile": "floating_dashboard_data.json",
   "relationsFile": "floating_relations.json",
-
   "title": "KPI Floating Solar, Kadana Dam (110 MW) — MIS Dashboard (Live)",
   "name": "Floating Solar · Kadana Dam · 110 MW",
   "client": "KPI",
@@ -16,19 +15,15 @@
   "tech": "Solar · Floating",
   "week": "7-day weeks",
   "loa": "Start 06-Mar-2026",
-
   "calendar": {
     "startDate": "2026-03-06",
     "weeklyOff": [],
     "_comment": "day 1 of the working-day axis = earliest planned start in VisiLean (06-Mar-2026). The schedule works all seven days - Sundays carry 372 of the 3,170 activity starts - so nothing is treated as a weekly off."
   },
-
   "baselineMode": "planned",
   "_baselineMode_comment": "VisiLean holds no baseline dates for this project (0 of 3,508 rows, checked 17-Sep-2026). 'planned' = the VisiLean planned dates ARE the baseline and rows are not flagged un-baselined. Switch to 'visilean' once the team sets a baseline.",
-
   "activityTypeFromDepartment": true,
   "_activityTypeFromDepartment_comment": "every row carries taskType 'Construction', so it says nothing; Engineering / Procurement - Supply / Construction are derived from the Department custom field instead, which is what the EPC bifurcation and the S-curve disciplines read",
-
   "departments": {
     "_comment": "VisiLean 'Department' custom field -> dashboard department key",
     "Project Initiation & Pre-Construction (BD / Project Management)": "initiation",
@@ -44,37 +39,183 @@
     "Testing, Commissioning & Handover": "tnc",
     "HOTO (Handover - Takeover)": "hoto"
   },
-
   "areaRe": "^Block[ -]?(\\d+)",
   "_area_comment": "VisiLean carries no location or zone on any row in this project, so every activity falls into one area and the Plant Layout page shows a single tile. Add areaFromLevel3 / plantLayout here if the team starts tagging arrays.",
-
   "execStage": [
-    [["moduleassemblyonfloat", "subarray", "pullingofsub", "anchoringmooring", "mooringrope", "deadblock", "deadblockanchor", "floatesorder", "barge", "ifpbase", "ifpstabilization", "firstlift", "launching", "jetty", "dredging", "bathymetry"], "Floats & Mooring"],
-    [["interconnectionofmodule", "moduleerection", "moduleinstallation", "structureerection", "structureinstallation", "module"], "MMS & Module"],
-    [["stringcable", "dcpowercable", "mc4crimping", "scberection", "ferruling", "voc", "dcarray", "dcgrid", "dcstring"], "DC Works"],
-    [["achtcable", "acltcable", "lthtcable", "cabletray", "focommunication", "communicationcable", "lugging", "termination", "htcable", "ltcable", "cablelaying", "conduitlaying", "txline", "tl"], "AC / HT Works"],
-    [["moduletomoduleearthing", "earthing", "lainstallation", "installationofla", "laerection"], "Earthing & LA"],
-    [["inverter", "idt", "nips", "auxtransformer", "aux", "upsbattery", "scada", "plcpanel", "icog", "streetlight", "wms", "cctv", "fda", "htpanel", "switchgearpanelroom", "poleerection", "equipmenterection", "electricalfitting"], "Equipment"],
-    [["pss", "poolingsubstation", "switchyard", "bay"], "PSS & Switchyard"],
-    [["excavation", "foundation", "slabcasting", "brickwork", "plaster", "fencing", "peripheryroad", "drainage", "marking", "civil", "mcrfoundation", "plinth", "lintel"], "Civil & Foundations"],
-    [["vendormobilization", "machinerymobilization", "materialmrn", "mobilization", "siteoffice", "logistics", "siteinfra"], "Mobilisation"],
-    [["verificationofchecklist", "testingwitness", "observationsandfindings", "punchpoint", "jointinspection", "closureaction"], "Quality Process"],
-    [["test", "charging", "precommissioning", "commissioning"], "T&C"]
+    [
+      [
+        "moduleassemblyonfloat",
+        "subarray",
+        "pullingofsub",
+        "anchoringmooring",
+        "mooringrope",
+        "deadblock",
+        "deadblockanchor",
+        "floatesorder",
+        "barge",
+        "ifpbase",
+        "ifpstabilization",
+        "firstlift",
+        "launching",
+        "jetty",
+        "dredging",
+        "bathymetry"
+      ],
+      "Floats & Mooring"
+    ],
+    [
+      [
+        "interconnectionofmodule",
+        "moduleerection",
+        "moduleinstallation",
+        "structureerection",
+        "structureinstallation",
+        "module"
+      ],
+      "MMS & Module"
+    ],
+    [
+      [
+        "stringcable",
+        "dcpowercable",
+        "mc4crimping",
+        "scberection",
+        "ferruling",
+        "voc",
+        "dcarray",
+        "dcgrid",
+        "dcstring"
+      ],
+      "DC Works"
+    ],
+    [
+      [
+        "achtcable",
+        "acltcable",
+        "lthtcable",
+        "cabletray",
+        "focommunication",
+        "communicationcable",
+        "lugging",
+        "termination",
+        "htcable",
+        "ltcable",
+        "cablelaying",
+        "conduitlaying",
+        "txline",
+        "tl"
+      ],
+      "AC / HT Works"
+    ],
+    [
+      [
+        "moduletomoduleearthing",
+        "earthing",
+        "lainstallation",
+        "installationofla",
+        "laerection"
+      ],
+      "Earthing & LA"
+    ],
+    [
+      [
+        "inverter",
+        "idt",
+        "nips",
+        "auxtransformer",
+        "aux",
+        "upsbattery",
+        "scada",
+        "plcpanel",
+        "icog",
+        "streetlight",
+        "wms",
+        "cctv",
+        "fda",
+        "htpanel",
+        "switchgearpanelroom",
+        "poleerection",
+        "equipmenterection",
+        "electricalfitting"
+      ],
+      "Equipment"
+    ],
+    [
+      [
+        "pss",
+        "poolingsubstation",
+        "switchyard",
+        "bay"
+      ],
+      "PSS & Switchyard"
+    ],
+    [
+      [
+        "excavation",
+        "foundation",
+        "slabcasting",
+        "brickwork",
+        "plaster",
+        "fencing",
+        "peripheryroad",
+        "drainage",
+        "marking",
+        "civil",
+        "mcrfoundation",
+        "plinth",
+        "lintel"
+      ],
+      "Civil & Foundations"
+    ],
+    [
+      [
+        "vendormobilization",
+        "machinerymobilization",
+        "materialmrn",
+        "mobilization",
+        "siteoffice",
+        "logistics",
+        "siteinfra"
+      ],
+      "Mobilisation"
+    ],
+    [
+      [
+        "verificationofchecklist",
+        "testingwitness",
+        "observationsandfindings",
+        "punchpoint",
+        "jointinspection",
+        "closureaction"
+      ],
+      "Quality Process"
+    ],
+    [
+      [
+        "test",
+        "charging",
+        "precommissioning",
+        "commissioning"
+      ],
+      "T&C"
+    ]
   ],
   "_execStage_comment": "stage buckets for the Stage progress card. A floating plant has no piling: the equivalent work is float assembly, sub-array build-up and mooring, so those get their own bucket. First match wins, so the specific keys sit above the generic ones.",
-
   "longLead": "module|float|barge|mooring|inverter|idt|ht cable|lt cable|dc string cable|scb|transformer|scada|communication cable|cctv",
-
   "regCrit": [],
-  "statSteps": { "cea": [], "cod": [], "sldc": [] },
+  "statSteps": {
+    "cea": [],
+    "cod": [],
+    "sldc": []
+  },
   "_statSteps_comment": "the statutory tracker cards need this project's own approval names; left empty until the Regulatory activities are named in VisiLean",
-
   "countSummaries": true,
   "_countSummaries_comment": "Final Acceptance document counts (92 'Final Acceptance' + 11 'Final Acceptance on System Study' activities) and PO Placement counts (26 packages) both resolve in this schedule, so the KP count-summary cards work as they do on NTPC",
-
   "procDatesCard": false,
   "_procDatesCard_comment": "as on NTPC: the pipeline table replaces the Key Procurement Dates matrix on the procurement pages",
-
   "actionsRunsApi": "https://api.github.com/repos/Vikas-visilean/ntpc-block8-mis-dashboard/actions/workflows/refresh-floating.yml/runs?per_page=1&status=in_progress",
-  "_actionsRunsApi_comment": "best-effort, public API: lets the Refresh button say whether this project's sync worker is running. Purely informational - the click always reloads."
+  "_actionsRunsApi_comment": "best-effort, public API: lets the Refresh button say whether this project's sync worker is running. Purely informational - the click always reloads.",
+  "syncRepo": "Vikas-visilean/ntpc-block8-mis-dashboard",
+  "syncWorkflow": "refresh-floating.yml",
+  "_sync_comment": "the workflow that keeps this dashboard fed; the page asks GitHub about it only when a build is old enough to question (checkSyncHealth)"
 }

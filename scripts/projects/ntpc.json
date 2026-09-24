@@ -5,7 +5,6 @@
   "outDir": "v3",
   "dataFile": "ntpc_dashboard_data_v2.json",
   "relationsFile": "vl_relations.json",
-
   "title": "KPIGEL-NTPC Bikaner Block 8 (200MW) — MIS Dashboard v2 (Live)",
   "name": "NTPC Bikaner Block 8 · 200 MW",
   "client": "KPI Green Energy",
@@ -16,9 +15,16 @@
   "tech": "Solar · Tracker",
   "week": "6-day weeks",
   "loa": "LOA 07-May-2026",
-
-  "calendar": { "startDate": "2026-05-07", "weeklyOff": [6] },
+  "calendar": {
+    "startDate": "2026-05-07",
+    "weeklyOff": [
+      6
+    ]
+  },
   "baselineMode": "visilean",
   "activityTypeFromDepartment": false,
-  "areaRe": "^Block[ -]?(\\d+)"
+  "areaRe": "^Block[ -]?(\\d+)",
+  "syncRepo": "Vikas-visilean/ntpc-block8-mis-dashboard",
+  "syncWorkflow": "refresh-v2.yml",
+  "_sync_comment": "the workflow that keeps this dashboard fed; the page asks GitHub about it only when a build is old enough to question (checkSyncHealth)"
 }

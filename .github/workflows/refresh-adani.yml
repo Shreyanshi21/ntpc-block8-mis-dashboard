@@ -1,23 +1,14 @@
-name: Refresh v2 dashboard from VisiLean
+name: Refresh Adani S6a dashboard from VisiLean
 
-# WHY THIS IS A LOOP AND NOT A "*/5" CRON
-# GitHub only runs `schedule` events on a best-effort basis and throttles them hard.
-# Measured on this repo over 23-24 Aug 2026 with cron "*/5": actual gaps were
-# median 27 min, max 111 min - never once 5 minutes. That is why the dashboard was
-# showing hour-old data while VisiLean was current.
-# So: the schedule only has to START a run, and the run itself then refreshes every
-# 5 minutes for just under 6 hours (the GitHub job ceiling). The 2-hourly trigger
-# plus cancel-in-progress means a fresh worker always takes over, and a skipped or
-# badly delayed trigger is still covered by the previous run's remaining hours.
+# Adani Green Energy S6a (234 MW). This project had a config and a published folder but
+# no workflow, so it was the one dashboard that could ONLY be built by hand on someone's
+# laptop. Same worker pattern as refresh-v2.yml (see the comments there): GitHub drops
+# most scheduled events, so the schedule only has to START a run and the run itself then
+# refreshes every 5 minutes for just under 6 hours.
 
 on:
   schedule:
-    # GitHub fires scheduled runs on a best-effort basis and drops most of them:
-    # asking every 2 hours produced actual triggers ~11 hours apart (26-Aug 23:26,
-    # 27-Aug 09:35, 27-Aug 20:21), leaving ~5h dead once a worker's window ended.
-    # Asking every 30 minutes gets far more of them through; concurrency means a new
-    # worker simply replaces the running one, so extra triggers cost nothing.
-    - cron: "7,37 * * * *"
+    - cron: "17,47 * * * *"      # offset from the other projects so they do not pile up
   workflow_dispatch:
     inputs:
       once:
@@ -29,7 +20,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: refresh-v2
+  group: refresh-adani
   cancel-in-progress: true      # a newly started worker replaces the running one
 
 jobs:
@@ -48,18 +39,18 @@ jobs:
       # how four dashboards sat stale for days with nothing to show for it.
       - name: Check credentials are configured
         env:
-          T: ${{ secrets.VL_TOKEN_TASK }}
-          H: ${{ secrets.VL_TOKEN_HISTORY }}
-          C: ${{ secrets.VL_TOKEN_CONSTRAINTS }}
+          T: ${{ secrets.VL_TOKEN_TASK_ADANI }}
+          H: ${{ secrets.VL_TOKEN_HISTORY_ADANI }}
+          C: ${{ secrets.VL_TOKEN_CONSTRAINTS_ADANI }}
         run: |
           missing=""
-          [ -n "${T:-}" ] || missing="$missing VL_TOKEN_TASK"
-          [ -n "${H:-}" ] || missing="$missing VL_TOKEN_HISTORY"
-          [ -n "${C:-}" ] || missing="$missing VL_TOKEN_CONSTRAINTS"
+          [ -n "${T:-}" ] || missing="$missing VL_TOKEN_TASK_ADANI"
+          [ -n "${H:-}" ] || missing="$missing VL_TOKEN_HISTORY_ADANI"
+          [ -n "${C:-}" ] || missing="$missing VL_TOKEN_CONSTRAINTS_ADANI"
           if [ -n "$missing" ]; then
-            echo "::error title=NTPC Bikaner Block 8 sync is not configured::Missing repository secret(s):$missing"
+            echo "::error title=Adani S6a sync is not configured::Missing repository secret(s):$missing"
             {
-              echo "### NTPC Bikaner Block 8 sync is not configured"
+              echo "### Adani S6a sync is not configured"
               echo ""
               echo "Missing repository secret(s):"
               for s in $missing ; do echo "- \`$s\`" ; done
@@ -77,9 +68,9 @@ jobs:
 
       - name: Refresh loop (every 5 minutes)
         env:
-          VL_TOKEN_TASK: ${{ secrets.VL_TOKEN_TASK }}
-          VL_TOKEN_HISTORY: ${{ secrets.VL_TOKEN_HISTORY }}
-          VL_TOKEN_CONSTRAINTS: ${{ secrets.VL_TOKEN_CONSTRAINTS }}
+          VL_TOKEN_TASK_ADANI: ${{ secrets.VL_TOKEN_TASK_ADANI }}
+          VL_TOKEN_HISTORY_ADANI: ${{ secrets.VL_TOKEN_HISTORY_ADANI }}
+          VL_TOKEN_CONSTRAINTS_ADANI: ${{ secrets.VL_TOKEN_CONSTRAINTS_ADANI }}
           ONCE: ${{ inputs.once }}
         run: |
           set -uo pipefail
@@ -93,14 +84,13 @@ jobs:
             n=$((n+1))
             echo "::group::cycle $n  $(date -u '+%H:%M:%S UTC')"
 
-            if python scripts/ntpc_dash_data_v2.py && python scripts/build_ntpc_dash_v2.py && python scripts/build_ntpc_dash_v3.py ; then
+            if python scripts/dash_data.py adani && python scripts/build_dash.py adani ; then
               fails=0
-              if git diff --quiet -- v2/.datahash v2/.tplhash ; then
+              if git diff --quiet -- adani/.datahash adani/.tplhash ; then
                 echo "no data change"
               else
-                git add v2
-                git commit -m "v2 auto-refresh $(TZ=Asia/Kolkata date '+%d-%b %H:%M IST')" || true
-                # another worker may have pushed while we were building
+                git add adani
+                git commit -m "adani auto-refresh $(TZ=Asia/Kolkata date '+%d-%b %H:%M IST')" || true
                 for try in 1 2 3 ; do
                   git pull --rebase --autostash -q && git push -q && { echo "published"; break; }
                   echo "push retry $try"; sleep 5
@@ -112,10 +102,10 @@ jobs:
               # pretending everything is fine and let the run go red.
               fails=$((fails+1))
               echo "cycle failed (VisiLean unreachable or build error) - continuing ($fails in a row)"
-              git checkout -- v2 v3 2>/dev/null || true
+              git checkout -- adani 2>/dev/null || true
               if [ "$fails" -ge 6 ]; then
-                echo "::error title=NTPC Bikaner Block 8 sync is failing::$fails cycles in a row failed - VisiLean unreachable, token rejected, or a build error."
-                echo "### NTPC Bikaner Block 8 sync is failing" >> "$GITHUB_STEP_SUMMARY"
+                echo "::error title=Adani S6a sync is failing::$fails cycles in a row failed - VisiLean unreachable, token rejected, or a build error."
+                echo "### Adani S6a sync is failing" >> "$GITHUB_STEP_SUMMARY"
                 echo "" >> "$GITHUB_STEP_SUMMARY"
                 echo "$fails consecutive cycles failed (~$((fails*5)) minutes). Check the cycle logs above: a rejected token gives HTTP 400 from VisiLean." >> "$GITHUB_STEP_SUMMARY"
                 exit 1

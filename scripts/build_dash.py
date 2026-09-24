@@ -14,7 +14,9 @@ data_txt = open(os.path.join(SCR, cfg["dataFile"]), encoding="utf-8").read()
 logo = "data:image/png;base64," + open(os.path.join(SCR, "kp_logo.b64"), encoding="ascii").read().strip()
 # what the page is made of, hashed together: the id moves whenever either side does
 build_id = hashlib.sha256((tpl + "\x00" + data_txt).encode("utf-8")).hexdigest()[:16]
-html = tpl.replace("__LOGO__", logo).replace("__DATA__", data_txt).replace("__BUILD__", build_id)
+sync_json = json.dumps({"repo": cfg.get("syncRepo", "Vikas-visilean/ntpc-block8-mis-dashboard"),
+                         "workflow": cfg.get("syncWorkflow", "")})
+html = tpl.replace("__LOGO__", logo).replace("__SYNC__", sync_json).replace("__DATA__", data_txt).replace("__BUILD__", build_id)
 assert "accessToken" not in html, "token leak!"
 outdir = os.path.join(ROOT, cfg["outDir"])
 os.makedirs(outdir, exist_ok=True)
@@ -30,5 +32,9 @@ d2["meta"].pop("generatedAt", None)
 d2["meta"].pop("generatedAtEpoch", None)
 h = hashlib.sha256(json.dumps(d2, sort_keys=True).encode()).hexdigest()
 open(os.path.join(outdir, ".datahash"), "w").write(h)
+# second guard: the TEMPLATE alone. .datahash only moves when VisiLean data moves,
+# so without this a template change never reaches the published page on its own.
+th = hashlib.sha256((tpl + "\x00" + logo).encode("utf-8")).hexdigest()
+open(os.path.join(outdir, ".tplhash"), "w").write(th)
 print("built %s/index.html %d bytes | datahash %s | build %s"
       % (cfg["outDir"], os.path.getsize(os.path.join(outdir, "index.html")), h[:12], build_id))
