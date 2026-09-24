@@ -6,6 +6,12 @@
 **Owner:** VisiLean (Vikas Patel)
 **Spec updated:** 31-Aug-2026
 
+> **Keeping the dashboards fed:** every project refreshes itself on a GitHub Actions worker —
+> see **[SYNC-SETUP.md](SYNC-SETUP.md)**. A project needs its own VisiLean tokens as repository
+> secrets (a token only works for the project it was generated for); without them its workflow
+> fails loudly rather than looping in green. `python scripts/check_sync.py` reports every
+> dashboard's build age and whether its sync is alive.
+
 The working dashboard is **v2**, live from the VisiLean PowerBI APIs and embedded in VisiLean's
 Custom Analytics. **Start at [section 10A](#10a-v2--v3--live-from-the-visilean-apis-the-current-system)**
 — that describes the system as it runs today, including every rule KP has agreed.
