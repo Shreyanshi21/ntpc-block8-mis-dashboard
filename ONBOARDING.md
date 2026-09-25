@@ -29,10 +29,10 @@ Run this first — it reads the *published* pages, so it tells you what a reader
 python scripts/check_sync.py
 ```
 
-As of 25-Sep-2026: **NTPC syncs; the other five do not**, because their VisiLean tokens
-were never added as repository secrets. Their folders have only ever moved when someone
-built locally and pushed. The fix is one secret per project — see
-**[SYNC-SETUP.md](SYNC-SETUP.md)**.
+As of 25-Sep-2026 (afternoon): **all six dashboards sync.** Until that day only NTPC did,
+because the other projects' VisiLean tokens were never added as repository secrets and
+their folders only moved when someone built locally and pushed. If one stops, the fix
+is that project's one secret — see **[SYNC-SETUP.md](SYNC-SETUP.md)**.
 
 A VisiLean token only works for the project it was generated for ("Each token can only
 access the project it was generated for"), and one token serves every feed, so every
