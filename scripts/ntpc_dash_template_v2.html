@@ -2227,7 +2227,7 @@ if(_rbtn)_rbtn.addEventListener("click",async()=>{
     }
   }catch(e){
     _rbtn.textContent="⟳ Refresh";_rbtn.disabled=false;
-    showTip({clientX:innerWidth-260,clientY:60},"Could not check for updates — this page shows the latest published build; the VisiLean sync runs every 5 minutes.");
+    showTip({clientX:innerWidth-260,clientY:60},"Could not check for updates — this page shows the latest published build; the VisiLean sync runs at 10:00 and 16:00 IST.");
     setTimeout(hideTip,4000);
   }
 });
@@ -2350,8 +2350,8 @@ function paintAge(){
   const el=document.getElementById("h-age");if(!el||!_genMs)return;
   const mins=Math.max(0,Math.round((Date.now()-_genMs)/60000));
   el.textContent=mins<1?"live":(mins<60?mins+" min old":Math.floor(mins/60)+"h "+(mins%60)+"m old");
-  el.className=mins<=10?"fresh":(mins<=30?"aging":"stale");
-  el.title="VisiLean data age. The sync runs every 5 minutes; this page also checks for new data every minute.";
+  el.className=mins<=7*60?"fresh":(mins<=20*60?"aging":"stale");   // refreshed 10:00 + 16:00 IST
+  el.title="VisiLean data age. The sync runs at 10:00 and 16:00 IST (or on demand from the GitHub Actions tab); this page also checks for new data every minute.";
 }
 if(M.generatedAt){document.getElementById("h-gen").textContent="refreshed "+M.generatedAt;paintAge();setInterval(paintAge,30000);}
 // background poll: pick up a new build without anyone pressing Refresh

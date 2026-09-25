@@ -1,10 +1,26 @@
 # Dashboard sync — one-time setup
 
-Every dashboard in this repo refreshes itself from VisiLean on a GitHub Actions worker:
-the schedule starts a worker, the worker re-fetches every 5 minutes for ~5h40m, and it
-publishes the moment VisiLean data (or the template) changes. **Nobody needs to build a
+Every dashboard in this repo refreshes itself from VisiLean on GitHub Actions and
+publishes only when VisiLean data (or the template) changes. **Nobody needs to build a
 dashboard on a laptop.** The Refresh button on a report reloads into the newest
 published build.
+
+**Cadence: twice a day, 10:00 and 16:00 IST**, one refresh per run. Each project is
+offset a few minutes from the next so the pushes do not collide:
+
+| Workflow | Feeds | Scheduled (IST) |
+|---|---|---|
+| `refresh-v2.yml` | `/v2/`, `/v3/` | 10:00, 16:00 |
+| `refresh-sjvn.yml` | `/sjvn/` | 10:03, 16:03 |
+| `refresh-adani.yml` | `/adani/` | 10:06, 16:06 |
+| `refresh-adani-s7.yml` | `/adani-s7/` | 10:09, 16:09 |
+| `refresh-floating.yml` | `/floating/` | 10:12, 16:12 |
+| `refresh-adoption.yml` | `/adoption/`, `/updates/` | 10:15, 16:15 |
+
+**To refresh on demand:** Actions tab → pick the workflow → *Run workflow*, or
+`gh workflow run <file>`. GitHub starts scheduled runs late by 10-30 min (occasionally
+~2 h), so the timestamp on a page will not read exactly 10:00; a manual run starts
+within a minute.
 
 That only works if the project's API token is stored as a repository secret. VisiLean
 scopes a token to one project:
@@ -102,11 +118,11 @@ gh workflow run refresh-floating.yml
 gh workflow run refresh-adoption.yml
 ```
 
-Or from the Actions tab: pick the workflow → *Run workflow*. Add `-f once=true` (or tick
-the box) to run a single cycle instead of starting a worker — handy for checking a token
-without waiting.
+Or from the Actions tab: pick the workflow → *Run workflow*. Every workflow runs once
+and exits, so this is also the way to check a token without waiting for 10:00.
 
-From then on the schedule keeps each one alive. Nothing further is needed, ever.
+From then on the schedule runs each one at 10:00 and 16:00 IST. Nothing further is
+needed, ever.
 
 ---
 
@@ -114,10 +130,10 @@ From then on the schedule keeps each one alive. Nothing further is needed, ever.
 
 | Situation | What you see | Emails |
 |---|---|---|
-| Project has no token | Run succeeds, loop **skipped**, warning + job summary naming the secret to set | none |
+| Project has no token | Run succeeds, refresh **skipped**, warning + job summary naming the secret to set | none |
 | `VL_TOKEN_<KEY>` rejected, JSON entry works | Run succeeds, a **warning** annotation names the broken secret | none |
-| Every token rejected | Cycle fails at once; 6 in a row (~30 min) → run **fails** naming the rejected secrets | yes, and it should |
-| VisiLean down | Cycles retry and skip; 6 in a row → run **fails** with the reason | yes |
+| Every token rejected | 3 attempts fail → run **fails** naming the rejected secrets | yes, and it should |
+| VisiLean down | 3 attempts 2 min apart fail → run **fails** with the reason; the next scheduled run tries again | yes |
 | `VL_TOKENS_JSON` isn't valid JSON, or is in the old per-feed shape | Run **fails** immediately, quoting the problem | yes |
 | Nothing has changed in VisiLean | Run succeeds, "no data change" | none |
 
@@ -167,8 +183,8 @@ any of those names any more. To move over:
 2. Add `VL_TOKEN_NTPC` (and the others). If a `VL_TOKENS_JSON` secret already exists in
    the nested shape, **replace** its contents with the flat map above — do not append to
    it, or every workflow will fail preflight until it is fixed.
-3. `gh workflow run refresh-v2.yml -f once=true` and
-   `gh workflow run refresh-adoption.yml -f once=true`; the preflight step logs
+3. `gh workflow run refresh-v2.yml` and
+   `gh workflow run refresh-adoption.yml`; the preflight step logs
    "credentials from VL_TOKEN_NTPC".
 4. Delete the old secrets: `gh secret delete VL_TOKEN_TASK`, `VL_TOKEN_HISTORY`,
    `VL_TOKEN_CONSTRAINTS`, any suffixed variants, and `VL_TOKEN_ADOPT_TASK` /

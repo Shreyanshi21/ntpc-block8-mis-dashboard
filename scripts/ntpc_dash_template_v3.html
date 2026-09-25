@@ -4941,7 +4941,7 @@ if(_rbtn)_rbtn.addEventListener("click",async()=>{
       if(ar.ok){const aj=await ar.json();if((aj.total_count|0)>0)note="sync is running · "+note}
     }catch(e){}
     _rbtn.textContent="⟳ reloading…";
-    showTip({clientX:innerWidth-330,clientY:60},"<b>Reloading the latest build.</b><br>"+note+" — the sync checks VisiLean every ~5 minutes and publishes the moment something changes.");
+    showTip({clientX:innerWidth-330,clientY:60},"<b>Reloading the latest build.</b><br>"+note+" — the sync runs at 10:00 and 16:00 IST (or on demand from the GitHub Actions tab) and publishes when something changed.");
     setTimeout(()=>{hideTip();reload()},1600);
   }catch(e){
     // even if the check fails, honour the click — reload to whatever is newest

@@ -42,7 +42,7 @@ def loop_skipped(run_id):
         j = get(f"https://api.github.com/repos/{REPO}/actions/runs/{run_id}/jobs")
         for job in j.get("jobs") or []:
             for st in job.get("steps") or []:
-                if st.get("name", "").startswith("Refresh loop"):
+                if st.get("name", "").startswith("Refresh"):
                     return st.get("conclusion") == "skipped"
     except Exception:
         pass

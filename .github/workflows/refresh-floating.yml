@@ -1,30 +1,32 @@
 name: Refresh Floating Solar dashboard from VisiLean
 
-# Same worker pattern as refresh-v2.yml (see the comments there): GitHub drops most
-# scheduled events, so the schedule only has to START a run and the run itself then
-# refreshes every 5 minutes for just under 6 hours.
+# Runs twice a day (10:12 and 16:12 IST) and whenever someone presses "Run workflow"
+# in the Actions tab. Each run is ONE refresh: fetch VisiLean, rebuild, commit and push
+# only if the data or the template changed. Same pattern as refresh-v2.yml.
+#
+# GitHub fires scheduled runs on a best-effort basis, so a scheduled run may start a
+# little later than asked (typically 10-30 min, worst case ~2 h). Press "Run workflow"
+# if you need the numbers right now.
 
 on:
   schedule:
-    - cron: "13,43 * * * *"
-  workflow_dispatch:
-    inputs:
-      once:
-        description: "Refresh once and exit (no loop)"
-        type: boolean
-        default: false
+    # cron is UTC. IST = UTC+5:30. Each project is offset a few minutes from the others
+    # so six workers do not all push to the repo at the same second.
+    - cron: "42 4 * * *"      # 10:12 IST
+    - cron: "42 10 * * *"     # 16:12 IST
+  workflow_dispatch:          # manual: Actions tab -> "Run workflow", or `gh workflow run refresh-floating.yml`
 
 permissions:
   contents: write
 
 concurrency:
   group: refresh-floating
-  cancel-in-progress: true      # a newly started worker replaces the running one
+  cancel-in-progress: true      # a manual run started during a scheduled one replaces it
 
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 350        # stay under the 6h hard limit
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -34,7 +36,7 @@ jobs:
 
       # Resolve credentials. VisiLean issues one token per project: VL_TOKEN_<KEY> is
       # tried first, then the project's entry in the single VL_TOKENS_JSON secret. Not
-      # configured = warning + skipped loop, never a failed run - see scripts/sync_preflight.py.
+      # configured = warning + skipped refresh, never a failed run - see scripts/sync_preflight.py.
       - name: Resolve VisiLean credentials
         id: pre
         env:
@@ -42,55 +44,52 @@ jobs:
           VL_TOKEN_FLOATING: ${{ secrets.VL_TOKEN_FLOATING }}
         run: python scripts/sync_preflight.py floating
 
-      - name: Refresh loop (every 5 minutes)
+      - name: Refresh once (fetch, build, publish if changed)
         if: steps.pre.outputs.configured == 'true'
         env:
           VL_TOKENS_JSON: ${{ secrets.VL_TOKENS_JSON }}
           VL_TOKEN_FLOATING: ${{ secrets.VL_TOKEN_FLOATING }}
-          ONCE: ${{ inputs.once }}
         run: |
           set -uo pipefail
           git config user.name  "visilean-bot"
           git config user.email "support@visilean.com"
 
-          END=$(( $(date +%s) + 340*60 ))   # leave headroom before the job timeout
-          n=0
-          fails=0
-          while : ; do
-            n=$((n+1))
-            echo "::group::cycle $n  $(date -u '+%H:%M:%S UTC')"
-
+          # VisiLean occasionally blinks; give it three tries two minutes apart before
+          # calling the run failed.
+          built=false
+          for attempt in 1 2 3 ; do
+            echo "::group::attempt $attempt  $(date -u '+%H:%M:%S UTC')"
             if python scripts/dash_data.py floating && python scripts/build_dash.py floating ; then
-              fails=0
-              if git diff --quiet -- floating/.datahash floating/.tplhash ; then
-                echo "no data change"
-              else
-                git add floating
-                git commit -m "floating auto-refresh $(TZ=Asia/Kolkata date '+%d-%b %H:%M IST')" || true
-                # another worker may have pushed while we were building
-                for try in 1 2 3 ; do
-                  git pull --rebase --autostash -q && git push -q && { echo "published"; break; }
-                  echo "push retry $try"; sleep 5
-                done
-              fi
-            else
-              # a bad cycle must not kill the worker - the next one recovers. But a run
-              # of them means the sync is broken, not that VisiLean blinked, so stop
-              # pretending everything is fine and let the run go red.
-              fails=$((fails+1))
-              echo "cycle failed (VisiLean unreachable or build error) - continuing ($fails in a row)"
-              git checkout -- floating 2>/dev/null || true
-              if [ "$fails" -ge 6 ]; then
-                echo "::error title=Floating Solar sync is failing::$fails cycles in a row failed - VisiLean unreachable, token rejected, or a build error."
-                echo "### Floating Solar sync is failing" >> "$GITHUB_STEP_SUMMARY"
-                echo "" >> "$GITHUB_STEP_SUMMARY"
-                echo "$fails consecutive cycles failed (~$((fails*5)) minutes). Check the cycle logs above: a rejected token gives HTTP 400 from VisiLean." >> "$GITHUB_STEP_SUMMARY"
-                exit 1
-              fi
+              built=true
+              echo "::endgroup::"
+              break
             fi
+            echo "attempt $attempt failed (VisiLean unreachable or build error)"
             echo "::endgroup::"
-
-            if [ "${ONCE:-false}" = "true" ]; then echo "once-mode: done"; break; fi
-            if [ "$(date +%s)" -ge "$END" ]; then echo "worker window finished after $n cycles"; break; fi
-            sleep 300
+            git checkout -- floating 2>/dev/null || true
+            [ "$attempt" -lt 3 ] && sleep 120
           done
+
+          if [ "$built" != "true" ]; then
+            echo "::error title=Floating Solar refresh failed::3 attempts failed - VisiLean unreachable, token rejected, or a build error."
+            echo "### Floating Solar refresh failed" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "All 3 attempts failed. Check the logs above: a rejected token gives HTTP 400 from VisiLean." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          if git diff --quiet -- floating/.datahash floating/.tplhash ; then
+            echo "no data change - nothing published"
+            echo "No change in VisiLean data since the last build; nothing published." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          git add floating
+          git commit -m "floating auto-refresh $(TZ=Asia/Kolkata date '+%d-%b %H:%M IST')" || true
+          # the other projects publish at about the same time, so expect a few rejected pushes
+          for try in 1 2 3 4 5 ; do
+            git pull --rebase --autostash -q && git push -q && { echo "published"; echo "Published a new build at $(TZ=Asia/Kolkata date '+%d-%b %H:%M IST')." >> "$GITHUB_STEP_SUMMARY"; exit 0; }
+            echo "push retry $try"; sleep $((10*try))
+          done
+          echo "::error::could not push after 5 tries"
+          exit 1

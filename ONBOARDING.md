@@ -61,16 +61,16 @@ These are all real failures from this repo, not hypotheticals.
 
 ## Working at the same time
 
-The refresh worker commits to `v2/`, `v3/`, `sjvn/` … every few minutes, so you will hit
-conflicts on build outputs constantly. They are never interesting — take your own build
-and move on:
+The refresh workflows commit to `v2/`, `v3/`, `sjvn/` … at 10:00 and 16:00 IST (and on
+manual runs), so you can hit conflicts on build outputs if you push around those times.
+They are never interesting — take your own build and move on:
 
 ```bash
 gh run cancel <the in_progress run>        # optional, stops it racing you
 git checkout --theirs v2/index.html v2/meta.json v2/.datahash    # …and v3/, etc.
 git add v2 v3 && git rebase --continue
 git push origin master
-gh workflow run refresh-v2.yml             # restart the worker you cancelled
+gh workflow run refresh-v2.yml             # re-run the refresh you cancelled (v2 runs once, at 10:00/16:00 IST or on demand)
 ```
 
 **After any rebase or stash touching a published folder, grep for `<<<<<<<`.**
