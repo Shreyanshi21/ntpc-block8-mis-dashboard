@@ -35,40 +35,22 @@ jobs:
         with:
           python-version: "3.12"
 
-      # Fail LOUDLY when the sync is not configured. Without this the loop below just
-      # logs "cycle failed" every 5 minutes and the run still finishes green, which is
-      # how four dashboards sat stale for days with nothing to show for it.
-      - name: Check credentials are configured
+      # Resolve credentials. One VL_TOKENS_JSON secret can carry every project's tokens;
+      # per-project secrets still win. Not configured = warning + skipped loop, never a
+      # failed run - see scripts/sync_preflight.py.
+      - name: Resolve VisiLean credentials
+        id: pre
         env:
-          T: ${{ secrets.VL_TOKEN_ADOPT_TASK }}
-          H: ${{ secrets.VL_TOKEN_ADOPT_HIST }}
-          C: ${{ secrets.VL_TOKEN_ADOPT_NOTES }}
-        run: |
-          missing=""
-          [ -n "${T:-}" ] || missing="$missing VL_TOKEN_ADOPT_TASK"
-          [ -n "${H:-}" ] || missing="$missing VL_TOKEN_ADOPT_HIST"
-          [ -n "${C:-}" ] || missing="$missing VL_TOKEN_ADOPT_NOTES"
-          if [ -n "$missing" ]; then
-            echo "::error title=Adoption tracker sync is not configured::Missing repository secret(s):$missing"
-            {
-              echo "### Adoption tracker sync is not configured"
-              echo ""
-              echo "Missing repository secret(s):"
-              for s in $missing ; do echo "- \`$s\`" ; done
-              echo ""
-              echo "A VisiLean API token only works for the project it was generated for, so this"
-              echo "project needs its own. Add them once and this dashboard refreshes itself:"
-              echo ""
-              echo '```bash'
-              for s in $missing ; do echo "gh secret set $s --repo ${{ github.repository }}" ; done
-              echo '```'
-            } >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
-          echo "credentials present"
+          VL_TOKENS_JSON: ${{ secrets.VL_TOKENS_JSON }}
+          VL_TOKEN_ADOPT_TASK: ${{ secrets.VL_TOKEN_ADOPT_TASK }}
+          VL_TOKEN_ADOPT_HIST: ${{ secrets.VL_TOKEN_ADOPT_HIST }}
+          VL_TOKEN_ADOPT_NOTES: ${{ secrets.VL_TOKEN_ADOPT_NOTES }}
+        run: python scripts/sync_preflight.py adopt
 
       - name: Refresh loop (every 15 minutes)
+        if: steps.pre.outputs.configured == 'true'
         env:
+          VL_TOKENS_JSON: ${{ secrets.VL_TOKENS_JSON }}
           VL_TOKEN_ADOPT_TASK: ${{ secrets.VL_TOKEN_ADOPT_TASK }}
           VL_TOKEN_ADOPT_HIST: ${{ secrets.VL_TOKEN_ADOPT_HIST }}
           VL_TOKEN_ADOPT_NOTES: ${{ secrets.VL_TOKEN_ADOPT_NOTES }}

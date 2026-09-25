@@ -1,0 +1,48 @@
+name: Dashboard sync health
+
+# The refresh workers no longer fail when a project has no credentials - that mailed
+# everyone on the repo every half hour for something no retry can fix. The signal still
+# has to exist though, so it lives here instead: once a day, check what every PUBLISHED
+# dashboard actually shows and whether its sync is alive. One notification a day, not
+# one per cycle.
+#
+# This is also the check to look at after adding credentials: it goes green the moment
+# every dashboard is syncing.
+
+on:
+  schedule:
+    - cron: "35 3 * * *"        # 09:05 IST, before the working day
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check every dashboard
+        run: |
+          set -o pipefail
+          python scripts/check_sync.py | tee /tmp/health.txt
+          rc=${PIPESTATUS[0]}
+          {
+            echo "### Dashboard sync health"
+            echo ""
+            echo '```'
+            cat /tmp/health.txt
+            echo '```'
+            if [ "$rc" -ne 0 ]; then
+              echo ""
+              echo "One or more dashboards are not syncing. If a project is simply not set up yet,"
+              echo "add its tokens - see [SYNC-SETUP.md](../blob/master/SYNC-SETUP.md)."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit $rc

@@ -34,40 +34,22 @@ jobs:
         with:
           python-version: "3.12"
 
-      # Fail LOUDLY when the sync is not configured. Without this the loop below just
-      # logs "cycle failed" every 5 minutes and the run still finishes green, which is
-      # how four dashboards sat stale for days with nothing to show for it.
-      - name: Check credentials are configured
+      # Resolve credentials. One VL_TOKENS_JSON secret can carry every project's tokens;
+      # per-project secrets still win. Not configured = warning + skipped loop, never a
+      # failed run - see scripts/sync_preflight.py.
+      - name: Resolve VisiLean credentials
+        id: pre
         env:
-          T: ${{ secrets.VL_TOKEN_TASK_ADANI }}
-          H: ${{ secrets.VL_TOKEN_HISTORY_ADANI }}
-          C: ${{ secrets.VL_TOKEN_CONSTRAINTS_ADANI }}
-        run: |
-          missing=""
-          [ -n "${T:-}" ] || missing="$missing VL_TOKEN_TASK_ADANI"
-          [ -n "${H:-}" ] || missing="$missing VL_TOKEN_HISTORY_ADANI"
-          [ -n "${C:-}" ] || missing="$missing VL_TOKEN_CONSTRAINTS_ADANI"
-          if [ -n "$missing" ]; then
-            echo "::error title=Adani S6a sync is not configured::Missing repository secret(s):$missing"
-            {
-              echo "### Adani S6a sync is not configured"
-              echo ""
-              echo "Missing repository secret(s):"
-              for s in $missing ; do echo "- \`$s\`" ; done
-              echo ""
-              echo "A VisiLean API token only works for the project it was generated for, so this"
-              echo "project needs its own. Add them once and this dashboard refreshes itself:"
-              echo ""
-              echo '```bash'
-              for s in $missing ; do echo "gh secret set $s --repo ${{ github.repository }}" ; done
-              echo '```'
-            } >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
-          echo "credentials present"
+          VL_TOKENS_JSON: ${{ secrets.VL_TOKENS_JSON }}
+          VL_TOKEN_TASK_ADANI: ${{ secrets.VL_TOKEN_TASK_ADANI }}
+          VL_TOKEN_HISTORY_ADANI: ${{ secrets.VL_TOKEN_HISTORY_ADANI }}
+          VL_TOKEN_CONSTRAINTS_ADANI: ${{ secrets.VL_TOKEN_CONSTRAINTS_ADANI }}
+        run: python scripts/sync_preflight.py adani
 
       - name: Refresh loop (every 5 minutes)
+        if: steps.pre.outputs.configured == 'true'
         env:
+          VL_TOKENS_JSON: ${{ secrets.VL_TOKENS_JSON }}
           VL_TOKEN_TASK_ADANI: ${{ secrets.VL_TOKEN_TASK_ADANI }}
           VL_TOKEN_HISTORY_ADANI: ${{ secrets.VL_TOKEN_HISTORY_ADANI }}
           VL_TOKEN_CONSTRAINTS_ADANI: ${{ secrets.VL_TOKEN_CONSTRAINTS_ADANI }}
