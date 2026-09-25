@@ -39,6 +39,18 @@ shaped like this:
 Include only the projects you have tokens for — anything missing is simply skipped, and
 you can add it later by editing the one secret.
 
+**Got the tokens from someone else?** One command normalises whatever shape they arrive
+in — a `vl_tokens.json`, a flat map for one project, or Power BI feed URLs — verifies
+every one against VisiLean, and writes the file to copy from:
+
+```bash
+python scripts/prepare_tokens.py tokens-from-colleague.json
+# add --project sjvn if the file holds one project's tokens without saying which
+```
+
+Tokens are never printed to the terminal; the output goes to `tokens.secret.json`, which
+you open, copy, and then delete.
+
 **Check the tokens before you paste them.** A wrong token fails quietly in a runner log,
 so verify while the file is still in front of you:
 
