@@ -34,6 +34,21 @@ def get(url, timeout=45):
     return json.loads(urllib.request.urlopen(req, timeout=timeout).read().decode("utf-8", "replace"))
 
 
+def loop_skipped(run_id):
+    """Did this run skip its refresh loop (i.e. no credentials)?"""
+    if not run_id:
+        return False
+    try:
+        j = get(f"https://api.github.com/repos/{REPO}/actions/runs/{run_id}/jobs")
+        for job in j.get("jobs") or []:
+            for st in job.get("steps") or []:
+                if st.get("name", "").startswith("Refresh loop"):
+                    return st.get("conclusion") == "skipped"
+    except Exception:
+        pass
+    return False
+
+
 def workflow_state(wf, cache={}):
     """Last run of this workflow: (verdict, url). Unauthenticated, so best-effort."""
     if wf in cache:
@@ -48,7 +63,11 @@ def workflow_state(wf, cache={}):
             if r.get("status") != "completed":
                 out = ("running", r.get("html_url", ""))
             elif r.get("conclusion") == "success":
-                out = ("ok", r.get("html_url", ""))
+                # A run whose credentials are missing SUCCEEDS with the refresh loop
+                # skipped - that is deliberate, it stops the mail storm. But a skipped
+                # loop is not a healthy sync, and reporting it as "ok" would be the
+                # same false green this check exists to catch. Look at the step.
+                out = ("not configured", r.get("html_url", ""))                     if loop_skipped(r.get("id")) else ("ok", r.get("html_url", ""))
             else:
                 out = ("FAILING", r.get("html_url", ""))
     except Exception as e:
@@ -77,7 +96,7 @@ def main():
             age = "?"
         verdict, url = workflow_state(wf)
         flag = ""
-        if verdict in ("FAILING", "never run"):
+        if verdict in ("FAILING", "never run", "not configured"):
             bad.append(name)
             flag = "  <- " + (url or "check Actions")
         print("%-32s %-10s %-22s %-11s %s%s"

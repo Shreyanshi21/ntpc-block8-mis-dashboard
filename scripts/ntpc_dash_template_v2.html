@@ -2255,7 +2255,21 @@ async function checkSyncHealth(){
         const j=await r.json(),run=(j.workflow_runs||[])[0];
         if(!run){bad=true;verdict="Its sync has never run."}
         else if(run.status!=="completed"){verdict="Its sync is running now, so this is the latest VisiLean has.";}
-        else if(run.conclusion==="success"){verdict="Its sync last ran without error, so VisiLean has published no changes since.";}
+        else if(run.conclusion==="success"){
+          // A run with no credentials SUCCEEDS with its refresh loop skipped - that is
+          // deliberate, it stops the mail storm. But a skipped loop is not a healthy
+          // sync, so ask the steps before calling this "fine".
+          let skipped=false;
+          try{
+            const jr=await fetch(`https://api.github.com/repos/${SYNC.repo}/actions/runs/${run.id}/jobs`,{cache:"no-store"});
+            if(jr.ok){const jj=await jr.json();
+              (jj.jobs||[]).forEach(j=>(j.steps||[]).forEach(s=>{
+                if(String(s.name||"").indexOf("Refresh loop")===0&&s.conclusion==="skipped")skipped=true}));}
+          }catch(e){}
+          if(skipped){bad=true;verdict="Its sync is not set up, so this dashboard is not being refreshed.";
+                      fix=` <a href="${run.html_url}" target="_blank" rel="noopener">Details ↗</a>`}
+          else verdict="Its sync last ran without error, so VisiLean has published no changes since.";
+        }
         else{bad=true;verdict="Its sync is failing.";fix=` <a href="${run.html_url}" target="_blank" rel="noopener">See why \u2197</a>`}
       }
     }

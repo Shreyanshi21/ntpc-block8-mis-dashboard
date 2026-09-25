@@ -847,7 +847,7 @@ function vlChip(v){const k=vlKey(v);const m=VLMAP[k];return m?chip(m[0],vlText(k
 // ---------- am I the build the server has? ----------------------------------
 // Read in an iframe that can hold a cached copy for hours, so the page asks rather than
 // assumes. Replaces itself once per published build; silent when it is already current.
-const BUILD_ID="116a601a87d0da31";
+const BUILD_ID="45e3415a7cbefb00";
 (function(){
   if(!window.fetch || BUILD_ID.indexOf("BUILD")>=0) return;   // not stamped: nothing to check
   let ss=null; try{ss=window.sessionStorage; ss.getItem("x")}catch(e){ss=null}
@@ -4875,7 +4875,21 @@ async function checkSyncHealth(){
         const j=await r.json(),run=(j.workflow_runs||[])[0];
         if(!run){bad=true;verdict="Its sync has never run."}
         else if(run.status!=="completed"){verdict="Its sync is running now, so this is the latest VisiLean has.";}
-        else if(run.conclusion==="success"){verdict="Its sync last ran without error, so VisiLean has published no changes since.";}
+        else if(run.conclusion==="success"){
+          // A run with no credentials SUCCEEDS with its refresh loop skipped - that is
+          // deliberate, it stops the mail storm. But a skipped loop is not a healthy
+          // sync, so ask the steps before calling this "fine".
+          let skipped=false;
+          try{
+            const jr=await fetch(`https://api.github.com/repos/${SYNC.repo}/actions/runs/${run.id}/jobs`,{cache:"no-store"});
+            if(jr.ok){const jj=await jr.json();
+              (jj.jobs||[]).forEach(j=>(j.steps||[]).forEach(s=>{
+                if(String(s.name||"").indexOf("Refresh loop")===0&&s.conclusion==="skipped")skipped=true}));}
+          }catch(e){}
+          if(skipped){bad=true;verdict="Its sync is not set up, so this dashboard is not being refreshed.";
+                      fix=` <a href="${run.html_url}" target="_blank" rel="noopener">Details ↗</a>`}
+          else verdict="Its sync last ran without error, so VisiLean has published no changes since.";
+        }
         else{bad=true;verdict="Its sync is failing.";fix=` <a href="${run.html_url}" target="_blank" rel="noopener">See why \u2197</a>`}
       }
     }

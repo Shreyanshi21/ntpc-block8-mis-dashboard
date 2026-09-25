@@ -80,7 +80,7 @@ jobs:
               if git diff --quiet -- v2/.datahash v2/.tplhash ; then
                 echo "no data change"
               else
-                git add v2
+                git add v2 v3          # this workflow builds BOTH NTPC themes
                 git commit -m "v2 auto-refresh $(TZ=Asia/Kolkata date '+%d-%b %H:%M IST')" || true
                 # another worker may have pushed while we were building
                 for try in 1 2 3 ; do
