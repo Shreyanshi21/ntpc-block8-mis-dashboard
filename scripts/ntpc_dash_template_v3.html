@@ -4475,7 +4475,10 @@ function layoutCard(rows,title,idp){
     "drawn to the site layout \u00b7 "
       +(CFG.blockDrill&&layoutView==="tiles"?"click a block for its activities by package":"click a block to filter")
       +" \u00b7 hover for quantities \u00b7 A = actual, P = plan (red = behind plan)",
-    layoutView==="tiles"?feederTiles(rows):feederMap(rows),
+    // the all-blocks totals strip belongs above either view. feederTiles() renders its
+    // own copy, so it is only added here on the map path - which no project without
+    // site geometry ever takes.
+    (layoutView==="tiles"?feederTiles(rows):(CFG.blockSummary?feederSummary(rows):"")+feederMap(rows)),
     `<div class="toggle2" id="${idp}"><button data-v="map" class="${layoutView!=="tiles"?"on":""}">Site map</button><button data-v="tiles" class="${layoutView==="tiles"?"on":""}">Tiles</button></div>`);
 }
 function pageLayout(){

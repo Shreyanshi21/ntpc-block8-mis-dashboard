@@ -604,5 +604,21 @@
   "acceptLabel": "Approval",
   "syncRepo": "Vikas-visilean/ntpc-block8-mis-dashboard",
   "syncWorkflow": "refresh-sjvn.yml",
-  "_sync_comment": "the workflow that keeps this dashboard fed; the page asks GitHub about it only when a build is old enough to question (checkSyncHealth)"
+  "_sync_comment": "the workflow that keeps this dashboard fed; the page asks GitHub about it only when a build is old enough to question (checkSyncHealth)",
+  "pipeColFrom": "sub",
+  "_pipeColFrom_comment": "this schedule names every procurement activity after its package - 'PR (PVM)', 'Purchase Order with Adv Payment (LT-C)' - so 656 activities carry 627 distinct names and the pipeline matrix keyed on the name gave a near-arbitrary column per package. Keying on the pipeline sub-stage gives the seven real steps instead (as S6a does).",
+  "blockSummary": true,
+  "_blockSummary_comment": "the all-feeders totals strip above the Area Scorecard, as on S6a.",
+  "blockDrill": true,
+  "_blockDrill_comment": "click a feeder's category bar (or the totals strip) to open the activities behind it, as on S6a.",
+  "vlLabel": {
+    "Not Ready": "Not Started"
+  },
+  "_vlLabel_comment": "1,268 of 1,555 activities sit at VisiLean's 'Not Ready', which here simply means work that has not begun - reading it as a problem state was misleading, so it is labelled 'Not Started', the same rename S6a uses.",
+  "vlHide": [
+    "Warning",
+    "Rejected at QC",
+    "Quality Checked"
+  ],
+  "_vlHide_comment": "states this project's process never produces, dropped from the status legend (checked 25-Sep-2026: the data carries only Not Ready, Complete, Not Committed, Started, Forced Ready, Ready). 'Stopped' is deliberately kept - the Stopped KPI card reads 'none halted', so the legend should still explain it."
 }
