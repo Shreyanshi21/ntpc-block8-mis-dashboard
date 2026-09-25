@@ -31,11 +31,13 @@ python scripts/check_sync.py
 
 As of 25-Sep-2026: **NTPC syncs; the other five do not**, because their VisiLean tokens
 were never added as repository secrets. Their folders have only ever moved when someone
-built locally and pushed. The fix is one secret — see **[SYNC-SETUP.md](SYNC-SETUP.md)**.
+built locally and pushed. The fix is one secret per project — see
+**[SYNC-SETUP.md](SYNC-SETUP.md)**.
 
 A VisiLean token only works for the project it was generated for ("Each token can only
-access the project it was generated for"), which is why every project needs its own.
-`VL_TOKENS_JSON` carries all of them in one secret.
+access the project it was generated for"), and one token serves every feed, so every
+project needs exactly one: the `VL_TOKEN_<KEY>` secret, with the flat `VL_TOKENS_JSON`
+secret as a fallback the worker switches to if VisiLean rejects the first.
 
 ## Things that will bite you
 
@@ -54,8 +56,8 @@ These are all real failures from this repo, not hypotheticals.
   the browser.
 - **Never commit tokens.** `scripts/vl_tokens.json` and `tokens*.json` are gitignored and
   the builds assert no `accessToken` reaches the HTML. Use
-  `scripts/prepare_tokens.py` to hand tokens over — it verifies them and writes to a
-  file instead of printing them.
+  `scripts/prepare_tokens.py` to hand tokens over — it verifies each one against all
+  three feeds and writes to a file instead of printing them.
 
 ## Working at the same time
 

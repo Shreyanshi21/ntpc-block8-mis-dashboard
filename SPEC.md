@@ -7,9 +7,10 @@
 **Spec updated:** 31-Aug-2026
 
 > **Keeping the dashboards fed:** every project refreshes itself on a GitHub Actions worker —
-> see **[SYNC-SETUP.md](SYNC-SETUP.md)**. A project needs its own VisiLean tokens as repository
-> secrets (a token only works for the project it was generated for); without them its workflow
-> fails loudly rather than looping in green. `python scripts/check_sync.py` reports every
+> see **[SYNC-SETUP.md](SYNC-SETUP.md)**. A project needs its own VisiLean token as a repository
+> secret (a token only works for the project it was generated for); without one its workflow
+> skips its refresh loop with a warning rather than looping in green, and the daily
+> `sync-health.yml` reports what is not fed. `python scripts/check_sync.py` reports every
 > dashboard's build age and whether its sync is alive.
 
 The working dashboard is **v2**, live from the VisiLean PowerBI APIs and embedded in VisiLean's
@@ -307,9 +308,10 @@ Three VisiLean PowerBI endpoints, project `7A2842F6-7E5F-DB7C-3E7F-0EE7EF60698F`
 | `type=task` + `&IncludeStatusChange=true&IncludeReschedule=true&IncludeQuantities=true&IncludeConstraintNotes=true` | the history feed — **those flags are what populate `activityHistory`**, which is where variance reasons live |
 | `type=constraintLog` | the constraints log |
 
-Tokens are GitHub Actions secrets (`VL_TOKEN_TASK` / `VL_TOKEN_HISTORY` / `VL_TOKEN_CONSTRAINTS`)
-and a gitignored `scripts/vl_tokens.json` locally. **Never commit them**; the build asserts
-`"accessToken" not in html`.
+One token serves all three calls. It is a GitHub Actions secret (`VL_TOKEN_NTPC`, falling back to
+the `ntpc` entry of the flat `VL_TOKENS_JSON`) and, locally, the gitignored flat
+`scripts/vl_tokens.json` (`{"ntpc": "<token>"}`) — see `scripts/vl_token.py`. **Never commit
+them**; the build asserts `"accessToken" not in html`.
 
 The API returns **403 to any request carrying a browser `Origin` header**, so the page cannot fetch
 VisiLean directly. Everything goes through the GitHub Action.

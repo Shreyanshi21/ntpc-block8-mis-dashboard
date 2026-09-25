@@ -35,25 +35,22 @@ jobs:
         with:
           python-version: "3.12"
 
-      # Resolve credentials. One VL_TOKENS_JSON secret can carry every project's tokens;
-      # per-project secrets still win. Not configured = warning + skipped loop, never a
-      # failed run - see scripts/sync_preflight.py.
+      # Resolve credentials. The adoption tracker and Updates report read the NTPC
+      # project, so they use the NTPC token: VL_TOKEN_NTPC first, then the "ntpc" entry
+      # in the single VL_TOKENS_JSON secret. Not configured = warning + skipped loop,
+      # never a failed run - see scripts/sync_preflight.py.
       - name: Resolve VisiLean credentials
         id: pre
         env:
           VL_TOKENS_JSON: ${{ secrets.VL_TOKENS_JSON }}
-          VL_TOKEN_ADOPT_TASK: ${{ secrets.VL_TOKEN_ADOPT_TASK }}
-          VL_TOKEN_ADOPT_HIST: ${{ secrets.VL_TOKEN_ADOPT_HIST }}
-          VL_TOKEN_ADOPT_NOTES: ${{ secrets.VL_TOKEN_ADOPT_NOTES }}
+          VL_TOKEN_NTPC: ${{ secrets.VL_TOKEN_NTPC }}
         run: python scripts/sync_preflight.py adopt
 
       - name: Refresh loop (every 15 minutes)
         if: steps.pre.outputs.configured == 'true'
         env:
           VL_TOKENS_JSON: ${{ secrets.VL_TOKENS_JSON }}
-          VL_TOKEN_ADOPT_TASK: ${{ secrets.VL_TOKEN_ADOPT_TASK }}
-          VL_TOKEN_ADOPT_HIST: ${{ secrets.VL_TOKEN_ADOPT_HIST }}
-          VL_TOKEN_ADOPT_NOTES: ${{ secrets.VL_TOKEN_ADOPT_NOTES }}
+          VL_TOKEN_NTPC: ${{ secrets.VL_TOKEN_NTPC }}
           ONCE: ${{ inputs.once }}
         run: |
           set -uo pipefail
@@ -72,8 +69,7 @@ jobs:
               if git diff --quiet -- adoption/.datahash adoption/.tplhash ; then
                 echo "no new activity in the trail"
               else
-                git add adoption
-                        updates/index.html updates/meta.json updates/.datahash
+                git add adoption updates/index.html updates/meta.json updates/.datahash
                 git commit -m "adoption + updates auto-refresh $(TZ=Asia/Kolkata date '+%d-%b %H:%M IST')" || true
                 # another worker may have pushed while we were building
                 for try in 1 2 3 ; do

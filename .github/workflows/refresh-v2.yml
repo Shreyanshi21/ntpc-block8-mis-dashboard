@@ -43,25 +43,21 @@ jobs:
         with:
           python-version: "3.12"
 
-      # Resolve credentials. One VL_TOKENS_JSON secret can carry every project's tokens;
-      # per-project secrets still win. Not configured = warning + skipped loop, never a
-      # failed run - see scripts/sync_preflight.py.
+      # Resolve credentials. VisiLean issues one token per project: VL_TOKEN_<KEY> is
+      # tried first, then the project's entry in the single VL_TOKENS_JSON secret. Not
+      # configured = warning + skipped loop, never a failed run - see scripts/sync_preflight.py.
       - name: Resolve VisiLean credentials
         id: pre
         env:
           VL_TOKENS_JSON: ${{ secrets.VL_TOKENS_JSON }}
-          VL_TOKEN_TASK: ${{ secrets.VL_TOKEN_TASK }}
-          VL_TOKEN_HISTORY: ${{ secrets.VL_TOKEN_HISTORY }}
-          VL_TOKEN_CONSTRAINTS: ${{ secrets.VL_TOKEN_CONSTRAINTS }}
+          VL_TOKEN_NTPC: ${{ secrets.VL_TOKEN_NTPC }}
         run: python scripts/sync_preflight.py ntpc
 
       - name: Refresh loop (every 5 minutes)
         if: steps.pre.outputs.configured == 'true'
         env:
           VL_TOKENS_JSON: ${{ secrets.VL_TOKENS_JSON }}
-          VL_TOKEN_TASK: ${{ secrets.VL_TOKEN_TASK }}
-          VL_TOKEN_HISTORY: ${{ secrets.VL_TOKEN_HISTORY }}
-          VL_TOKEN_CONSTRAINTS: ${{ secrets.VL_TOKEN_CONSTRAINTS }}
+          VL_TOKEN_NTPC: ${{ secrets.VL_TOKEN_NTPC }}
           ONCE: ${{ inputs.once }}
         run: |
           set -uo pipefail

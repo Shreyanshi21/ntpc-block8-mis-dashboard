@@ -31,9 +31,10 @@ cannot be counted. Verified 07-Sep-2026 — IncludeAttachments / IncludeFiles /
 IncludeDocuments all return the same payload with no file events. `meta.noAttachments`
 carries that fact so the page can say so rather than imply zero uploads.
 
-Tokens come from env (VL_TOKEN_ADOPT_TASK / _HIST / _NOTES, set as GitHub Actions
-secrets) or scripts/vl_tokens.json next to this script (never committed).
-Emits scripts/adoption_data.json.
+This reads the NTPC project, so it uses the NTPC project's one VisiLean token: env
+VL_TOKEN_NTPC, or the "ntpc" entry in VL_TOKENS_JSON (GitHub Actions secrets), or the
+flat scripts/vl_tokens.json next to this script (never committed) - see vl_token.py.
+There is no separate adoption token. Emits scripts/adoption_data.json.
 """
 import io
 import json
@@ -64,52 +65,33 @@ EXCLUDE_ACTORS = {"shreyanshi jaiswal"}
 # monika sen is hidden from the User Updates Report only, so that lives in
 # updates_template.html (HIDE_ACTORS) rather than here - KP asked for it there alone.
 
+# feed -> the flags that select it; every feed is type=task on the one project token
 FEEDS = {
-    "task": ("VL_TOKEN_ADOPT_TASK", ""),
-    "hist": ("VL_TOKEN_ADOPT_HIST",
-             "&IncludeStatusChange=true&IncludeReschedule=true"
+    "task": "",
+    "hist": ("&IncludeStatusChange=true&IncludeReschedule=true"
              "&IncludeTaskCreation=true&IncludeQuantities=true"),
-    "notes": ("VL_TOKEN_ADOPT_NOTES", "&IncludeConstraintNotes=true&IncludeOther=true"),
+    "notes": "&IncludeConstraintNotes=true&IncludeOther=true",
 }
 
-
-def _tokens():
-    t = {k: os.environ.get(env, "") for k, (env, _) in FEEDS.items()}
-    if not all(t.values()):
-        f = os.path.join(SCR, "vl_tokens.json")
-        if os.path.exists(f):
-            j = json.load(open(f, encoding="utf-8"))
-            for k in FEEDS:
-                t[k] = t[k] or j.get("adopt_" + k, "") or j.get(k, "")
-    missing = [k for k, v in t.items() if not v]
-    if missing:
-        raise SystemExit("no VisiLean token for: %s (set VL_TOKEN_ADOPT_* or scripts/vl_tokens.json)"
-                         % ", ".join(missing))
-    return t
-
-
-TOKENS = _tokens()
+sys.path.insert(0, SCR)
+from vl_token import TokenPool, TokenRejected, fetch_json    # noqa: E402
+# a rejected VL_TOKEN_NTPC falls back to the "ntpc" entry of VL_TOKENS_JSON
+POOL = TokenPool("ntpc", "Adoption tracker")
 
 
 def fetch(kind, attempts=3):
-    url = "%s?accessToken=%s&projectId=%s&type=task%s" % (BASE, TOKENS[kind], PROJECT, FEEDS[kind][1])
-    last = None
-    for i in range(attempts):
-        try:
-            req = urllib.request.Request(url, headers={"User-Agent": "VisiLean-Adoption"})
-            raw = urllib.request.urlopen(req, timeout=300).read()
-            return json.loads(raw.decode("utf-8", errors="replace"))
-        except Exception as e:                                    # noqa: BLE001
-            last = e
-            print("fetch %s attempt %d/%d failed: %s" % (kind, i + 1, attempts, e))
-            if i + 1 < attempts:
-                time.sleep(15 * (i + 1))
-    raise last
+    return fetch_json(
+        POOL, lambda t: "%s?accessToken=%s&projectId=%s&type=task%s" % (BASE, t, PROJECT, FEEDS[kind]),
+        attempts=attempts, label=kind, agent="VisiLean-Adoption", timeout=300)
 
 
 print("fetching VisiLean APIs...")
 try:
     FEED = {k: fetch(k) for k in ("task", "hist", "notes")}
+except TokenRejected as e:
+    # a wrong credential is not an outage: fail the cycle so the run goes red
+    print("::error title=%s every VisiLean token rejected::%s" % (POOL.label, e))
+    sys.exit(1)
 except Exception as e:                                            # noqa: BLE001
     # transient VisiLean outage: skip this cycle cleanly, the next run recovers
     print("SKIP this cycle - VisiLean API unreachable after retries: %s" % e)

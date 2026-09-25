@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """NTPC dashboard data v2 — LIVE from the VisiLean PowerBI APIs.
-   Tokens come from env (VL_TOKEN_TASK / VL_TOKEN_HISTORY / VL_TOKEN_CONSTRAINTS,
-   set as GitHub Actions secrets) or a local vl_tokens.json next to this script
-   (never committed). Pure Python. Emits scripts/ntpc_dashboard_data_v2.json."""
+   The project's one VisiLean token comes from env (VL_TOKEN_NTPC, or the "ntpc" entry
+   in VL_TOKENS_JSON, set as GitHub Actions secrets) or the flat scripts/vl_tokens.json
+   next to this script (never committed) - see vl_token.py. Pure Python.
+   Emits scripts/ntpc_dashboard_data_v2.json."""
 import sys, io, json, os, re, datetime, urllib.request
 from collections import defaultdict, deque, Counter
 try:
@@ -14,39 +15,21 @@ SCR = os.path.dirname(os.path.abspath(__file__))
 BASE = "https://app.visilean.net/pb/PowerBiAPI/resource/powerBi/getData/visilean"
 PROJECT = "7A2842F6-7E5F-DB7C-3E7F-0EE7EF60698F"
 
-def _tokens():
-    t = {"task": os.environ.get("VL_TOKEN_TASK", ""),
-         "history": os.environ.get("VL_TOKEN_HISTORY", ""),
-         "constraintLog": os.environ.get("VL_TOKEN_CONSTRAINTS", "")}
-    if not t["task"]:
-        f = os.path.join(SCR, "vl_tokens.json")
-        if os.path.exists(f):
-            t.update(json.load(open(f, encoding="utf-8")))
-    if not t["task"]:
-        raise SystemExit("no VisiLean tokens: set VL_TOKEN_* env vars or scripts/vl_tokens.json")
-    return t
-
-TOKENS = _tokens()
+sys.path.insert(0, SCR)
+from vl_token import TokenPool, TokenRejected, fetch_json    # noqa: E402
+# one token serves every feed; a rejected VL_TOKEN_NTPC falls back to VL_TOKENS_JSON
+POOL = TokenPool("ntpc", "NTPC Bikaner Block 8")
 
 def fetch(kind, attempts=3):
     tp = "task" if kind == "history" else kind
-    url = f"{BASE}?accessToken={TOKENS[kind]}&projectId={PROJECT}&type={tp}"
+    flags = ""
     if kind == "history":
         # these flags are what make activityHistory come back populated - it is the
         # audit trail the variance reasons are written into
-        url += ("&IncludeStatusChange=true&IncludeReschedule=true"
-                "&IncludeQuantities=true&IncludeConstraintNotes=true")
-    last = None
-    for i in range(attempts):
-        try:
-            req = urllib.request.Request(url, headers={"User-Agent": "VisiLean-MIS-v2"})
-            return json.loads(urllib.request.urlopen(req, timeout=120).read().decode("utf-8", errors="replace"))
-        except Exception as e:
-            last = e
-            print(f"fetch {kind} attempt {i+1}/{attempts} failed: {e}")
-            if i + 1 < attempts:
-                import time as _t; _t.sleep(15 * (i + 1))
-    raise last
+        flags = ("&IncludeStatusChange=true&IncludeReschedule=true"
+                 "&IncludeQuantities=true&IncludeConstraintNotes=true")
+    return fetch_json(POOL, lambda t: f"{BASE}?accessToken={t}&projectId={PROJECT}&type={tp}{flags}",
+                      attempts=attempts, label=kind)
 
 print("fetching VisiLean APIs...")
 try:
@@ -57,6 +40,10 @@ try:
     except Exception as he:
         print("history feed unavailable, variance reasons will be empty:", he)
         HIST = []
+except TokenRejected as e:
+    # a wrong credential is not an outage: fail the cycle so the run goes red
+    print(f"::error title={POOL.label} every VisiLean token rejected::{e}")
+    sys.exit(1)
 except Exception as e:
     # transient VisiLean outage: skip this cycle cleanly; the next run recovers
     print(f"SKIP this cycle - VisiLean API unreachable after retries: {e}")

@@ -1,30 +1,35 @@
 # -*- coding: utf-8 -*-
-"""Check a VL_TOKENS_JSON file against VisiLean BEFORE pasting it into GitHub.
+"""Check VisiLean tokens against VisiLean BEFORE pasting them into GitHub.
 
     python scripts/check_tokens_json.py tokens.json
 
-Hits every feed each project declares and reports what VisiLean actually says. A wrong
-or mismatched token comes back as a quiet HTTP 400 - "This API access token is not
-valid for the requested project" - which is easy to miss once it is buried in a runner
-log, so it is worth catching while the file is still in front of you.
-
-Reads the same shape the secret takes:
+The file has the shape of the VL_TOKENS_JSON secret - one token per project, flat:
 
     {
-      "sjvn":     {"task": "...", "history": "...", "constraintLog": "..."},
-      "adopt_task": "...", "adopt_hist": "...", "adopt_notes": "..."
+      "ntpc": "...",
+      "sjvn": "..."
     }
+
+Each project's one token is tried against all three feeds its dashboard reads (tasks,
+history, constraints), so this proves the token really covers every feed and not just
+the task list. A wrong or mismatched token comes back as a quiet HTTP 400 - "This API
+access token is not valid for the requested project" - which is easy to miss once it is
+buried in a runner log, so it is worth catching while the file is still in front of you.
 
 Prints only row counts and errors - never a token.
 """
-import json, os, sys, urllib.error, urllib.request
+import io, json, os, sys, urllib.error, urllib.request
 
 SCR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, SCR)
+from vl_token import TokenError, parse_tokens_map            # noqa: E402
+
 BASE = "https://app.visilean.net/pb/PowerBiAPI/resource/powerBi/getData/visilean"
 HIST_FLAGS = ("&IncludeStatusChange=true&IncludeReschedule=true"
               "&IncludeQuantities=true&IncludeConstraintNotes=true")
-SLOT_TYPE = {"task": ("task", ""), "history": ("task", HIST_FLAGS),
-             "constraintLog": ("constraintLog", "")}
+# feed name -> (type= value, extra flags), exactly as the builders call them
+FEEDS = {"task": ("task", ""), "history": ("task", HIST_FLAGS),
+         "constraintLog": ("constraintLog", "")}
 
 
 def project_ids():
@@ -39,7 +44,7 @@ def project_ids():
 
 def probe(token, pid, kind):
     """Returns (ok, detail). Never echoes the token."""
-    t, flags = SLOT_TYPE[kind]
+    t, flags = FEEDS[kind]
     url = "%s?accessToken=%s&projectId=%s&type=%s%s" % (BASE, token, pid, t, flags)
     try:
         r = urllib.request.urlopen(
@@ -57,6 +62,40 @@ def probe(token, pid, kind):
         return False, str(e)[:70]
 
 
+def check_map(tokens, ids):
+    """Probe every feed for every project in a flat {key: token} map. Prints the table
+    and returns the number of problems."""
+    bad = 0
+    print("%-11s %-15s %s" % ("PROJECT", "FEED", "VISILEAN SAYS"))
+    print("-" * 64)
+    for key in sorted(tokens):
+        pid = ids.get(key)
+        if not pid:
+            print("%-11s %-15s no scripts/projects/%s.json - unknown project key" % (key, "-", key))
+            bad += 1
+            continue
+        tok = tokens[key]
+        if not tok:
+            print("%-11s %-15s missing" % (key, "-"))
+            bad += 1
+            continue
+        result = {}
+        for feed in FEEDS:
+            ok, detail = probe(tok, pid, feed)
+            print("%-11s %-15s %s%s" % (key, feed, "OK  " if ok else "FAILED  ", detail))
+            result[feed] = ok
+            bad += 0 if ok else 1
+        if result.get("task") and not result.get("constraintLog"):
+            print("%-11s %-15s ^ the task feed works but constraintLog does not: either this"
+                  % ("", ""))
+            print("%-11s %-15s   project has no constraints report (the Constraints tab will"
+                  % ("", ""))
+            print("%-11s %-15s   just be empty), or the token pre-dates one-token-per-project -"
+                  % ("", ""))
+            print("%-11s %-15s   ask VisiLean for a fresh project token." % ("", ""))
+    return bad
+
+
 def main():
     if len(sys.argv) < 2:
         raise SystemExit("usage: check_tokens_json.py <tokens.json>")
@@ -65,45 +104,16 @@ def main():
         print("No such file: %s" % path)
         return 1
     try:
-        blob = json.load(open(path, encoding="utf-8"))
-    except Exception as e:
-        print("Not valid JSON: %s" % e)
-        print("GitHub will accept it, but the first run will fail on this - fix it now.")
+        tokens = parse_tokens_map(io.open(path, encoding="utf-8").read(), path)
+    except TokenError as e:
+        print(str(e))
+        print("GitHub will accept it, but every workflow will fail on it - fix it now.")
         return 1
-    if not isinstance(blob, dict):
-        print("The file must be a JSON object."); return 1
+    if not tokens:
+        print("%s holds no tokens." % path)
+        return 1
 
-    ids = project_ids()
-    bad = 0
-    print("%-11s %-15s %s" % ("PROJECT", "FEED", "VISILEAN SAYS"))
-    print("-" * 64)
-
-    for key in sorted(k for k in blob if isinstance(blob[k], dict)):
-        pid = ids.get(key)
-        if not pid:
-            print("%-11s %-15s no scripts/projects/%s.json - unknown project key" % (key, "-", key))
-            bad += 1
-            continue
-        for slot in ("task", "history", "constraintLog"):
-            tok = (blob[key] or {}).get(slot, "")
-            if not tok:
-                print("%-11s %-15s missing" % (key, slot)); bad += 1; continue
-            ok, detail = probe(tok, pid, slot)
-            print("%-11s %-15s %s%s" % (key, slot, "OK  " if ok else "FAILED  ", detail))
-            bad += 0 if ok else 1
-
-    adopt = {k: blob.get(k, "") for k in ("adopt_task", "adopt_hist", "adopt_notes")}
-    if any(adopt.values()):
-        # the adoption tracker reads NTPC's project with its own tokens
-        pid = ids.get("ntpc", "")
-        for k, slot in (("adopt_task", "task"), ("adopt_hist", "history"),
-                        ("adopt_notes", "constraintLog")):
-            if not adopt[k]:
-                print("%-11s %-15s missing" % ("adoption", k)); bad += 1; continue
-            ok, detail = probe(adopt[k], pid, slot)
-            print("%-11s %-15s %s%s" % ("adoption", k, "OK  " if ok else "FAILED  ", detail))
-            bad += 0 if ok else 1
-
+    bad = check_map(tokens, project_ids())
     print()
     if bad:
         print("%d problem(s). VisiLean distinguishes two failures, and they need different fixes:" % bad)
@@ -112,7 +122,8 @@ def main():
         print("  HTTP 500 'API does not exist'                  - VisiLean does not recognise the")
         print("           token at all: mistyped, truncated, or revoked. Generate it again.")
         return 1
-    print("Every token works. Safe to paste into the VL_TOKENS_JSON secret.")
+    print("Every token works for all three feeds. Paste the file into the VL_TOKENS_JSON")
+    print("secret, or set each entry as its own VL_TOKEN_<KEY> secret (VL_TOKEN_SJVN, ...).")
     return 0
 
 
