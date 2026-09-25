@@ -410,6 +410,16 @@ th .thf{margin-left:4px;vertical-align:middle}
 #rsnmodal-bd{padding:10px 14px 14px;overflow:auto;flex:1 1 auto;min-height:0}
 #tip{position:fixed;z-index:400;background:var(--tip-bg);color:var(--tip-fg);border-radius:6px;padding:6px 9px;font-size:10px;pointer-events:none;box-shadow:var(--shadow-popover);display:none;max-width:290px;line-height:1.45}
 #tip .t2{color:var(--tip-fg2)}
+/* only rendered when the build is old enough to question - see checkSyncHealth() */
+#syncwarn{display:flex;gap:10px;align-items:flex-start;margin:0 0 9px;padding:9px 12px;
+ border:1px solid var(--line2);border-radius:var(--r-tile,10px);background:var(--warn-wash);font-size:11px;line-height:1.5}
+#syncwarn[hidden]{display:none}
+#syncwarn.bad{background:var(--crit-wash)}
+#syncwarn .ico{font-size:14px;line-height:1.2}
+#syncwarn b{display:block;margin-bottom:1px}
+#syncwarn .sub{color:var(--ink2)}
+#syncwarn a{color:var(--blue);font-weight:700;text-decoration:none}
+#syncwarn a:hover{text-decoration:underline}
 /* sentinel the tooltip clamp measures the visible band with - see visibleBox() */
 #vport{position:fixed;inset:0;pointer-events:none;visibility:hidden;z-index:-1}
 #copyfall{display:none;position:fixed;z-index:500;right:16px;bottom:16px;width:min(520px,88vw);
@@ -562,6 +572,7 @@ html{zoom:1.3}
       <span class="vleg" id="vleg" style="margin-left:auto">VisiLean status (live):</span>
       <span class="fnote" id="f-count"></span>
     </div>
+    <div id="syncwarn" hidden></div>
     <div id="page"></div>
   </main>
 </div>
@@ -621,6 +632,8 @@ const SW = M.statusWd;
 // template serves more than one project. The data builder publishes DATA.cfg for its
 // project; anything it leaves out falls back to the NTPC Bikaner values below.
 const CFG=Object.assign({
+  // which GitHub Actions workflow keeps THIS dashboard fed - used by checkSyncHealth()
+  syncRepo:"Vikas-visilean/ntpc-block8-mis-dashboard", syncWorkflow:"refresh-v2.yml",
   title:"KPIGEL-NTPC Bikaner Block 8 (200MW) — MIS Dashboard v2 (Live)",
   name:"NTPC Bikaner Block 8 · 200 MW", client:"KPI Green Energy", capacity:"200 MWac",
   location:"Bikaner, Rajasthan", plant:"NTPC Bikaner — Block 8", clientShort:"NTPC",
@@ -834,7 +847,7 @@ function vlChip(v){const k=vlKey(v);const m=VLMAP[k];return m?chip(m[0],vlText(k
 // ---------- am I the build the server has? ----------------------------------
 // Read in an iframe that can hold a cached copy for hours, so the page asks rather than
 // assumes. Replaces itself once per published build; silent when it is already current.
-const BUILD_ID="85e71c5c2ab3bf72";
+const BUILD_ID="cbc676c4bbdfcac0";
 (function(){
   if(!window.fetch || BUILD_ID.indexOf("BUILD")>=0) return;   // not stamped: nothing to check
   let ss=null; try{ss=window.sessionStorage; ss.getItem("x")}catch(e){ss=null}
@@ -874,6 +887,59 @@ function rowStatus(r){
        :                         ["vlnc",vlText("notcommitted")];
 }
 function rowChip(r){const s=rowStatus(r); return chip(s[0],s[1])}
+// VisiLean's own status colours, the same ones the chips use, for the 3D model
+const VLCOL={vlnc:0xE5D24B, vlnr:0xF0796B, vlr:0x66E353, vlfr:0xAFCB37, vls:0x41127E,
+             vlw:0xE0B520, vlst:0xDC1F1F, vlc:0x57A344, vlrq:0x7B85C9, vlqc:0x1C2050};
+const VLHEX=c=>"#"+(VLCOL[c]||0x9aa0a6).toString(16).padStart(6,"0");
+// what states a set of activities is in, and the one most of it is in
+function statusMix(rr){
+  const by=new Map();
+  (rr||[]).forEach(r=>{
+    const st=rowStatus(r), e=by.get(st[1])||{n:0,cls:st[0]};
+    e.n++; by.set(st[1], e);
+  });
+  let top=null;
+  by.forEach((v,label)=>{if(!top||v.n>top.n) top={label, n:v.n, cls:v.cls}});
+  return {top, by, total:(rr||[]).length};
+}
+const statusColour=rr=>{const m=statusMix(rr); return m.top?(VLCOL[m.top.cls]||0x9aa0a6):0x9aa0a6};
+// [colour, share] per state, in the order work moves through, shares summing to 1
+function statusShares(rr){
+  const m=statusMix(rr); if(!m.total) return [];
+  const out=[], named=[];
+  VLORDER.forEach(k=>{
+    if(!VLMAP[k]) return;
+    const label=vlText(k); named.push(label);
+    const v=m.by.get(label);
+    if(v) out.push([VLCOL[v.cls]||0x9aa0a6, v.n/m.total]);
+  });
+  m.by.forEach((v,label)=>{
+    if(named.indexOf(label)<0) out.push([VLCOL[v.cls]||0x9aa0a6, v.n/m.total]);
+  });
+  return out;
+}
+// the mix as one line, biggest first, for a tooltip
+function statusBreakdown(rr){
+  const m=statusMix(rr); if(!m.top) return "";
+  return [...m.by.entries()].sort((a,b)=>b[1].n-a[1].n)
+    .map(([label,v])=>`<span style="color:${VLHEX(v.cls)}">●</span> ${esc(label)} ${v.n}`)
+    .join(" · ");
+}
+// only the states actually present, in the order work moves through them
+function statusLegend(rows){
+  const m=statusMix(rows), out=[], named=[];
+  VLORDER.forEach(k=>{
+    if(!VLMAP[k]) return;
+    const label=vlText(k); named.push(label);
+    const v=m.by.get(label);
+    if(v) out.push(`<span><span class="sw" style="background:${VLHEX(v.cls)}"></span>${esc(label)} ${v.n}</span>`);
+  });
+  m.by.forEach((v,label)=>{                       // anything the order does not name
+    if(named.indexOf(label)<0)
+      out.push(`<span><span class="sw" style="background:${VLHEX(v.cls)}"></span>${esc(label)} ${v.n}</span>`);
+  });
+  return out.join("");
+}
 // ---------- speedometer gauge (semicircle, correct sweep) ----------
 function gauge(a,p){
   const Wc=170,Hc=104,cx=85,cy=90,R=62;
@@ -3079,8 +3145,7 @@ function site3d(rows,idp){
   return `<div class="legend" style="margin-bottom:4px">
       <span><span class="sw" style="background:#24507f"></span>arrays built (tint + installed rows = actual %)</span>
       <span><span class="sw" style="background:#c4bba3"></span>graded pad, piles only</span>
-      <span><span class="sw" style="background:#2e9e57"></span>at or ahead of plan</span>
-      <span><span class="sw" style="background:#d9534f"></span>behind plan</span>
+      ${statusLegend(rows)}
       <span><span class="sw" style="background:#3567d6"></span>plot boundary</span>
       <span><span class="sw" style="background:#1fa8bd"></span>TL corridor</span>
       <span class="dim">${(S.extent[0]/1000).toFixed(1)} km × ${(S.extent[1]/1000).toFixed(1)} km · ${PITCH} m row pitch · ${(S.wtg||[]).length} WTG · drag to orbit, scroll to zoom in on the pointer, shift-drag to pan, double-click to reset · click a block to filter</span></div>
@@ -3257,6 +3322,47 @@ function buildGL(rows, idp, box, S){
 
   // a vertical band standing on the edge of a pad: the block boundary, readable in
   // perspective in a way a line painted flat on the deck is not
+  // The kerb, divided round the perimeter in proportion to the states inside the block.
+  // Sampled rather than split exactly at each boundary: at roughly four hundred slices the
+  // stagger is well under a metre on a 1.5 km perimeter and the code stays honest.
+  const mixWall=(ring, y0, h, segs)=>{
+    if(!segs || !segs.length) return null;
+    const edges=[]; let per=0;
+    for(let i=0;i<ring.length;i++){
+      const a=ring[i], b=ring[(i+1)%ring.length];
+      const L=Math.hypot(b[0]-a[0], b[1]-a[1]);
+      if(L>1e-6){edges.push([a,b,L,per]); per+=L}
+    }
+    if(!per) return null;
+    const at=d=>{
+      for(let i=0;i<edges.length;i++){
+        const e=edges[i];
+        if(d<=e[3]+e[2]){const t=(d-e[3])/e[2]; return [e[0][0]+(e[1][0]-e[0][0])*t, e[0][1]+(e[1][1]-e[0][1])*t]}
+      }
+      return edges[edges.length-1][1];
+    };
+    const cum=[]; let acc=0; segs.forEach(sg=>{acc+=sg[1]; cum.push(acc)});
+    const colAt=f=>{for(let i=0;i<cum.length;i++) if(f<=cum[i]+1e-9) return segs[i][0];
+                    return segs[segs.length-1][0]};
+    const STEP=Math.max(1.5, per/420);
+    const pos=[], col=[], idx=[]; let n=0;
+    for(let d=0; d<per-1e-6; d+=STEP){
+      const d2=Math.min(per, d+STEP), p0=at(d), p1=at(d2);
+      const c=colAt(((d+d2)/2)/per);
+      const cr=((c>>16)&255)/255, cg=((c>>8)&255)/255, cb=(c&255)/255;
+      pos.push(p0[0],y0,Z(p0[1]), p1[0],y0,Z(p1[1]), p0[0],y0+h,Z(p0[1]), p1[0],y0+h,Z(p1[1]));
+      for(let k=0;k<4;k++) col.push(cr,cg,cb);
+      idx.push(n,n+1,n+2, n+1,n+3,n+2); n+=4;
+    }
+    const g=new T.BufferGeometry();
+    g.setAttribute("position", new T.Float32BufferAttribute(pos,3));
+    g.setAttribute("color", new T.Float32BufferAttribute(col,3));
+    g.setIndex(idx); g.computeVertexNormals();
+    // unlit: a status colour should read the same whichever way the block faces the sun
+    const mat=new T.MeshBasicMaterial({vertexColors:true, side:T.DoubleSide, transparent:true});
+    const mesh=new T.Mesh(g, mat); scene.add(mesh);
+    return mesh;
+  };
   const wall=(ring, y0, h, colour)=>{
     const pos=[], idx=[]; let n=0;
     for(let i=0;i<ring.length;i++){
@@ -3292,11 +3398,13 @@ function buildGL(rows, idp, box, S){
     const m=new T.Mesh(geo, [new T.MeshLambertMaterial({map:padTex, transparent:true}),
                              new T.MeshLambertMaterial({color:0x9c9378, transparent:true})]);
     m.castShadow=true; m.receiveShadow=true;
-    m.userData={area:b.area, act:act, pln:pln, n:rr.length, ha:b.areaM2/10000, approx:!!b.approx};
+    m.userData={area:b.area, act:act, pln:pln, n:rr.length, ha:b.areaM2/10000, approx:!!b.approx,
+                mix:statusBreakdown(rr)};
     scene.add(m); blocks.push(m);
-    // a kerb round every block, so one block is told from the next at any camera angle,
-    // and its colour is the one the rest of the dashboard uses for ahead of / behind plan
-    m.userData.kerb=wall(b.poly, PAD, 5.0, act>=pln-0.05 ? 0x2fae60 : 0xe4564f);
+    // a kerb round every block, so one block is told from the next at any camera angle.
+    // Its colour is the VisiLean state most of the block's activities are in - ahead of and
+    // behind plan are already carried by the block's own label, which tints its percentage.
+    m.userData.kerb=mixWall(b.poly, PAD, 5.6, statusShares(rr));
 
     const ys=b.poly.map(q=>q[1]), y0=Math.min(...ys), y1=Math.max(...ys);
     const nrow=Math.max(1, Math.floor((y1-y0)/PITCH));
@@ -3491,7 +3599,8 @@ function buildGL(rows, idp, box, S){
     const o=hitAt(e);
     if(!o){hideTip(); el.style.cursor="grab"; return}
     const u=o.userData; el.style.cursor="pointer";
-    showTip(e, `${esc(u.area)}${u.approx?" (outline approximate)":""}<br>Actual <b>${fmt1(u.act)}%</b> · plan ${fmt1(u.pln)}%<br>${u.n} activities · ${u.ha.toFixed(1)} ha`);
+    showTip(e, `${esc(u.area)}${u.approx?" (outline approximate)":""}<br>Actual <b>${fmt1(u.act)}%</b> · plan ${fmt1(u.pln)}%<br>${u.n} activities · ${u.ha.toFixed(1)} ha`
+      +(u.mix?`<br><span style="opacity:.85">${u.mix}</span>`:``));
   };
   const pick=e=>{const o=hitAt(e); if(!o) return;
     const a=o.userData.area; hideTip(); state.f.area=(state.f.area===a?"":a); render()};
@@ -3795,7 +3904,9 @@ function buildParkGL(rows, idp, box, P){
       const m=new T.Mesh(geo,[S6APAD, new T.MeshLambertMaterial({color:0x9c9378})]);
       s6aDeck.push(m);
       m.userData={area:b.area,
-        tip:`<b>${esc(b.area)}</b> · S6a<br>Actual <b>${fmt1(act)}%</b> · plan ${fmt1(pln)}%<br>${rr.length} activities · ${(b.areaM2/10000).toFixed(1)} ha<br><span style="opacity:.75">click to filter the page</span>`};
+        tip:`<b>${esc(b.area)}</b> · S6a<br>Actual <b>${fmt1(act)}%</b> · plan ${fmt1(pln)}%<br>${rr.length} activities · ${(b.areaM2/10000).toFixed(1)} ha`
+          +(statusBreakdown(rr)?`<br><span style="opacity:.85">${statusBreakdown(rr)}</span>`:``)
+          +`<br><span style="opacity:.75">click to filter the page</span>`};
       scene.add(m); picks.push(m);
       s6aTags.push({name:b.area.replace("Block-","ICR-"), act:act, pln:pln,
                     tip:m.userData.tip, x:(Math.min(...ring.map(q=>q[0]))+Math.max(...ring.map(q=>q[0])))/2,
@@ -3809,7 +3920,7 @@ function buildParkGL(rows, idp, box, P){
       }
       const kg=new T.BufferGeometry();
       kg.setAttribute("position",new T.Float32BufferAttribute(kp,3)); kg.setIndex(ki); kg.computeVertexNormals();
-      const kc=act>=pln-0.05?0x2fae60:0xe4564f;
+      const kc=statusColour(rr);
       scene.add(new T.Mesh(kg,new T.MeshLambertMaterial({color:kc,emissive:kc,emissiveIntensity:0.22,side:T.DoubleSide})));
       // the tables, built and still to come
       const ys=ring.map(q=>q[1]), y0=Math.min(...ys), y1=Math.max(...ys);
@@ -4838,6 +4949,57 @@ if(_rbtn)_rbtn.addEventListener("click",async()=>{
     setTimeout(reload,400);
   }
 });
+// ---------- is the data still arriving? ----------
+// The sync publishes only when VisiLean data CHANGES, so an old build is not by itself
+// a fault - a quiet project genuinely looks like this. What separates "quiet" from
+// "broken" is whether this project's workflow is still running, so only once a build is
+// old enough to question do we ask GitHub, and only then does anything render.
+// substituted by the builder - a page names its OWN sync, whatever its data age
+const SYNC = Object.assign({repo:"Vikas-visilean/ntpc-block8-mis-dashboard",
+                           workflow:"refresh-v2.yml"}, {"repo": "Vikas-visilean/ntpc-block8-mis-dashboard", "workflow": "refresh-adani.yml"});
+const SYNC_WARN_HOURS = 26;
+async function checkSyncHealth(){
+  const el=document.getElementById("syncwarn");
+  if(!el||!M.generatedAtEpoch)return;
+  const hrs=(Date.now()/1000-M.generatedAtEpoch)/3600;
+  if(hrs<SYNC_WARN_HOURS)return;                 // normal operation: say nothing
+  const age=hrs<48?`${Math.round(hrs)} hours`:`${(hrs/24).toFixed(1)} days`;
+  let bad=false,verdict="",fix="";
+  try{
+    const wf=SYNC.workflow;
+    if(wf){
+      const r=await fetch(`https://api.github.com/repos/${SYNC.repo}/actions/workflows/${wf}/runs?per_page=1`,{cache:"no-store"});
+      if(r.ok){
+        const j=await r.json(),run=(j.workflow_runs||[])[0];
+        if(!run){bad=true;verdict="Its sync has never run."}
+        else if(run.status!=="completed"){verdict="Its sync is running now, so this is the latest VisiLean has.";}
+        else if(run.conclusion==="success"){
+          // A run with no credentials SUCCEEDS with its refresh loop skipped - that is
+          // deliberate, it stops the mail storm. But a skipped loop is not a healthy
+          // sync, so ask the steps before calling this "fine".
+          let skipped=false;
+          try{
+            const jr=await fetch(`https://api.github.com/repos/${SYNC.repo}/actions/runs/${run.id}/jobs`,{cache:"no-store"});
+            if(jr.ok){const jj=await jr.json();
+              (jj.jobs||[]).forEach(j=>(j.steps||[]).forEach(s=>{
+                if(String(s.name||"").indexOf("Refresh loop")===0&&s.conclusion==="skipped")skipped=true}));}
+          }catch(e){}
+          if(skipped){bad=true;verdict="Its sync is not set up, so this dashboard is not being refreshed.";
+                      fix=` <a href="${run.html_url}" target="_blank" rel="noopener">Details ↗</a>`}
+          else verdict="Its sync last ran without error, so VisiLean has published no changes since.";
+        }
+        else{bad=true;verdict="Its sync is failing.";fix=` <a href="${run.html_url}" target="_blank" rel="noopener">See why \u2197</a>`}
+      }
+    }
+  }catch(e){/* rate-limited or offline - still show the age, just not the verdict */}
+  el.className=bad?"bad":"";
+  el.innerHTML=`<span class="ico">${bad?"\u26a0":"\u2139"}</span><span>`
+    +`<b>This build is ${age} old.</b>`
+    +`<span class="sub">${esc(verdict||"Could not check whether the sync is running.")}${fix}</span></span>`;
+  el.hidden=false;
+}
+setTimeout(()=>{try{checkSyncHealth()}catch(e){}},1200);
+
 // keep the reader's place across a reload
 function saveUI(){
   try{_uiWrite(JSON.stringify({
@@ -4845,16 +5007,22 @@ function saveUI(){
     scSel,pipeSearch,pipeDelOnly,pipeL1,pipeL2,statSel,regQ,regStatus,
     rsnCat,rsnSel,consTab,y:window.scrollY,t:Date.now()}))}catch(e){}
 }
+// Every project dashboard is served from the same origin, so one shared key meant the
+// filters, date slider and page you left on one project were restored onto the next -
+// and a package or owner that does not exist there filters the page down to nothing.
+// Keyed per project now; the old shared entry is cleared once so it cannot leak again.
+const UIKEY = "kp-ui:" + (CFG.key || CFG.name || "default");
+try{localStorage.removeItem("kp-ui");sessionStorage.removeItem("kp-ui")}catch(e){}
 // Written to both stores: sessionStorage is per-tab, localStorage survives a reload
 // driven by whatever is hosting the page. Whichever is readable wins on the way back.
 function _uiWrite(s){
-  try{sessionStorage.setItem("kp-ui",s)}catch(e){}
-  try{localStorage.setItem("kp-ui",s)}catch(e){}
+  try{sessionStorage.setItem(UIKEY,s)}catch(e){}
+  try{localStorage.setItem(UIKEY,s)}catch(e){}
 }
 function _uiRead(){
   let a=null,b=null;
-  try{a=JSON.parse(sessionStorage.getItem("kp-ui")||"null")}catch(e){}
-  try{b=JSON.parse(localStorage.getItem("kp-ui")||"null")}catch(e){}
+  try{a=JSON.parse(sessionStorage.getItem(UIKEY)||"null")}catch(e){}
+  try{b=JSON.parse(localStorage.getItem(UIKEY)||"null")}catch(e){}
   if(a&&b)return (b.t||0)>(a.t||0)?b:a;
   return a||b;
 }
