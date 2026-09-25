@@ -39,6 +39,18 @@ shaped like this:
 Include only the projects you have tokens for — anything missing is simply skipped, and
 you can add it later by editing the one secret.
 
+**Check the tokens before you paste them.** A wrong token fails quietly in a runner log,
+so verify while the file is still in front of you:
+
+```bash
+python scripts/check_tokens_json.py tokens.json
+```
+
+It asks VisiLean about every feed and prints row counts or the exact error — never a
+token. `HTTP 400 not valid for the requested project` means a real token filed under the
+wrong key; `HTTP 500 API does not exist` means VisiLean doesn't recognise it at all
+(mistyped, truncated or revoked).
+
 **Setting it:**
 
 - **Browser** — Settings → Secrets and variables → Actions → *New repository secret*,
