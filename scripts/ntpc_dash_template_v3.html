@@ -887,6 +887,59 @@ function rowStatus(r){
        :                         ["vlnc",vlText("notcommitted")];
 }
 function rowChip(r){const s=rowStatus(r); return chip(s[0],s[1])}
+// VisiLean's own status colours, the same ones the chips use, for the 3D model
+const VLCOL={vlnc:0xE5D24B, vlnr:0xF0796B, vlr:0x66E353, vlfr:0xAFCB37, vls:0x41127E,
+             vlw:0xE0B520, vlst:0xDC1F1F, vlc:0x57A344, vlrq:0x7B85C9, vlqc:0x1C2050};
+const VLHEX=c=>"#"+(VLCOL[c]||0x9aa0a6).toString(16).padStart(6,"0");
+// what states a set of activities is in, and the one most of it is in
+function statusMix(rr){
+  const by=new Map();
+  (rr||[]).forEach(r=>{
+    const st=rowStatus(r), e=by.get(st[1])||{n:0,cls:st[0]};
+    e.n++; by.set(st[1], e);
+  });
+  let top=null;
+  by.forEach((v,label)=>{if(!top||v.n>top.n) top={label, n:v.n, cls:v.cls}});
+  return {top, by, total:(rr||[]).length};
+}
+const statusColour=rr=>{const m=statusMix(rr); return m.top?(VLCOL[m.top.cls]||0x9aa0a6):0x9aa0a6};
+// [colour, share] per state, in the order work moves through, shares summing to 1
+function statusShares(rr){
+  const m=statusMix(rr); if(!m.total) return [];
+  const out=[], named=[];
+  VLORDER.forEach(k=>{
+    if(!VLMAP[k]) return;
+    const label=vlText(k); named.push(label);
+    const v=m.by.get(label);
+    if(v) out.push([VLCOL[v.cls]||0x9aa0a6, v.n/m.total]);
+  });
+  m.by.forEach((v,label)=>{
+    if(named.indexOf(label)<0) out.push([VLCOL[v.cls]||0x9aa0a6, v.n/m.total]);
+  });
+  return out;
+}
+// the mix as one line, biggest first, for a tooltip
+function statusBreakdown(rr){
+  const m=statusMix(rr); if(!m.top) return "";
+  return [...m.by.entries()].sort((a,b)=>b[1].n-a[1].n)
+    .map(([label,v])=>`<span style="color:${VLHEX(v.cls)}">●</span> ${esc(label)} ${v.n}`)
+    .join(" · ");
+}
+// only the states actually present, in the order work moves through them
+function statusLegend(rows){
+  const m=statusMix(rows), out=[], named=[];
+  VLORDER.forEach(k=>{
+    if(!VLMAP[k]) return;
+    const label=vlText(k); named.push(label);
+    const v=m.by.get(label);
+    if(v) out.push(`<span><span class="sw" style="background:${VLHEX(v.cls)}"></span>${esc(label)} ${v.n}</span>`);
+  });
+  m.by.forEach((v,label)=>{                       // anything the order does not name
+    if(named.indexOf(label)<0)
+      out.push(`<span><span class="sw" style="background:${VLHEX(v.cls)}"></span>${esc(label)} ${v.n}</span>`);
+  });
+  return out.join("");
+}
 // ---------- speedometer gauge (semicircle, correct sweep) ----------
 function gauge(a,p){
   const Wc=170,Hc=104,cx=85,cy=90,R=62;
@@ -3092,8 +3145,7 @@ function site3d(rows,idp){
   return `<div class="legend" style="margin-bottom:4px">
       <span><span class="sw" style="background:#24507f"></span>arrays built (tint + installed rows = actual %)</span>
       <span><span class="sw" style="background:#c4bba3"></span>graded pad, piles only</span>
-      <span><span class="sw" style="background:#2e9e57"></span>at or ahead of plan</span>
-      <span><span class="sw" style="background:#d9534f"></span>behind plan</span>
+      ${statusLegend(rows)}
       <span><span class="sw" style="background:#3567d6"></span>plot boundary</span>
       <span><span class="sw" style="background:#1fa8bd"></span>TL corridor</span>
       <span class="dim">${(S.extent[0]/1000).toFixed(1)} km × ${(S.extent[1]/1000).toFixed(1)} km · ${PITCH} m row pitch · ${(S.wtg||[]).length} WTG · drag to orbit, scroll to zoom in on the pointer, shift-drag to pan, double-click to reset · click a block to filter</span></div>
@@ -3270,6 +3322,47 @@ function buildGL(rows, idp, box, S){
 
   // a vertical band standing on the edge of a pad: the block boundary, readable in
   // perspective in a way a line painted flat on the deck is not
+  // The kerb, divided round the perimeter in proportion to the states inside the block.
+  // Sampled rather than split exactly at each boundary: at roughly four hundred slices the
+  // stagger is well under a metre on a 1.5 km perimeter and the code stays honest.
+  const mixWall=(ring, y0, h, segs)=>{
+    if(!segs || !segs.length) return null;
+    const edges=[]; let per=0;
+    for(let i=0;i<ring.length;i++){
+      const a=ring[i], b=ring[(i+1)%ring.length];
+      const L=Math.hypot(b[0]-a[0], b[1]-a[1]);
+      if(L>1e-6){edges.push([a,b,L,per]); per+=L}
+    }
+    if(!per) return null;
+    const at=d=>{
+      for(let i=0;i<edges.length;i++){
+        const e=edges[i];
+        if(d<=e[3]+e[2]){const t=(d-e[3])/e[2]; return [e[0][0]+(e[1][0]-e[0][0])*t, e[0][1]+(e[1][1]-e[0][1])*t]}
+      }
+      return edges[edges.length-1][1];
+    };
+    const cum=[]; let acc=0; segs.forEach(sg=>{acc+=sg[1]; cum.push(acc)});
+    const colAt=f=>{for(let i=0;i<cum.length;i++) if(f<=cum[i]+1e-9) return segs[i][0];
+                    return segs[segs.length-1][0]};
+    const STEP=Math.max(1.5, per/420);
+    const pos=[], col=[], idx=[]; let n=0;
+    for(let d=0; d<per-1e-6; d+=STEP){
+      const d2=Math.min(per, d+STEP), p0=at(d), p1=at(d2);
+      const c=colAt(((d+d2)/2)/per);
+      const cr=((c>>16)&255)/255, cg=((c>>8)&255)/255, cb=(c&255)/255;
+      pos.push(p0[0],y0,Z(p0[1]), p1[0],y0,Z(p1[1]), p0[0],y0+h,Z(p0[1]), p1[0],y0+h,Z(p1[1]));
+      for(let k=0;k<4;k++) col.push(cr,cg,cb);
+      idx.push(n,n+1,n+2, n+1,n+3,n+2); n+=4;
+    }
+    const g=new T.BufferGeometry();
+    g.setAttribute("position", new T.Float32BufferAttribute(pos,3));
+    g.setAttribute("color", new T.Float32BufferAttribute(col,3));
+    g.setIndex(idx); g.computeVertexNormals();
+    // unlit: a status colour should read the same whichever way the block faces the sun
+    const mat=new T.MeshBasicMaterial({vertexColors:true, side:T.DoubleSide, transparent:true});
+    const mesh=new T.Mesh(g, mat); scene.add(mesh);
+    return mesh;
+  };
   const wall=(ring, y0, h, colour)=>{
     const pos=[], idx=[]; let n=0;
     for(let i=0;i<ring.length;i++){
@@ -3305,11 +3398,13 @@ function buildGL(rows, idp, box, S){
     const m=new T.Mesh(geo, [new T.MeshLambertMaterial({map:padTex, transparent:true}),
                              new T.MeshLambertMaterial({color:0x9c9378, transparent:true})]);
     m.castShadow=true; m.receiveShadow=true;
-    m.userData={area:b.area, act:act, pln:pln, n:rr.length, ha:b.areaM2/10000, approx:!!b.approx};
+    m.userData={area:b.area, act:act, pln:pln, n:rr.length, ha:b.areaM2/10000, approx:!!b.approx,
+                mix:statusBreakdown(rr)};
     scene.add(m); blocks.push(m);
-    // a kerb round every block, so one block is told from the next at any camera angle,
-    // and its colour is the one the rest of the dashboard uses for ahead of / behind plan
-    m.userData.kerb=wall(b.poly, PAD, 5.0, act>=pln-0.05 ? 0x2fae60 : 0xe4564f);
+    // a kerb round every block, so one block is told from the next at any camera angle.
+    // Its colour is the VisiLean state most of the block's activities are in - ahead of and
+    // behind plan are already carried by the block's own label, which tints its percentage.
+    m.userData.kerb=mixWall(b.poly, PAD, 5.6, statusShares(rr));
 
     const ys=b.poly.map(q=>q[1]), y0=Math.min(...ys), y1=Math.max(...ys);
     const nrow=Math.max(1, Math.floor((y1-y0)/PITCH));
@@ -3504,7 +3599,8 @@ function buildGL(rows, idp, box, S){
     const o=hitAt(e);
     if(!o){hideTip(); el.style.cursor="grab"; return}
     const u=o.userData; el.style.cursor="pointer";
-    showTip(e, `${esc(u.area)}${u.approx?" (outline approximate)":""}<br>Actual <b>${fmt1(u.act)}%</b> · plan ${fmt1(u.pln)}%<br>${u.n} activities · ${u.ha.toFixed(1)} ha`);
+    showTip(e, `${esc(u.area)}${u.approx?" (outline approximate)":""}<br>Actual <b>${fmt1(u.act)}%</b> · plan ${fmt1(u.pln)}%<br>${u.n} activities · ${u.ha.toFixed(1)} ha`
+      +(u.mix?`<br><span style="opacity:.85">${u.mix}</span>`:``));
   };
   const pick=e=>{const o=hitAt(e); if(!o) return;
     const a=o.userData.area; hideTip(); state.f.area=(state.f.area===a?"":a); render()};
@@ -3808,7 +3904,9 @@ function buildParkGL(rows, idp, box, P){
       const m=new T.Mesh(geo,[S6APAD, new T.MeshLambertMaterial({color:0x9c9378})]);
       s6aDeck.push(m);
       m.userData={area:b.area,
-        tip:`<b>${esc(b.area)}</b> · S6a<br>Actual <b>${fmt1(act)}%</b> · plan ${fmt1(pln)}%<br>${rr.length} activities · ${(b.areaM2/10000).toFixed(1)} ha<br><span style="opacity:.75">click to filter the page</span>`};
+        tip:`<b>${esc(b.area)}</b> · S6a<br>Actual <b>${fmt1(act)}%</b> · plan ${fmt1(pln)}%<br>${rr.length} activities · ${(b.areaM2/10000).toFixed(1)} ha`
+          +(statusBreakdown(rr)?`<br><span style="opacity:.85">${statusBreakdown(rr)}</span>`:``)
+          +`<br><span style="opacity:.75">click to filter the page</span>`};
       scene.add(m); picks.push(m);
       s6aTags.push({name:b.area.replace("Block-","ICR-"), act:act, pln:pln,
                     tip:m.userData.tip, x:(Math.min(...ring.map(q=>q[0]))+Math.max(...ring.map(q=>q[0])))/2,
@@ -3822,7 +3920,7 @@ function buildParkGL(rows, idp, box, P){
       }
       const kg=new T.BufferGeometry();
       kg.setAttribute("position",new T.Float32BufferAttribute(kp,3)); kg.setIndex(ki); kg.computeVertexNormals();
-      const kc=act>=pln-0.05?0x2fae60:0xe4564f;
+      const kc=statusColour(rr);
       scene.add(new T.Mesh(kg,new T.MeshLambertMaterial({color:kc,emissive:kc,emissiveIntensity:0.22,side:T.DoubleSide})));
       // the tables, built and still to come
       const ys=ring.map(q=>q[1]), y0=Math.min(...ys), y1=Math.max(...ys);
